@@ -38,7 +38,7 @@ export default function Layout() {
             <Menu className="w-5 h-5" />
           </button>
 
-          <h1 className="text-lg font-bold font-heading hidden sm:block">{title}</h1>
+          <h1 className="text-lg font-bold font-heading hidden sm:block text-foreground">{title}</h1>
 
           <div className="flex-1 max-w-md mx-auto">
             <div className="relative">
@@ -70,7 +70,7 @@ export default function Layout() {
                 OP
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold leading-tight">Operador Demo</p>
+                <p className="text-sm font-semibold leading-tight">Operador WOOW</p>
                 <p className="text-xs text-muted-foreground">Atendente</p>
               </div>
             </div>

@@ -27,13 +27,18 @@ export default function Sidebar({ collapsed, setCollapsed }) {
   return (
     <aside className={`${collapsed ? "w-20" : "w-64"} flex-shrink-0 bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 border-r border-sidebar-border`}>
       <div className="h-16 flex items-center gap-3 px-4 border-b border-sidebar-border">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
-          <Zap className="w-5 h-5 text-white" fill="white" />
+        <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0 text-white font-black text-xs leading-none">
+          <svg width="24" height="18" viewBox="0 0 24 18" fill="none">
+            <path d="M2 9 C2 4.6 5.6 1 10 1" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            <path d="M4.5 9 C4.5 6 6.9 3.5 10 3.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            <path d="M7 9 C7 7.3 8.3 6 10 6" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            <circle cx="10" cy="9" r="1.5" fill="white"/>
+          </svg>
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <p className="font-bold text-sm leading-tight">Atendimento 360</p>
-            <p className="text-xs text-sidebar-foreground/60">ISP Platform</p>
+            <p className="font-black text-base leading-tight tracking-wide text-white">WOOW</p>
+            <p className="text-xs text-accent font-semibold tracking-widest leading-tight">TELECOM</p>
           </div>
         )}
       </div>

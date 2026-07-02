@@ -31,12 +31,17 @@ export default function Landing() {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" fill="white" />
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+              <svg width="22" height="16" viewBox="0 0 24 18" fill="none">
+                <path d="M2 9 C2 4.6 5.6 1 10 1" stroke="#FE6915" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <path d="M4.5 9 C4.5 6 6.9 3.5 10 3.5" stroke="#FE6915" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <path d="M7 9 C7 7.3 8.3 6 10 6" stroke="#FE6915" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <circle cx="10" cy="9" r="1.5" fill="#FE6915"/>
+              </svg>
             </div>
             <div>
-              <p className="font-bold text-sm leading-tight">Atendimento 360</p>
-              <p className="text-xs text-muted-foreground leading-tight">ISP Platform</p>
+              <p className="font-black text-base leading-tight tracking-wide text-primary">WOOW</p>
+              <p className="text-xs text-accent font-semibold tracking-widest leading-tight">TELECOM</p>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -54,11 +59,11 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-background to-green-50" />
         <div className="relative max-w-7xl mx-auto px-6 py-20 md:py-28 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium mb-6">
-            <Star className="w-4 h-4" fill="currentColor" /> Plataforma Nº 1 para Provedores de Internet
+            <Star className="w-4 h-4" fill="currentColor" /> Plataforma oficial WOOW Telecom
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold font-heading leading-tight mb-6 max-w-4xl mx-auto">
             Atendimento omnichannel completo para{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">provedores de internet</span>
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">WOOW Telecom</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
             Centralize seus canais, automatize cobranças, responda com IA 24/7 e acompanhe todos os indicadores do seu provedor em tempo real.
@@ -160,12 +165,16 @@ export default function Landing() {
       <footer className="border-t border-border py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" fill="white" />
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+              <svg width="16" height="12" viewBox="0 0 24 18" fill="none">
+                <path d="M2 9 C2 4.6 5.6 1 10 1" stroke="#FE6915" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <path d="M4.5 9 C4.5 6 6.9 3.5 10 3.5" stroke="#FE6915" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <circle cx="10" cy="9" r="1.5" fill="#FE6915"/>
+              </svg>
             </div>
-            <span className="font-bold text-sm">Atendimento 360 ISP</span>
+            <span className="font-black text-sm tracking-wide text-primary">WOOW <span className="text-accent font-semibold text-xs tracking-widest">TELECOM</span></span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 Atendimento 360 ISP. Todos os direitos reservados.</p>
+          <p className="text-sm text-muted-foreground">© 2026 WOOW Telecom. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
