@@ -7,6 +7,25 @@
         "admin",
         "user"
       ]
+    },
+    "profile_key": {
+      "type": "string",
+      "description": "Perfil de permiss\u00f5es atribu\u00eddo ao usu\u00e1rio"
+    },
+    "sector": {
+      "type": "string",
+      "description": "Setor do usu\u00e1rio na plataforma"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "inativo"
+      ],
+      "default": "ativo"
+    },
+    "phone": {
+      "type": "string"
     }
   },
   "required": [

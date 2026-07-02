@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, MessageSquare, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, Zap
+  ChevronLeft, Zap, UserCog
 } from "lucide-react";
 
 const menuItems = [
@@ -18,6 +18,7 @@ const menuItems = [
   { label: "Base de Conhecimento", path: "/knowledge", icon: BookOpen },
   { label: "Relatórios", path: "/reports", icon: BarChart3 },
   { label: "Integrações", path: "/integrations", icon: Plug },
+  { label: "Usuários", path: "/users", icon: UserCog },
   { label: "Configurações", path: "/settings", icon: Settings },
 ];
 

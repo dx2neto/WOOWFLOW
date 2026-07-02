@@ -20,6 +20,7 @@ import Signatures from '@/pages/Signatures';
 import KnowledgeBase from '@/pages/KnowledgeBase';
 import Reports from '@/pages/Reports';
 import Integrations from '@/pages/Integrations';
+import UsersPage from '@/pages/Users';
 import Settings from '@/pages/Settings';
 import { Navigate } from 'react-router-dom';
 
@@ -57,6 +58,7 @@ const AuthenticatedApp = () => {
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/integrations" element={<Integrations />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
