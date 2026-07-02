@@ -1,0 +1,46 @@
+{
+  "name": "KnowledgeArticle",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "financeiro",
+        "suporte_tecnico",
+        "comercial",
+        "planos",
+        "contratos",
+        "instalacao",
+        "cancelamento",
+        "retencao",
+        "faq",
+        "procedimentos"
+      ],
+      "default": "faq"
+    },
+    "content": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "author": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "category",
+    "content"
+  ]
+}

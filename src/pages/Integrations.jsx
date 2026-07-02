@@ -1,0 +1,164 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { PageContainer, Card } from "@/components/ui/Card";
+import {
+  MessageCircle, Database, FileSignature, ShieldCheck, Instagram,
+  Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus
+} from "lucide-react";
+
+const integrations = [
+  {
+    service: "evolution_api",
+    display_name: "Evolution API",
+    description: "WhatsApp Business API para envio e recebimento de mensagens",
+    icon: MessageCircle,
+    color: "from-green-500 to-green-600",
+    status: "connected",
+    fields: ["URL da API", "API Key", "Nome da Instância"],
+  },
+  {
+    service: "ixc_provedor",
+    display_name: "IXC Provedor",
+    description: "ERP para provedores de internet - clientes, contratos, financeiro, OS",
+    icon: Database,
+    color: "from-blue-500 to-blue-600",
+    status: "disconnected",
+    fields: ["URL do IXC", "Token de API"],
+  },
+  {
+    service: "zapsign",
+    display_name: "ZapSign",
+    description: "Assinatura eletrônica de contratos e documentos",
+    icon: FileSignature,
+    color: "from-purple-500 to-purple-600",
+    status: "disconnected",
+    fields: ["API Token"],
+  },
+  {
+    service: "validacadastro",
+    display_name: "ValidaCadastro",
+    description: "Validação de CPF/CNPJ e dados cadastrais",
+    icon: ShieldCheck,
+    color: "from-indigo-500 to-indigo-600",
+    status: "disconnected",
+    fields: ["API Token"],
+  },
+  {
+    service: "instagram",
+    display_name: "Instagram Business",
+    description: "Recebimento de mensagens do Instagram Direct",
+    icon: Instagram,
+    color: "from-pink-500 to-rose-600",
+    status: "disconnected",
+    fields: ["OAuth - Conectar conta"],
+  },
+  {
+    service: "facebook",
+    display_name: "Facebook Messenger",
+    description: "Recebimento de mensagens do Facebook Messenger",
+    icon: Facebook,
+    color: "from-blue-600 to-blue-700",
+    status: "disconnected",
+    fields: ["OAuth - Conectar conta"],
+  },
+  {
+    service: "telegram",
+    display_name: "Telegram Bot",
+    description: "Bot para recebimento de mensagens do Telegram",
+    icon: Send,
+    color: "from-sky-500 to-sky-600",
+    status: "disconnected",
+    fields: ["Bot Token"],
+  },
+];
+
+const statusConfig = {
+  connected: { label: "Conectado", color: "text-green-600 bg-green-50", icon: CheckCircle },
+  disconnected: { label: "Desconectado", color: "text-gray-500 bg-gray-50", icon: XCircle },
+  error: { label: "Erro", color: "text-red-600 bg-red-50", icon: XCircle },
+  pending: { label: "Pendente", color: "text-amber-600 bg-amber-50", icon: RefreshCw },
+};
+
+export default function Integrations() {
+  const [configs, setConfigs] = useState({});
+
+  useEffect(() => {
+    loadConfigs();
+  }, []);
+
+  const loadConfigs = async () => {
+    try {
+      const data = await base44.entities.IntegrationConfig.list();
+      const map = {};
+      data.forEach((c) => { map[c.service] = c; });
+      setConfigs(map);
+    } catch (e) {}
+  };
+
+  const getStatus = (service) => {
+    return configs[service]?.status || integrations.find((i) => i.service === service)?.status || "disconnected";
+  };
+
+  return (
+    <PageContainer>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold font-heading">Integrações</h2>
+        <p className="text-sm text-muted-foreground">Conecte seus serviços e canais de atendimento</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {integrations.map((int) => {
+          const Icon = int.icon;
+          const status = getStatus(int.service);
+          const StatusIcon = statusConfig[status]?.icon || XCircle;
+          const isEvolution = int.service === "evolution_api";
+
+          return (
+            <Card key={int.service} className="p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${int.color} flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig[status]?.color}`}>
+                  <StatusIcon className="w-3.5 h-3.5" /> {statusConfig[status]?.label}
+                </span>
+              </div>
+
+              <h3 className="font-semibold mb-1">{int.display_name}</h3>
+              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{int.description}</p>
+
+              <div className="space-y-1 mb-4">
+                {int.fields.map((field) => (
+                  <p key={field} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground" /> {field}
+                  </p>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                {status === "connected" ? (
+                  <>
+                    <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
+                      <Settings className="w-4 h-4" /> Configurar
+                    </button>
+                    <button className="flex items-center justify-center px-3 py-2 border border-border rounded-lg hover:bg-muted">
+                      <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </>
+                ) : isEvolution ? (
+                  <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+                    <Plus className="w-4 h-4" /> Conectar
+                  </button>
+                ) : (
+                  <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+                    <Plus className="w-4 h-4" /> Conectar
+                  </button>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </PageContainer>
+  );
+}

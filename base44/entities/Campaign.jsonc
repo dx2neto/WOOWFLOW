@@ -1,0 +1,66 @@
+{
+  "name": "Campaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "cobranca",
+        "promocao",
+        "manutencao",
+        "instabilidade",
+        "pesquisa",
+        "pos_venda",
+        "retencao",
+        "upgrade",
+        "aniversario",
+        "renovacao"
+      ],
+      "default": "promocao"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "agendada",
+        "enviando",
+        "concluida",
+        "cancelada"
+      ],
+      "default": "rascunho"
+    },
+    "segment": {
+      "type": "string"
+    },
+    "message_template": {
+      "type": "string"
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "total_sent": {
+      "type": "number",
+      "default": 0
+    },
+    "total_delivered": {
+      "type": "number",
+      "default": 0
+    },
+    "total_read": {
+      "type": "number",
+      "default": 0
+    },
+    "total_replied": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "type"
+  ]
+}

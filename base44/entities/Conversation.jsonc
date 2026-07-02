@@ -1,0 +1,93 @@
+{
+  "name": "Conversation",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "whatsapp",
+        "instagram",
+        "facebook",
+        "telegram",
+        "webchat",
+        "email",
+        "sms",
+        "telefone",
+        "manual"
+      ],
+      "default": "whatsapp"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "novo",
+        "aguardando_atendimento",
+        "em_atendimento",
+        "aguardando_cliente",
+        "aguardando_setor",
+        "resolvido",
+        "finalizado",
+        "perdido",
+        "reaberto"
+      ],
+      "default": "novo"
+    },
+    "sector": {
+      "type": "string"
+    },
+    "attendant_name": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "baixa",
+        "media",
+        "alta",
+        "urgente"
+      ],
+      "default": "media"
+    },
+    "last_message": {
+      "type": "string"
+    },
+    "last_message_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unread": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_ai": {
+      "type": "boolean",
+      "default": false
+    },
+    "city": {
+      "type": "string"
+    },
+    "satisfaction_score": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "customer_name",
+    "phone",
+    "channel"
+  ]
+}

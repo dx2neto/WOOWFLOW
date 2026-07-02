@@ -1,0 +1,54 @@
+{
+  "name": "Message",
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out"
+      ],
+      "default": "in"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "audio",
+        "image",
+        "document",
+        "video",
+        "sticker"
+      ],
+      "default": "text"
+    },
+    "sender_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sent",
+        "delivered",
+        "read",
+        "failed"
+      ],
+      "default": "sent"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "conversation_id",
+    "content",
+    "direction"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "SignatureRequest",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "contrato",
+        "termo_adesao",
+        "termo_comodato",
+        "termo_permanencia",
+        "aceite_eletronico"
+      ],
+      "default": "contrato"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "assinado",
+        "expirado",
+        "cancelado"
+      ],
+      "default": "pendente"
+    },
+    "document_url": {
+      "type": "string"
+    },
+    "signed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "provider": {
+      "type": "string",
+      "default": "ZapSign"
+    }
+  },
+  "required": [
+    "customer_name",
+    "phone",
+    "document_type"
+  ]
+}

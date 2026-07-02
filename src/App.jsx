@@ -6,7 +6,22 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
-// Add page imports here
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Layout from '@/components/Layout';
+import Landing from '@/pages/Landing';
+import Dashboard from '@/pages/Dashboard';
+import Inbox from '@/pages/Inbox';
+import CRM from '@/pages/CRM';
+import Customers from '@/pages/Customers';
+import Charges from '@/pages/Charges';
+import Campaigns from '@/pages/Campaigns';
+import Chatbot from '@/pages/Chatbot';
+import Signatures from '@/pages/Signatures';
+import KnowledgeBase from '@/pages/KnowledgeBase';
+import Reports from '@/pages/Reports';
+import Integrations from '@/pages/Integrations';
+import Settings from '@/pages/Settings';
+import { Navigate } from 'react-router-dom';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -21,20 +36,30 @@ const AuthenticatedApp = () => {
   }
 
   // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
+  if (authError && authError.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
   }
 
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route path="/" element={<Landing />} />
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/inbox" element={<Inbox />} />
+          <Route path="/crm" element={<CRM />} />
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/charges" element={<Charges />} />
+          <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/chatbot" element={<Chatbot />} />
+          <Route path="/signatures" element={<Signatures />} />
+          <Route path="/knowledge" element={<KnowledgeBase />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/integrations" element={<Integrations />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

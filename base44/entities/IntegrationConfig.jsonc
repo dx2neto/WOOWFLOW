@@ -1,0 +1,49 @@
+{
+  "name": "IntegrationConfig",
+  "type": "object",
+  "properties": {
+    "service": {
+      "type": "string",
+      "enum": [
+        "evolution_api",
+        "ixc_provedor",
+        "zapsign",
+        "validacadastro",
+        "instagram",
+        "facebook",
+        "telegram"
+      ],
+      "default": "evolution_api"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "error",
+        "pending"
+      ],
+      "default": "disconnected"
+    },
+    "api_url": {
+      "type": "string"
+    },
+    "api_key": {
+      "type": "string"
+    },
+    "config": {
+      "type": "object"
+    },
+    "last_sync": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "service",
+    "display_name"
+  ]
+}
