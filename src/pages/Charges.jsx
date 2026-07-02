@@ -1,20 +1,49 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
 import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Search, Filter } from "lucide-react";
+import { ixcApi } from "@/functions/ixcApi";
+
+const today = new Date();
+
+const mapStatus = (c) => {
+  if (c.status === "P") return "paga";
+  if (c.status === "A" && c.due_date && new Date(c.due_date) < today) return "vencida";
+  if (c.status === "A") return "pendente";
+  return "negociando";
+};
 
 export default function Charges() {
   const [charges, setCharges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => { loadCharges(); }, []);
 
   const loadCharges = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const data = await base44.entities.Charge.list("-due_date", 100);
-      setCharges(data);
-    } catch (e) { setCharges([]); } finally { setLoading(false); }
+      const response = await ixcApi({ action: "faturas" });
+      if (response?.data?.error) {
+        setError(response.data.error);
+        setCharges([]);
+      } else {
+        const registros = response?.data?.result?.registros || [];
+        const mapped = registros.map((c) => {
+          const dueDate = c.due_date ? new Date(c.due_date) : null;
+          const status = mapStatus(c);
+          const daysLate = status === "vencida" && dueDate ? Math.floor((today - dueDate) / 86400000) : 0;
+          return { ...c, status, days_late: daysLate };
+        });
+        setCharges(mapped);
+      }
+    } catch (e) {
+      setError("Não foi possível carregar as cobranças do IXC Provedor.");
+      setCharges([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filtered = filter === "all" ? charges : charges.filter((c) => c.status === filter);
@@ -48,8 +77,12 @@ export default function Charges() {
         <StatCard title="A Receber" value={`R$ ${totalPending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} icon={DollarSign} color="warning" />
         <StatCard title="Vencido" value={`R$ ${totalOverdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} icon={AlertTriangle} color="danger" />
         <StatCard title="Recebido" value={`R$ ${totalPaid.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} icon={CheckCircle} color="accent" />
-        <StatCard title="Lembretes Enviados" value={charges.filter((c) => c.reminder_sent).length} icon={Send} color="primary" />
+        <StatCard title="Faturas em Aberto" value={charges.filter((c) => c.status !== "paga").length} icon={Send} color="primary" />
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
+      )}
 
       <Card className="overflow-hidden">
         <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
@@ -72,7 +105,6 @@ export default function Charges() {
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left font-semibold px-4 py-3">Cliente</th>
                 <th className="text-left font-semibold px-4 py-3">Telefone</th>
-                <th className="text-left font-semibold px-4 py-3">Cidade</th>
                 <th className="text-left font-semibold px-4 py-3">Vencimento</th>
                 <th className="text-left font-semibold px-4 py-3">Valor</th>
                 <th className="text-left font-semibold px-4 py-3">Status</th>
@@ -82,15 +114,14 @@ export default function Charges() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma cobrança encontrada</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma cobrança encontrada</td></tr>
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="border-b border-border hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">{c.customer_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.phone}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
                     <td className="px-4 py-3">{c.due_date ? new Date(c.due_date).toLocaleDateString("pt-BR") : "—"}</td>
                     <td className="px-4 py-3 font-semibold">R$ {(c.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3">

@@ -12,7 +12,72 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais do IXC Provedor não configuradas' }, { status: 500 });
     }
 
-    const { cpfCnpj } = await req.json().catch(() => ({}));
+    const { cpfCnpj, action } = await req.json().catch(() => ({}));
+
+    if (action === 'faturas') {
+      const areceberUrl = baseUrl.replace(/\/$/, '') + '/fn_areceber';
+      const res = await fetch(areceberUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${token}`,
+          ixcsoft: 'listar',
+        },
+        body: JSON.stringify({
+          qtype: 'fn_areceber.status',
+          query: 'A',
+          oper: '=',
+          page: '1',
+          rp: '60',
+          sortname: 'fn_areceber.data_vencimento',
+          sortorder: 'asc',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return Response.json({ error: 'Falha ao buscar faturas do IXC Provedor', details: data }, { status: res.status });
+      }
+
+      const registros = data.registros || [];
+      const clientIds = [...new Set(registros.map((r) => r.id_cliente).filter(Boolean))];
+      let clientsById = {};
+
+      if (clientIds.length > 0) {
+        const clientRes = await fetch(baseUrl.replace(/\/$/, '') + '/cliente', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${token}`,
+            ixcsoft: 'listar',
+          },
+          body: JSON.stringify({
+            qtype: 'cliente.id',
+            query: clientIds.join(','),
+            oper: 'IN',
+            page: '1',
+            rp: String(clientIds.length),
+          }),
+        });
+        const clientData = await clientRes.json().catch(() => ({}));
+        (clientData.registros || []).forEach((c) => { clientsById[c.id] = c; });
+      }
+
+      const faturas = registros.map((r) => {
+        const cliente = clientsById[r.id_cliente] || {};
+        return {
+          id: r.id,
+          customer_name: cliente.razao || cliente.fantasia || `Cliente #${r.id_cliente}`,
+          phone: cliente.fone || cliente.telefone_celular || '',
+          due_date: r.data_vencimento,
+          value: parseFloat(r.valor_aberto || r.valor || '0'),
+          status: r.status,
+          boleto: r.boleto,
+          linha_digitavel: r.linha_digitavel,
+        };
+      });
+
+      return Response.json({ success: true, result: { total: data.total, registros: faturas } });
+    }
 
     const body = cpfCnpj
       ? { qtype: 'cliente.cnpj_cpf', query: cpfCnpj, oper: '=', page: '1', rp: '1' }
