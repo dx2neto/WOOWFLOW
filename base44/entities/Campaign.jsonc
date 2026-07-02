@@ -21,6 +21,14 @@
       ],
       "default": "promocao"
     },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "whatsapp",
+        "instagram"
+      ],
+      "default": "whatsapp"
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -57,6 +65,24 @@
     "total_replied": {
       "type": "number",
       "default": 0
+    },
+    "instagram_post_type": {
+      "type": "string",
+      "enum": [
+        "feed",
+        "reel",
+        "story"
+      ],
+      "default": "feed"
+    },
+    "media_url": {
+      "type": "string"
+    },
+    "caption": {
+      "type": "string"
+    },
+    "hashtags": {
+      "type": "string"
     }
   },
   "required": [
