@@ -1,0 +1,23 @@
+{
+  "name": "Queue",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "sector": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "sector"
+  ]
+}

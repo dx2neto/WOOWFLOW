@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, MessageSquare, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, Zap, UserCog
+  ChevronLeft, Zap, UserCog, Tags, ScrollText, CalendarDays
 } from "lucide-react";
 
 const menuItems = [
@@ -19,6 +19,9 @@ const menuItems = [
   { label: "Relatórios", path: "/reports", icon: BarChart3 },
   { label: "Integrações", path: "/integrations", icon: Plug },
   { label: "Usuários", path: "/users", icon: UserCog },
+  { label: "Etiquetas e Filas", path: "/tags-queues", icon: Tags },
+  { label: "Feriados e Horários", path: "/holidays", icon: CalendarDays },
+  { label: "Logs de Auditoria", path: "/audit-logs", icon: ScrollText },
   { label: "Configurações", path: "/settings", icon: Settings },
 ];
 

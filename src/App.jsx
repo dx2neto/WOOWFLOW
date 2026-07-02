@@ -21,6 +21,9 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import Reports from '@/pages/Reports';
 import Integrations from '@/pages/Integrations';
 import UsersPage from '@/pages/Users';
+import TagsQueues from '@/pages/TagsQueues';
+import Holidays from '@/pages/Holidays';
+import AuditLogs from '@/pages/AuditLogs';
 import Settings from '@/pages/Settings';
 import { Navigate } from 'react-router-dom';
 
@@ -59,6 +62,9 @@ const AuthenticatedApp = () => {
           <Route path="/reports" element={<Reports />} />
           <Route path="/integrations" element={<Integrations />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/tags-queues" element={<TagsQueues />} />
+          <Route path="/holidays" element={<Holidays />} />
+          <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
