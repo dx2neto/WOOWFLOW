@@ -1,0 +1,102 @@
+{
+  "name": "SipTrunk",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "trunk_type": {
+      "type": "string",
+      "enum": [
+        "sip_trunk",
+        "e1_ip",
+        "gateway_e1",
+        "operadora_voip",
+        "pabx_externo",
+        "asterisk",
+        "issabel",
+        "freepbx",
+        "3cx",
+        "api_externa"
+      ],
+      "default": "sip_trunk"
+    },
+    "operator": {
+      "type": "string"
+    },
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "number",
+      "default": 5060
+    },
+    "sip_user": {
+      "type": "string"
+    },
+    "sip_password": {
+      "type": "string"
+    },
+    "sip_domain": {
+      "type": "string"
+    },
+    "caller_id": {
+      "type": "string"
+    },
+    "operator_code": {
+      "type": "string"
+    },
+    "codecs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dtmf_mode": {
+      "type": "string",
+      "enum": [
+        "rfc2833",
+        "info",
+        "inband"
+      ],
+      "default": "rfc2833"
+    },
+    "transport": {
+      "type": "string",
+      "enum": [
+        "udp",
+        "tcp",
+        "tls"
+      ],
+      "default": "udp"
+    },
+    "max_channels": {
+      "type": "number",
+      "default": 10
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "registrado",
+        "nao_registrado",
+        "falha_autenticacao",
+        "indisponivel",
+        "manutencao"
+      ],
+      "default": "offline"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "trunk_type"
+  ]
+}

@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, MessageSquare, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, Zap, UserCog, Tags, ScrollText, CalendarDays
+  ChevronLeft, Zap, UserCog, Tags, ScrollText, CalendarDays, PhoneCall
 } from "lucide-react";
 
 const menuItems = [
@@ -22,6 +22,7 @@ const menuItems = [
   { label: "Etiquetas e Filas", path: "/tags-queues", icon: Tags },
   { label: "Feriados e Horários", path: "/holidays", icon: CalendarDays },
   { label: "Logs de Auditoria", path: "/audit-logs", icon: ScrollText },
+  { label: "Telefonia Omnichannel", path: "/telephony", icon: PhoneCall },
   { label: "Configurações", path: "/settings", icon: Settings },
 ];
 

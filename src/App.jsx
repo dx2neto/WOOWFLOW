@@ -24,6 +24,7 @@ import UsersPage from '@/pages/Users';
 import TagsQueues from '@/pages/TagsQueues';
 import Holidays from '@/pages/Holidays';
 import AuditLogs from '@/pages/AuditLogs';
+import Telephony from '@/pages/Telephony';
 import Settings from '@/pages/Settings';
 import { Navigate } from 'react-router-dom';
 
@@ -65,6 +66,7 @@ const AuthenticatedApp = () => {
           <Route path="/tags-queues" element={<TagsQueues />} />
           <Route path="/holidays" element={<Holidays />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
+          <Route path="/telephony" element={<Telephony />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>

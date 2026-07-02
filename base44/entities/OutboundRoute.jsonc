@@ -1,0 +1,66 @@
+{
+  "name": "OutboundRoute",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "dialing_prefix": {
+      "type": "string"
+    },
+    "call_type": {
+      "type": "string",
+      "enum": [
+        "local",
+        "ddd",
+        "ddi",
+        "celular",
+        "fixo",
+        "0800",
+        "0300",
+        "interno",
+        "emergencia",
+        "cobranca",
+        "comercial",
+        "suporte"
+      ],
+      "default": "local"
+    },
+    "primary_trunk": {
+      "type": "string"
+    },
+    "secondary_trunk": {
+      "type": "string"
+    },
+    "contingency_trunk": {
+      "type": "string"
+    },
+    "area_code": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "preferred_operator": {
+      "type": "string"
+    },
+    "caller_id": {
+      "type": "string"
+    },
+    "allowed_hours": {
+      "type": "string"
+    },
+    "max_simultaneous_calls": {
+      "type": "number",
+      "default": 5
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "call_type"
+  ]
+}

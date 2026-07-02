@@ -1,0 +1,55 @@
+{
+  "name": "Extension",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string"
+    },
+    "attendant_name": {
+      "type": "string"
+    },
+    "sector": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "chamadas_internas",
+          "chamadas_externas",
+          "ddd",
+          "ddi",
+          "celular",
+          "transferir",
+          "gravar",
+          "ouvir_proprias",
+          "ouvir_equipe",
+          "rota_comercial",
+          "rota_financeira",
+          "rota_suporte",
+          "discador",
+          "campanhas"
+        ]
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "ocupado",
+        "pausa"
+      ],
+      "default": "offline"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "number",
+    "attendant_name"
+  ]
+}
