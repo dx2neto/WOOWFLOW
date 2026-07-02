@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { PageContainer, Card, StatCard } from "@/components/ui/Card";
 import { Download, TrendingUp, Clock, Users, DollarSign, Star, Trophy, FileBarChart } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, ComposedChart } from "recharts";
 
 const attendantData = [
   { name: "Ana Paula", atendimentos: 145, resolucao: 92, satisfaction: 4.8 },
@@ -18,6 +18,14 @@ const conversionData = [
   { month: "Abr", leads: 135, vendas: 48 },
   { month: "Mai", leads: 180, vendas: 67 },
   { month: "Jun", leads: 195, vendas: 72 },
+];
+
+const supportPerformanceData = [
+  { name: "Ana Souza", tempoMedio: 6.2, protocolos: 58 },
+  { name: "João Pedro", tempoMedio: 7.8, protocolos: 45 },
+  { name: "Marina Costa", tempoMedio: 5.4, protocolos: 62 },
+  { name: "Pedro Santos", tempoMedio: 8.1, protocolos: 39 },
+  { name: "Luiza Ferreira", tempoMedio: 6.9, protocolos: 51 },
 ];
 
 const cityData = [
@@ -130,6 +138,22 @@ export default function Reports() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card title="Desempenho do Suporte Técnico" className="p-5 mb-6">
+        <p className="text-xs text-muted-foreground mb-3">Tempo médio de atendimento e protocolos finalizados por atendente</p>
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart data={supportPerformanceData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: "Protocolos", angle: -90, position: "insideLeft", fontSize: 11 }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} label={{ value: "Min", angle: 90, position: "insideRight", fontSize: 11 }} />
+            <Tooltip contentStyle={{ borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar yAxisId="left" dataKey="protocolos" fill="#3b82f6" name="Protocolos Finalizados" radius={[4, 4, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="tempoMedio" stroke="#f97316" strokeWidth={2} name="Tempo Médio (min)" />
+          </ComposedChart>
+        </ResponsiveContainer>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
