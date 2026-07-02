@@ -5,6 +5,17 @@ import {
   MessageCircle, Database, FileSignature, ShieldCheck, Instagram,
   Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus
 } from "lucide-react";
+import { evolutionApi } from "@/functions/evolutionApi";
+import { ixcApi } from "@/functions/ixcApi";
+import { zapsignApi } from "@/functions/zapsignApi";
+import { serasaApi } from "@/functions/serasaApi";
+
+const testFunctions = {
+  evolution_api: evolutionApi,
+  ixc_provedor: ixcApi,
+  zapsign: zapsignApi,
+  validacadastro: serasaApi,
+};
 
 const integrations = [
   {
@@ -81,6 +92,7 @@ const statusConfig = {
 
 export default function Integrations() {
   const [configs, setConfigs] = useState({});
+  const [testingService, setTestingService] = useState(null);
 
   useEffect(() => {
     loadConfigs();
@@ -97,6 +109,36 @@ export default function Integrations() {
 
   const getStatus = (service) => {
     return configs[service]?.status || integrations.find((i) => i.service === service)?.status || "disconnected";
+  };
+
+  const handleTestConnection = async (int) => {
+    const testFn = testFunctions[int.service];
+    if (!testFn) return;
+    setTestingService(int.service);
+    try {
+      const response = await testFn({});
+      const success = response?.data?.success;
+      const payload = {
+        service: int.service,
+        display_name: int.display_name,
+        status: success ? "connected" : "error",
+        last_sync: new Date().toISOString(),
+      };
+      const existing = configs[int.service];
+      if (existing) {
+        await base44.entities.IntegrationConfig.update(existing.id, payload);
+      } else {
+        await base44.entities.IntegrationConfig.create(payload);
+      }
+    } catch (e) {
+      const existing = configs[int.service];
+      const payload = { service: int.service, display_name: int.display_name, status: "error", last_sync: new Date().toISOString() };
+      if (existing) await base44.entities.IntegrationConfig.update(existing.id, payload);
+      else await base44.entities.IntegrationConfig.create(payload);
+    } finally {
+      setTestingService(null);
+      await loadConfigs();
+    }
   };
 
   return (
@@ -136,19 +178,34 @@ export default function Integrations() {
               </div>
 
               <div className="flex gap-2">
-                {status === "connected" ? (
-                  <>
-                    <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
-                      <Settings className="w-4 h-4" /> Configurar
+                {testFunctions[int.service] ? (
+                  status === "connected" ? (
+                    <>
+                      <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
+                        <Settings className="w-4 h-4" /> Configurar
+                      </button>
+                      <button
+                        onClick={() => handleTestConnection(int)}
+                        disabled={testingService === int.service}
+                        className="flex items-center justify-center px-3 py-2 border border-border rounded-lg hover:bg-muted disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-4 h-4 text-muted-foreground ${testingService === int.service ? "animate-spin" : ""}`} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleTestConnection(int)}
+                      disabled={testingService === int.service}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {testingService === int.service ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                      {testingService === int.service ? "Testando..." : "Conectar"}
                     </button>
-                    <button className="flex items-center justify-center px-3 py-2 border border-border rounded-lg hover:bg-muted">
-                      <RefreshCw className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </>
-                ) : isEvolution ? (
-                  <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
-                    <Plus className="w-4 h-4" /> Conectar
-                  </button>
+                  )
                 ) : (
                   <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
                     <Plus className="w-4 h-4" /> Conectar
