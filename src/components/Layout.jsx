@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Search, Bell, Menu, Moon, Sun } from "lucide-react";
+import { Bell, Menu, Moon, Sun } from "lucide-react";
 import Sidebar from "./Sidebar";
+import GlobalSearch from "./layout/GlobalSearch";
 
 const pageTitles = {
   "/dashboard": "Dashboard",
@@ -41,16 +42,7 @@ export default function Layout() {
 
           <h1 className="text-lg font-bold font-heading hidden sm:block text-foreground">{title}</h1>
 
-          <div className="flex-1 max-w-md mx-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar clientes, conversas, protocolos..."
-                className="w-full h-10 pl-10 pr-4 bg-muted/60 rounded-lg text-sm border border-transparent focus:border-primary focus:bg-card focus:outline-none transition-colors"
-              />
-            </div>
-          </div>
+          <GlobalSearch />
 
           <div className="flex items-center gap-2">
             <button

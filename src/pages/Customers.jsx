@@ -7,7 +7,7 @@ export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [contactsByClient, setContactsByClient] = useState({});
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [error, setError] = useState(null);
 
   useEffect(() => { loadContacts(); }, []);

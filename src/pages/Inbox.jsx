@@ -34,6 +34,13 @@ export default function Inbox() {
   }, []);
 
   useEffect(() => {
+    const conversationId = new URLSearchParams(window.location.search).get("conversation");
+    if (conversationId && conversations.some((c) => c.id === conversationId)) {
+      setSelectedId(conversationId);
+    }
+  }, [conversations]);
+
+  useEffect(() => {
     if (selectedId) loadMessages(selectedId);
   }, [selectedId]);
 
