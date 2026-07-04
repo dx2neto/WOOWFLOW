@@ -41,7 +41,7 @@ export default function Landing() {
             </div>
             <div>
               <p className="font-black text-base leading-tight tracking-wide text-primary">WOOW</p>
-              <p className="text-xs text-accent font-semibold tracking-widest leading-tight">TELECOM</p>
+              <p className="text-xs text-accent font-semibold tracking-widest leading-tight">CHAT</p>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -59,11 +59,11 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-background to-green-50" />
         <div className="relative max-w-7xl mx-auto px-6 py-20 md:py-28 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium mb-6">
-            <Star className="w-4 h-4" fill="currentColor" /> Plataforma oficial WOOW Telecom
+            <Star className="w-4 h-4" fill="currentColor" /> Plataforma oficial WOOW Chat
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold font-heading leading-tight mb-6 max-w-4xl mx-auto">
             Atendimento omnichannel completo para{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">WOOW Telecom</span>
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">WOOW Chat</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
             Centralize seus canais, automatize cobranças, responda com IA 24/7 e acompanhe todos os indicadores do seu provedor em tempo real.
@@ -172,9 +172,9 @@ export default function Landing() {
                 <circle cx="10" cy="9" r="1.5" fill="#FE6915"/>
               </svg>
             </div>
-            <span className="font-black text-sm tracking-wide text-primary">WOOW <span className="text-accent font-semibold text-xs tracking-widest">TELECOM</span></span>
+            <span className="font-black text-sm tracking-wide text-primary">WOOW <span className="text-accent font-semibold text-xs tracking-widest">CHAT</span></span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 WOOW Telecom. Todos os direitos reservados.</p>
+          <p className="text-sm text-muted-foreground">© 2026 WOOW Chat. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

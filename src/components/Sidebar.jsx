@@ -44,7 +44,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
         {!collapsed && (
           <div className="overflow-hidden">
             <p className="font-black text-base leading-tight tracking-wide text-white">WOOW</p>
-            <p className="text-xs text-accent font-semibold tracking-widest leading-tight">TELECOM</p>
+            <p className="text-xs text-accent font-semibold tracking-widest leading-tight">CHAT</p>
           </div>
         )}
       </div>
