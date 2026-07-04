@@ -3,13 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText
+  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText, Workflow
 } from "lucide-react";
 
 const menuItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Caixa de Entrada", path: "/inbox", icon: Inbox, badge: 12 },
   { label: "CRM", path: "/crm", icon: Users },
+  { label: "Automações do CRM", path: "/crm-automations", icon: Workflow },
   { label: "Clientes", path: "/customers", icon: Users },
   { label: "Cobranças", path: "/charges", icon: DollarSign },
   { label: "Campanhas", path: "/campaigns", icon: Send },

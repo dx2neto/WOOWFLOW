@@ -1,0 +1,44 @@
+{
+  "name": "AutomationFlow",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "contrato_assinado",
+        "pagamento_confirmado"
+      ]
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "avancar_crm",
+              "enviar_whatsapp"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "trigger"
+  ]
+}

@@ -18,6 +18,7 @@ import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
 import Inbox from '@/pages/Inbox';
 import CRM from '@/pages/CRM';
+import CrmAutomations from '@/pages/CrmAutomations';
 import Customers from '@/pages/Customers';
 import Charges from '@/pages/Charges';
 import Campaigns from '@/pages/Campaigns';
@@ -68,6 +69,7 @@ const AuthenticatedApp = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/crm" element={<CRM />} />
+          <Route path="/crm-automations" element={<CrmAutomations />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/charges" element={<Charges />} />
           <Route path="/campaigns" element={<Campaigns />} />

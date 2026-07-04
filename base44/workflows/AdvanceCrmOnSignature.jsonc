@@ -1,6 +1,6 @@
 {
   "name": "Avan\u00e7ar CRM ao Assinar Contrato",
-  "description": "Move o cliente automaticamente para a etapa 'venda_fechada' no CRM assim que o contrato \u00e9 assinado via ZapSign.",
+  "description": "Executa a r\u00e9gua de automa\u00e7\u00e3o configurada no editor visual do CRM (contrato_assinado) assim que o contrato \u00e9 assinado via ZapSign.",
   "trigger": {
     "config": {
       "trigger_type": "entity",
@@ -20,18 +20,18 @@
     },
     "do": [
       {
-        "advance_stage": {
+        "run_automation": {
           "call": "invoke_backend_function",
           "with": {
-            "function_name": "advanceCrmStage",
+            "function_name": "runAutomationFlow",
             "args": {
               "phone": "${ .trigger.data.phone }",
-              "reason": "assinatura_confirmada"
+              "trigger": "contrato_assinado"
             }
           },
           "then": "end",
           "x-base44": {
-            "title": "Avan\u00e7ar etapa no CRM",
+            "title": "Executar automa\u00e7\u00e3o do CRM",
             "description": "Contrato assinado"
           }
         }
