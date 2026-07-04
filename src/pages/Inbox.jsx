@@ -36,6 +36,18 @@ export default function Inbox() {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = base44.entities.Conversation.subscribe((event) => {
+      setConversations((prev) => {
+        if (event.type === "create") return [event.data, ...prev.filter((c) => c.id !== event.data.id)];
+        if (event.type === "update") return prev.map((c) => (c.id === event.data.id ? event.data : c));
+        if (event.type === "delete") return prev.filter((c) => c.id !== event.data.id);
+        return prev;
+      });
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     const conversationId = new URLSearchParams(window.location.search).get("conversation");
     if (conversationId && conversations.some((c) => c.id === conversationId)) {
       setSelectedId(conversationId);
@@ -44,6 +56,20 @@ export default function Inbox() {
 
   useEffect(() => {
     if (selectedId) loadMessages(selectedId);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      if (event.data.conversation_id !== selectedId) return;
+      setMessages((prev) => {
+        if (event.type === "create") return prev.some((m) => m.id === event.data.id) ? prev : [...prev, event.data];
+        if (event.type === "update") return prev.map((m) => (m.id === event.data.id ? event.data : m));
+        if (event.type === "delete") return prev.filter((m) => m.id !== event.data.id);
+        return prev;
+      });
+    });
+    return unsubscribe;
   }, [selectedId]);
 
   const loadConversations = async () => {
