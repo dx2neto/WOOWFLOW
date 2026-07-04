@@ -30,7 +30,9 @@ Deno.serve(async (req) => {
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({ number, text: message }),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
       if (!res.ok) {
         await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'send_message', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
         return Response.json({ error: 'Falha ao enviar mensagem', details: data }, { status: res.status });
@@ -41,7 +43,9 @@ Deno.serve(async (req) => {
 
     const url = baseUrl.replace(/\/$/, '') + '/instance/all';
     const res = await fetch(url, { headers: { apikey: apiKey } });
-    const data = await res.json();
+    const rawText = await res.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
 
     if (!res.ok) {
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'instance_all', status: 'falha', details: JSON.stringify(data).slice(0, 500) });

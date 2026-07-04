@@ -7,13 +7,14 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const origin = new URL(req.url).origin;
-
     const faturasRes = await fetch(origin + '/functions/ixcApi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
       body: JSON.stringify({ action: 'faturas' }),
     });
-    const faturasData = await faturasRes.json();
+    const faturasRawText = await faturasRes.text();
+    let faturasData;
+    try { faturasData = JSON.parse(faturasRawText); } catch { faturasData = { error: faturasRawText }; }
     const registros = faturasData?.result?.registros || [];
 
     const today = new Date();
@@ -43,7 +44,9 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
         body: JSON.stringify({ action: 'send_message', phone: inv.phone, message }),
       });
-      const sendData = await sendRes.json();
+      const sendRawText = await sendRes.text();
+      let sendData;
+      try { sendData = JSON.parse(sendRawText); } catch { sendData = { error: sendRawText }; }
 
       await base44.asServiceRole.entities.NegotiationOfferLog.create({
         invoice_id: inv.id,
@@ -52,11 +55,11 @@ Deno.serve(async (req) => {
         value: inv.value,
         due_date: inv.due_date,
         days_late: inv.days_late,
-        status: sendRes.ok && sendData.success ? 'enviado' : 'falha',
+        status: sendData?.success ? 'enviado' : 'falha',
       });
 
-      if (sendRes.ok && sendData.success) sentCount++;
-      else errors.push({ invoice_id: inv.id, error: sendData.error });
+      if (sendData?.success) sentCount++;
+      else errors.push({ invoice_id: inv.id, error: sendData?.error });
     }
 
     await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'sendNegotiationOffers', action: 'run', status: errors.length ? 'falha' : 'sucesso', details: `enviados: ${sentCount}, vencidas: ${vencidas.length}` });
