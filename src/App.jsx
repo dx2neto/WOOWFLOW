@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import LoginRedirect from '@/components/LoginRedirect';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
 import Dashboard from '@/pages/Dashboard';
@@ -29,6 +28,7 @@ import AuditLogs from '@/pages/AuditLogs';
 import SystemLogs from '@/pages/SystemLogs';
 import Telephony from '@/pages/Telephony';
 import Settings from '@/pages/Settings';
+import { Navigate } from 'react-router-dom';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -51,7 +51,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/components/ui/app-card";
 import { Target, Pencil, Check } from "lucide-react";
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -67,7 +67,7 @@ export default function GoalsSection() {
             <input
               type="number"
               value={form.target_new_contracts}
-              onChange={(e) => setForm({ ...form, target_new_contracts: e.target.value })}
+              onChange={(e) => setForm({ ...form, target_new_contracts: Number(e.target.value) || 0 })}
               className="w-full mt-1 px-3 py-2 border border-border rounded-lg text-sm"
             />
           </div>
@@ -76,7 +76,7 @@ export default function GoalsSection() {
             <input
               type="number"
               value={form.target_sales_value}
-              onChange={(e) => setForm({ ...form, target_sales_value: e.target.value })}
+              onChange={(e) => setForm({ ...form, target_sales_value: Number(e.target.value) || 0 })}
               className="w-full mt-1 px-3 py-2 border border-border rounded-lg text-sm"
             />
           </div>

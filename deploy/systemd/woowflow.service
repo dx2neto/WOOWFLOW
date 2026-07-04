@@ -1,0 +1,38 @@
+# ══════════════════════════════════════════════════════
+#  WOOWFLOW — Systemd Service
+#  Arquivo: /etc/systemd/system/woowflow.service
+#
+#  Após copiar:
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable woowflow
+#    sudo systemctl start woowflow
+#    sudo systemctl status woowflow
+#    journalctl -u woowflow -f   ← ver logs ao vivo
+# ══════════════════════════════════════════════════════
+[Unit]
+Description=WOOWFLOW — IXC + Evolution API
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/woowflow
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=woowflow
+
+# Variáveis de ambiente (ou use EnvironmentFile)
+EnvironmentFile=/opt/woowflow/.env
+
+# Limites de segurança
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/woowflow/logs
+
+[Install]
+WantedBy=multi-user.target

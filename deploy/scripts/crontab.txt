@@ -1,0 +1,41 @@
+##################################################################
+#  WOOWFLOW — Cron Jobs de Disparos Automáticos
+#  Para instalar: crontab -e  (como o usuário que roda o servidor)
+#
+#  Logs em: /var/log/woowflow-cron.log
+##################################################################
+
+# Atalho para a URL base
+# Ajuste a URL se estiver usando domínio próprio
+WOOW_URL=http://localhost:3000
+
+# ── Cobranças VENCIDAS ─────────────────────────────────────────
+# Todo dia às 8h: avisa clientes com fatura vencida há 1+ dia
+0 8 * * * curl -s -X POST "$WOOW_URL/notificacoes/cobrancas-vencidas" \
+  -H "Content-Type: application/json" \
+  -d '{"diasAtraso":1,"limite":200}' \
+  >> /var/log/woowflow-cron.log 2>&1
+
+# ── Cobranças que VENCEM AMANHÃ ────────────────────────────────
+# Todo dia às 16h: lembrete de vencimento para amanhã
+0 16 * * * curl -s -X POST "$WOOW_URL/notificacoes/vencimento-proximo" \
+  -H "Content-Type: application/json" \
+  -d '{"diasAntes":1,"limite":200}' \
+  >> /var/log/woowflow-cron.log 2>&1
+
+# ── Cobranças que vencem em 3 dias ────────────────────────────
+# Todo dia às 9h: aviso antecipado
+0 9 * * * curl -s -X POST "$WOOW_URL/notificacoes/vencimento-proximo" \
+  -H "Content-Type: application/json" \
+  -d '{"diasAntes":3,"limite":200}' \
+  >> /var/log/woowflow-cron.log 2>&1
+
+# ── Health check (verifica se o servidor está de pé) ───────────
+# A cada 5 minutos — alertar se cair (requer "mail" configurado)
+*/5 * * * * curl -sf "$WOOW_URL/health" > /dev/null || \
+  echo "[$(date)] WOOWFLOW DOWN!" >> /var/log/woowflow-cron.log
+
+# ── Rotação de logs (mensal) ───────────────────────────────────
+# 1º de cada mês às 2h: arquiva o log do mês anterior
+0 2 1 * * mv /var/log/woowflow-cron.log \
+  /var/log/woowflow-cron-$(date +\%Y\%m).log 2>/dev/null || true
