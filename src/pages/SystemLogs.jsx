@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/Card";
-import { AlertTriangle, Plug } from "lucide-react";
+import { AlertTriangle, Plug, Search } from "lucide-react";
 import { format } from "date-fns";
+
+const integrationFilters = [
+  { key: "all", label: "Todas" },
+  { key: "ixcApi", label: "IXC" },
+  { key: "zapsignApi", label: "ZapSign" },
+  { key: "evolutionApi", label: "Evolution" },
+];
 
 export default function SystemLogs() {
   const [tab, setTab] = useState("errors");
   const [errorLogs, setErrorLogs] = useState([]);
   const [integrationLogs, setIntegrationLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [integrationFilter, setIntegrationFilter] = useState("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -21,6 +30,14 @@ export default function SystemLogs() {
       setLoading(false);
     })();
   }, []);
+
+  const filteredIntegrationLogs = integrationLogs
+    .filter((log) => integrationFilter === "all" || log.integration === integrationFilter)
+    .filter((log) =>
+      !search ||
+      log.action?.toLowerCase().includes(search.toLowerCase()) ||
+      log.details?.toLowerCase().includes(search.toLowerCase())
+    );
 
   return (
     <PageContainer>
@@ -70,7 +87,30 @@ export default function SystemLogs() {
           </table>
         </Card>
       ) : (
-        <Card className="overflow-x-auto">
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
+            <div className="flex gap-1.5">
+              {integrationFilters.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setIntegrationFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${integrationFilter === f.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por ação ou detalhes..."
+                className="w-full h-9 pl-9 pr-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -84,10 +124,10 @@ export default function SystemLogs() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={5} className="text-center py-10 text-muted-foreground">Carregando...</td></tr>
-              ) : integrationLogs.length === 0 ? (
+              ) : filteredIntegrationLogs.length === 0 ? (
                 <tr><td colSpan={5} className="text-center py-12 text-muted-foreground"><Plug className="w-10 h-10 mx-auto mb-2 text-muted-foreground/40" />Nenhum log de integração encontrado</td></tr>
               ) : (
-                integrationLogs.map((log) => (
+                filteredIntegrationLogs.map((log) => (
                   <tr key={log.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                     <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{log.created_date ? format(new Date(log.created_date), "dd/MM/yyyy HH:mm") : "—"}</td>
                     <td className="px-5 py-3 font-medium">{log.integration}</td>
