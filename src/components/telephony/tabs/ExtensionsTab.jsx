@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, PhoneForwarded } from "lucide-react";
 import ExtensionModal from "../ExtensionModal";
 
 const statusColor = { online: "text-green-600 bg-green-50", offline: "text-gray-500 bg-gray-50", ocupado: "text-amber-600 bg-amber-50", pausa: "text-purple-600 bg-purple-50" };
@@ -27,7 +27,7 @@ export default function ExtensionsTab() {
       <div className="bg-card border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left"><tr>
-            <th className="p-3">Ramal</th><th className="p-3">Atendente</th><th className="p-3">Setor</th><th className="p-3">Status</th><th className="p-3"></th>
+            <th className="p-3">Ramal</th><th className="p-3">Atendente</th><th className="p-3">Setor</th><th className="p-3">Status</th><th className="p-3">Desvio</th><th className="p-3"></th>
           </tr></thead>
           <tbody>
             {items.map((i) => (
@@ -36,6 +36,13 @@ export default function ExtensionsTab() {
                 <td className="p-3">{i.attendant_name}</td>
                 <td className="p-3 text-muted-foreground">{i.sector}</td>
                 <td className="p-3"><span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColor[i.status]}`}>{i.status}</span></td>
+                <td className="p-3">
+                  {i.forward_enabled ? (
+                    <span className="flex items-center gap-1 text-xs text-primary font-medium"><PhoneForwarded className="w-3.5 h-3.5" /> {i.forward_destination}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </td>
                 <td className="p-3 flex gap-2">
                   <button onClick={() => setModalItem(i)}><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                   <button onClick={() => handleDelete(i.id)}><Trash2 className="w-4 h-4 text-destructive" /></button>

@@ -8,6 +8,10 @@
     "attendant_name": {
       "type": "string"
     },
+    "user_id": {
+      "type": "string",
+      "description": "ID do colaborador (User) associado a este ramal"
+    },
     "sector": {
       "type": "string"
     },
@@ -42,6 +46,24 @@
         "pausa"
       ],
       "default": "offline"
+    },
+    "forward_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "forward_type": {
+      "type": "string",
+      "enum": [
+        "sempre",
+        "ocupado",
+        "sem_resposta",
+        "indisponivel"
+      ],
+      "default": "sempre"
+    },
+    "forward_destination": {
+      "type": "string",
+      "description": "Ramal, n\u00famero externo ou fila para onde o desvio encaminha"
     },
     "active": {
       "type": "boolean",
