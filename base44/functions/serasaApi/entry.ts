@@ -34,11 +34,15 @@ Deno.serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'serasaApi', action: 'consulta', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
       return Response.json({ error: 'Falha ao consultar o ValidaCadastro/Serasa', details: data }, { status: res.status });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'serasaApi', action: 'consulta', status: 'sucesso' });
     return Response.json({ success: true, result: data });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'serasaApi', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

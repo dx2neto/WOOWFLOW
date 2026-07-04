@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
       });
       const data = await res.json();
       if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
         return Response.json({ error: 'Falha ao buscar faturas do IXC Provedor', details: data }, { status: res.status });
       }
 
@@ -76,6 +77,7 @@ Deno.serve(async (req) => {
         };
       });
 
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'sucesso' });
       return Response.json({ success: true, result: { total: data.total, registros: faturas } });
     }
 
@@ -99,8 +101,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Falha ao conectar ao IXC Provedor', details: data }, { status: res.status });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: action || 'cliente', status: 'sucesso' });
     return Response.json({ success: true, result: data });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'ixcApi', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

@@ -22,11 +22,15 @@ Deno.serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'zapsignApi', action: docToken ? 'get_doc' : 'list_docs', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
       return Response.json({ error: 'Falha ao conectar ao ZapSign', details: data }, { status: res.status });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'zapsignApi', action: docToken ? 'get_doc' : 'list_docs', status: 'sucesso' });
     return Response.json({ success: true, result: data });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'zapsignApi', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

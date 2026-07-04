@@ -1,0 +1,35 @@
+{
+  "name": "IntegrationLog",
+  "type": "object",
+  "properties": {
+    "integration": {
+      "type": "string",
+      "enum": [
+        "evolutionApi",
+        "ixcApi",
+        "zapsignApi",
+        "serasaApi",
+        "sendPaymentReminders",
+        "sendNegotiationOffers"
+      ]
+    },
+    "action": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sucesso",
+        "falha"
+      ],
+      "default": "sucesso"
+    },
+    "details": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "integration",
+    "status"
+  ]
+}

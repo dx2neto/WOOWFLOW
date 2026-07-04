@@ -59,8 +59,11 @@ Deno.serve(async (req) => {
       else errors.push({ invoice_id: inv.id, error: sendData.error });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'sendNegotiationOffers', action: 'run', status: errors.length ? 'falha' : 'sucesso', details: `enviados: ${sentCount}, vencidas: ${vencidas.length}` });
     return Response.json({ success: true, sent: sentCount, total_overdue: vencidas.length, errors });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'sendNegotiationOffers', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

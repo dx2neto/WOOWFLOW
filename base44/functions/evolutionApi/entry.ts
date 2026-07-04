@@ -32,8 +32,10 @@ Deno.serve(async (req) => {
       });
       const data = await res.json();
       if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'send_message', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
         return Response.json({ error: 'Falha ao enviar mensagem', details: data }, { status: res.status });
       }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'send_message', status: 'sucesso' });
       return Response.json({ success: true, result: data });
     }
 
@@ -42,11 +44,15 @@ Deno.serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'instance_all', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
       return Response.json({ error: 'Falha ao conectar à Evolution API', details: data }, { status: res.status });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'instance_all', status: 'sucesso' });
     return Response.json({ success: true, instances: data.data || data });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'evolutionApi', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

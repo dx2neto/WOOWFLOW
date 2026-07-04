@@ -55,8 +55,11 @@ Deno.serve(async (req) => {
       else errors.push({ invoice_id: inv.id, error: sendData.error });
     }
 
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'sendPaymentReminders', action: 'run', status: errors.length ? 'falha' : 'sucesso', details: `enviados: ${sentCount}, pendentes: ${pendentes.length}` });
     return Response.json({ success: true, sent: sentCount, total_pending: pendentes.length, errors });
   } catch (error) {
+    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'sendPaymentReminders', error_message: error.message }).catch(() => {});
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
