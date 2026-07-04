@@ -18,6 +18,15 @@
       "type": "string",
       "format": "date"
     },
+    "rule": {
+      "type": "string",
+      "enum": [
+        "antes_vencimento_2d",
+        "apos_vencimento_3d",
+        "atraso_5d"
+      ],
+      "default": "atraso_5d"
+    },
     "status": {
       "type": "string",
       "enum": [
