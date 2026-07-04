@@ -81,6 +81,46 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: { total: data.total, registros: faturas } });
     }
 
+    if (action === 'clientes') {
+      const clientesUrl = baseUrl.replace(/\/$/, '') + '/cliente';
+      const res = await fetch(clientesUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${token}`,
+          ixcsoft: 'listar',
+        },
+        body: JSON.stringify({
+          qtype: 'cliente.id',
+          query: '1',
+          oper: '>=',
+          page: '1',
+          rp: '100',
+          sortname: 'cliente.id',
+          sortorder: 'desc',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar clientes do IXC Provedor', details: data }, { status: res.status });
+      }
+
+      const registros = data.registros || [];
+      const clientes = registros.map((c) => ({
+        id: c.id,
+        name: c.razao || c.fantasia || `Cliente #${c.id}`,
+        cpf_cnpj: c.cnpj_cpf,
+        phone: c.telefone_celular || c.fone || '',
+        email: c.email,
+        city: c.cidade_nome || '',
+        contract_status: c.ativo === 'S' ? 'ativo' : 'cancelado',
+      }));
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'sucesso' });
+      return Response.json({ success: true, result: { total: data.total, registros: clientes } });
+    }
+
     const body = cpfCnpj
       ? { qtype: 'cliente.cnpj_cpf', query: cpfCnpj, oper: '=', page: '1', rp: '1' }
       : { qtype: 'cliente.id', query: '1', oper: '>=', page: '1', rp: '1' };
