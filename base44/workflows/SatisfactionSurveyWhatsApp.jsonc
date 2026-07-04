@@ -1,0 +1,42 @@
+{
+  "name": "Pesquisa de Satisfa\u00e7\u00e3o via WhatsApp",
+  "description": "Envia uma pesquisa de satisfa\u00e7\u00e3o pelo WhatsApp automaticamente quando um atendente encerra o protocolo de atendimento no CRM.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Conversation",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ (.trigger.data.status == \"resolvido\" or .trigger.data.status == \"finalizado\") and .trigger.old_data.status != \"resolvido\" and .trigger.old_data.status != \"finalizado\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "satisfaction_survey_whatsapp",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_survey": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "evolutionApi",
+            "args": {
+              "action": "send_message",
+              "phone": "${ .trigger.data.phone }",
+              "message": "Ol\u00e1! Seu atendimento (protocolo ${ .trigger.data.protocol }) foi encerrado. \ud83d\ude4f Poderia avaliar nosso atendimento de 1 a 5? Sua opini\u00e3o \u00e9 muito importante para n\u00f3s!"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar pesquisa via WhatsApp",
+            "description": "Evolution API"
+          }
+        }
+      }
+    ]
+  }
+}
