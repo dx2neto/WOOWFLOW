@@ -5,17 +5,22 @@ import { ixcApi } from "@/functions/ixcApi";
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
+  const [contactsByClient, setContactsByClient] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [error, setError] = useState(null);
 
-  useEffect(() => { loadCustomers(); }, []);
+  useEffect(() => { loadContacts(); }, []);
+  useEffect(() => {
+    const timeout = setTimeout(() => loadCustomers(search), 400);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
-  const loadCustomers = async () => {
+  const loadCustomers = async (searchTerm) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await ixcApi({ action: "clientes" });
+      const response = await ixcApi({ action: "clientes", search: searchTerm || undefined });
       if (response?.data?.error) {
         setError(response.data.error);
         setCustomers([]);
@@ -30,12 +35,23 @@ export default function Customers() {
     }
   };
 
-  const filtered = customers.filter((c) =>
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search) ||
-    c.cpf_cnpj?.includes(search) ||
-    c.city?.toLowerCase().includes(search.toLowerCase())
-  );
+  const loadContacts = async () => {
+    try {
+      const response = await ixcApi({ action: "contatos" });
+      const registros = response?.data?.result?.registros || [];
+      const grouped = {};
+      registros.forEach((ct) => {
+        if (!ct.client_id) return;
+        grouped[ct.client_id] = grouped[ct.client_id] || [];
+        grouped[ct.client_id].push(ct);
+      });
+      setContactsByClient(grouped);
+    } catch (e) {
+      setContactsByClient({});
+    }
+  };
+
+  const filtered = customers;
 
 
 
@@ -80,15 +96,16 @@ export default function Customers() {
                 <th className="text-left font-semibold px-4 py-3">Contato</th>
                 <th className="text-left font-semibold px-4 py-3">Email</th>
                 <th className="text-left font-semibold px-4 py-3">Cidade</th>
+                <th className="text-left font-semibold px-4 py-3">Contatos</th>
                 <th className="text-left font-semibold px-4 py-3">Contrato</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum cliente encontrado</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum cliente encontrado</td></tr>
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -106,6 +123,9 @@ export default function Customers() {
                     <td className="px-4 py-3 text-muted-foreground">{c.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.email || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground" title={(contactsByClient[c.id] || []).map((ct) => `${ct.name} ${ct.phone}`).join(", ")}>
+                      {(contactsByClient[c.id] || []).length > 0 ? `${contactsByClient[c.id].length} contato(s)` : "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${c.contract_status === "ativo" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                         {c.contract_status === "ativo" ? "Ativo" : "Cancelado"}
