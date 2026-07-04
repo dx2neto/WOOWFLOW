@@ -12,6 +12,31 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais da Evolution API não configuradas' }, { status: 500 });
     }
 
+    const body = await req.json().catch(() => ({}));
+
+    if (body.action === 'send_message') {
+      const instance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      if (!instance) {
+        return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
+      }
+      const { phone, message } = body;
+      if (!phone || !message) {
+        return Response.json({ error: 'phone e message são obrigatórios' }, { status: 400 });
+      }
+      const number = phone.replace(/\D/g, '');
+      const url = baseUrl.replace(/\/$/, '') + `/message/sendText/${instance}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, text: message }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return Response.json({ error: 'Falha ao enviar mensagem', details: data }, { status: res.status });
+      }
+      return Response.json({ success: true, result: data });
+    }
+
     const url = baseUrl.replace(/\/$/, '') + '/instance/all';
     const res = await fetch(url, { headers: { apikey: apiKey } });
     const data = await res.json();

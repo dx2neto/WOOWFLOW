@@ -4,6 +4,7 @@ import { StatCard } from "@/components/ui/Card";
 import { Phone, PhoneMissed, Clock, Radio } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { callReasons } from "../constants";
+import MissedCallsAlertPanel from "../MissedCallsAlertPanel";
 
 export default function DashboardTab() {
   const [trunks, setTrunks] = useState([]);
@@ -25,6 +26,7 @@ export default function DashboardTab() {
 
   return (
     <div>
+      <MissedCallsAlertPanel />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="Troncos Online" value={`${online}/${trunks.length}`} icon={Radio} color="accent" />
         <StatCard title="Ligações Ativas" value={active} icon={Phone} color="primary" />
