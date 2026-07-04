@@ -1,0 +1,45 @@
+{
+  "description": "Identifica clientes com faturas vencidas no IXC e envia automaticamente uma oferta especial de negocia\u00e7\u00e3o via WhatsApp",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "negotiation_offer_whatsapp",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_offers": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendNegotiationOffers",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar ofertas de negocia\u00e7\u00e3o",
+            "description": "Faturas vencidas"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Oferta de Negocia\u00e7\u00e3o via WhatsApp",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "America/Sao_Paulo",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
