@@ -120,7 +120,8 @@ export default function Inbox() {
   };
 
   const selected = conversations.find((c) => c.id === selectedId);
-  const filtered = filter === "all" ? conversations : conversations.filter((c) => c.status === filter);
+  const byInstance = selectedInstance ? conversations.filter((c) => !c.instance || c.instance === selectedInstance) : conversations;
+  const filtered = filter === "all" ? byInstance : byInstance.filter((c) => c.status === filter);
 
   const handleSend = async () => {
     if (!message.trim() || !selected || sending) return;

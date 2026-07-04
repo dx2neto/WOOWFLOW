@@ -16,6 +16,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const event = body.event;
+    const instanceName = body.instance || '';
     const items = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
 
     if (event !== 'messages.upsert' || items.length === 0) {
@@ -43,6 +44,7 @@ Deno.serve(async (req) => {
           customer_name: pushName,
           phone,
           channel: 'whatsapp',
+          instance: instanceName,
           status: 'novo',
           last_message: content,
           last_message_time: timestamp,
@@ -50,6 +52,7 @@ Deno.serve(async (req) => {
         });
       } else {
         await base44.asServiceRole.entities.Conversation.update(conversation.id, {
+          instance: instanceName || conversation.instance,
           last_message: content,
           last_message_time: timestamp,
           unread: !fromMe ? true : conversation.unread,
