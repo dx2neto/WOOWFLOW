@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/Card";
 import { Plus, Search, MoreVertical, Filter } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
