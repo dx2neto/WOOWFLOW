@@ -36,6 +36,41 @@ Deno.serve(async (req) => {
       return { ok: true, registros: all };
     };
 
+    // ── NOVO: resolve o nome das cidades ──────────────────────────────────
+    // No IXC o campo cliente.cidade é um ID que referencia a tabela "cidade".
+    // Sem isso, o nome da cidade chega em branco no sistema. Buscamos a tabela
+    // uma vez e montamos { id_cidade: "Nome - UF" } para reaproveitar.
+    const carregarMapaCidades = async () => {
+      const cidadeUrl = baseUrl.replace(/\/$/, '') + '/cidade';
+      const { ok, registros } = await fetchAllPages(
+        cidadeUrl,
+        { qtype: 'cidade.id', query: '1', oper: '>=', sortname: 'cidade.id', sortorder: 'asc' },
+        20000, // há muitas cidades no Brasil; deixamos folga
+      );
+      const mapa = {};
+      if (ok) {
+        for (const c of registros) {
+          // fallback de campo: varia por versão do IXC
+          const nome = c.nome || c.cidade || c.descricao || '';
+          const uf = c.uf_sigla || c.sigla_uf || c.uf || '';
+          mapa[String(c.id)] = uf ? `${nome} - ${uf}` : nome;
+        }
+      }
+      return { mapa, ok, total: registros.length };
+    };
+
+    // ── NOVO: action dedicada para listar cidades (ex.: alimentar dropdown) ─
+    if (action === 'cidades') {
+      const { mapa, ok, total } = await carregarMapaCidades();
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'cidades', status: 'falha' });
+        return Response.json({ error: 'Falha ao buscar cidades do IXC Provedor' }, { status: 500 });
+      }
+      const cidades = Object.entries(mapa).map(([id, label]) => ({ id, label }));
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'cidades', status: 'sucesso', details: `${total} cidades carregadas` });
+      return Response.json({ success: true, result: { total: cidades.length, registros: cidades } });
+    }
+
     if (action === 'faturas') {
       const areceberUrl = baseUrl.replace(/\/$/, '') + '/fn_areceber';
       const res = await fetch(areceberUrl, {
@@ -131,13 +166,17 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Falha ao buscar clientes do IXC Provedor', details: data }, { status: 500 });
       }
 
+      // NOVO: carrega o mapa de cidades uma vez e resolve o nome por cliente.
+      const { mapa: cidadesById } = await carregarMapaCidades();
+
       const clientes = rawRegistros.map((c) => ({
         id: c.id,
         name: c.razao || c.fantasia || `Cliente #${c.id}`,
         cpf_cnpj: c.cnpj_cpf,
         phone: c.telefone_celular || c.fone || '',
         email: c.email,
-        city: c.cidade_nome || '',
+        // antes: c.cidade_nome (vinha vazio). Agora resolvemos pelo ID da cidade.
+        city: cidadesById[String(c.cidade)] || c.cidade_nome || '',
         contract_status: c.ativo === 'S' ? 'ativo' : 'cancelado',
       }));
 

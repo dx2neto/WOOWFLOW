@@ -1,77 +1,175 @@
-# Base44 Project
+# 🔁 WOOWFLOW v2 — IXC Soft + Evolution API
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+> Integração completa entre **IXC Soft** e **Evolution API (WhatsApp)** para provedores de internet.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+---
 
-## Prerequisites
-
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
-
-## Run Locally
-
-Run the full local development environment from the project root:
+## 🚀 Instalação rápida
 
 ```bash
-base44 dev
+# 1. Clone e instale
+npm install
+
+# 2. Configure o ambiente
+cp .env.example .env
+nano .env          # preencha IXC e Evolution
+
+# 3. Teste as conexões
+npm test
+
+# 4. Inicie
+npm start
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+---
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
+## ⚙️ .env — Variáveis obrigatórias
 
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
-```
+| Variável              | Exemplo                                    |
+|-----------------------|--------------------------------------------|
+| `IXC_BASE_URL`        | `https://seuixc.com.br/webservice/v1`      |
+| `IXC_TOKEN`           | `abc123...`                                |
+| `IXC_USERNAME`        | `admin`                                    |
+| `EVOLUTION_BASE_URL`  | `https://api.evolution.seudominio.com`     |
+| `EVOLUTION_API_KEY`   | `sua-apikey`                               |
+| `EVOLUTION_INSTANCE`  | `minha-instancia`                          |
+| `BASE_URL`            | `https://seudominio.com` (para webhook)    |
+| `WEBHOOK_SECRET`      | string aleatória (segurança)               |
 
-In a Base44 project this lives in `base44/config.jsonc`.
+---
 
-## Run Only The Frontend
+## 📡 Configurar webhook na Evolution API
 
-If you only want to work on the frontend against the hosted Base44 backend, run:
+Após iniciar o servidor, execute:
 
 ```bash
-npm run dev
+curl -X POST http://localhost:3000/admin/configurar-webhook \
+  -H "Content-Type: application/json" \
+  -d '{ "baseUrl": "https://SEU_DOMINIO.com" }'
 ```
 
-Open the local URL printed by Vite.
-
-## Use The Hosted Backend
-
-For frontend-only development, create or update `.env.local` in the project root:
+Ou manualmente:
 
 ```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+curl -X POST https://SUA_EVOLUTION/webhook/set/INSTANCIA \
+  -H "apikey: SUA_APIKEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://seudominio.com/webhook/evolution",
+    "webhook_by_events": true,
+    "webhook_base64": false,
+    "events": ["MESSAGES_UPSERT"]
+  }'
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
+---
 
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
+## 🗺️ Todas as rotas
 
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
+### 🤖 Chatbot (automático via WhatsApp)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/webhook/evolution` | Recebe mensagens da Evolution API |
 
-## Publish Your Changes
+**Fluxo do chatbot:**
+1. Cliente manda qualquer mensagem
+2. Bot identifica pelo número → busca no IXC
+3. Exibe menu com botões: **Conta / Boleto / Atendente**
+4. Conta não encontrada → solicita CPF
+5. Boleto → gera 2ª via com linha digitável + PIX + PDF
 
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+---
 
+### 📢 Notificações (IXC → WhatsApp)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/notificacoes/cobrancas-vencidas` | Dispara aviso para clientes com fatura vencida |
+| `POST` | `/notificacoes/vencimento-proximo` | Avisa clientes com vencimento nos próximos N dias |
+| `POST` | `/notificacoes/cliente/:id` | Mensagem personalizada para um cliente |
+| `POST` | `/notificacoes/boleto/:idCobranca` | Envia 2ª via de uma cobrança específica |
+
+**Exemplos:**
 ```bash
-base44 dashboard open
+# Notificar todos os clientes vencidos há 3+ dias
+curl -X POST http://localhost:3000/notificacoes/cobrancas-vencidas \
+  -H "Content-Type: application/json" \
+  -d '{ "diasAtraso": 3, "limite": 200 }'
+
+# Avisar vencimentos de amanhã
+curl -X POST http://localhost:3000/notificacoes/vencimento-proximo \
+  -H "Content-Type: application/json" \
+  -d '{ "diasAntes": 1 }'
+
+# Mensagem customizada
+curl -X POST http://localhost:3000/notificacoes/cliente/123 \
+  -H "Content-Type: application/json" \
+  -d '{ "mensagem": "Seu serviço está em manutenção prevista para amanhã." }'
 ```
 
-## Docs & Support
+---
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+### 🧾 Boletos
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET`  | `/boletos/:id` | Detalhes de uma cobrança |
+| `POST` | `/boletos/:id/enviar-whatsapp` | Envia 2ª via no WhatsApp |
+| `GET`  | `/boletos/cliente/:id/abertos` | Lista cobranças em aberto |
+| `POST` | `/boletos/cliente/:id/enviar-todos` | Envia todos os boletos abertos |
 
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
+---
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+### 👥 Clientes
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET`  | `/clientes/buscar?telefone=` | Busca por telefone |
+| `GET`  | `/clientes/buscar?cpf=` | Busca por CPF |
+| `GET`  | `/clientes/:id` | Dados do cliente |
+| `GET`  | `/clientes/:id/contratos` | Contratos ativos |
+| `GET`  | `/clientes/:id/cobrancas` | Cobranças em aberto |
+| `GET`  | `/clientes/:id/tickets` | Tickets de suporte |
+| `POST` | `/clientes/:id/tickets` | Abre novo ticket no IXC |
+
+---
+
+### ⚙️ Admin
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET`  | `/admin/status` | Status da instância Evolution |
+| `POST` | `/admin/configurar-webhook` | Registra webhook na Evolution |
+| `GET`  | `/admin/sessoes` | Quantidade de sessões ativas |
+| `DELETE` | `/admin/sessoes/:numero` | Remove sessão de um número |
+| `POST` | `/admin/checar-numero` | Verifica se número tem WhatsApp |
+| `GET`  | `/health` | Health check do servidor |
+
+---
+
+## ⏰ Cron — Disparos automáticos
+
+Adicione ao crontab (`crontab -e`):
+
+```cron
+# Notificar vencidos todo dia às 8h
+0 8 * * * curl -s -X POST http://localhost:3000/notificacoes/cobrancas-vencidas -H "Content-Type: application/json" -d '{"diasAtraso":1}' >> /var/log/woowflow.log
+
+# Avisar vencimentos de amanhã todo dia às 16h
+0 16 * * * curl -s -X POST http://localhost:3000/notificacoes/vencimento-proximo -H "Content-Type: application/json" -d '{"diasAntes":1}' >> /var/log/woowflow.log
+```
+
+---
+
+## 🔒 Segurança em produção
+
+1. Configure `WEBHOOK_SECRET` no `.env`
+2. Use HTTPS (Nginx + Certbot)
+3. Configure rate limit no Nginx
+4. Não exponha `/admin` publicamente (use autenticação ou firewall)
+
+---
+
+## 📦 Stack
+
+- **Runtime**: Node.js 18+
+- **Framework**: Express 4
+- **Logging**: Winston
+- **Segurança**: Helmet + express-rate-limit
+- **APIs**: IXC Soft v1 REST + Evolution API v2
