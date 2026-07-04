@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/Card";
-import { FinancialBadge } from "@/components/Badges";
-import { Plus, Search, MoreVertical, Wifi, WifiOff, Ban, Filter } from "lucide-react";
+import { Plus, Search, MoreVertical, Filter } from "lucide-react";
+import { ixcApi } from "@/functions/ixcApi";
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState(null);
 
   useEffect(() => { loadCustomers(); }, []);
 
   const loadCustomers = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const data = await base44.entities.Customer.list("-created_date", 100);
-      setCustomers(data);
+      const response = await ixcApi({ action: "clientes" });
+      if (response?.data?.error) {
+        setError(response.data.error);
+        setCustomers([]);
+      } else {
+        setCustomers(response?.data?.result?.registros || []);
+      }
     } catch (e) {
+      setError("Não foi possível carregar os clientes do IXC Provedor.");
       setCustomers([]);
     } finally {
       setLoading(false);
@@ -29,11 +38,7 @@ export default function Customers() {
     c.city?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const connIcon = (status) => {
-    if (status === "online") return <Wifi className="w-4 h-4 text-green-600" />;
-    if (status === "bloqueado") return <Ban className="w-4 h-4 text-red-600" />;
-    return <WifiOff className="w-4 h-4 text-gray-400" />;
-  };
+
 
   return (
     <PageContainer>
@@ -46,6 +51,10 @@ export default function Customers() {
           <Plus className="w-4 h-4" /> Novo Cliente
         </button>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
+      )}
 
       <Card className="overflow-hidden">
         <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
@@ -70,19 +79,17 @@ export default function Customers() {
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left font-semibold px-4 py-3">Cliente</th>
                 <th className="text-left font-semibold px-4 py-3">Contato</th>
+                <th className="text-left font-semibold px-4 py-3">Email</th>
                 <th className="text-left font-semibold px-4 py-3">Cidade</th>
-                <th className="text-left font-semibold px-4 py-3">Plano</th>
-                <th className="text-left font-semibold px-4 py-3">Financeiro</th>
-                <th className="text-left font-semibold px-4 py-3">Conexão</th>
-                <th className="text-left font-semibold px-4 py-3">Mensalidade</th>
+                <th className="text-left font-semibold px-4 py-3">Contrato</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum cliente encontrado</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum cliente encontrado</td></tr>
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -98,11 +105,13 @@ export default function Customers() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{c.phone}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.email || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
-                    <td className="px-4 py-3">{c.plan || "—"}</td>
-                    <td className="px-4 py-3"><FinancialBadge status={c.financial_status} /></td>
-                    <td className="px-4 py-3">{connIcon(c.connection_status)}</td>
-                    <td className="px-4 py-3 font-medium">R$ {(c.monthly_fee || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${c.contract_status === "ativo" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                        {c.contract_status === "ativo" ? "Ativo" : "Cancelado"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3"><button className="p-1.5 hover:bg-muted rounded-lg"><MoreVertical className="w-4 h-4 text-muted-foreground" /></button></td>
                   </tr>
                 ))
