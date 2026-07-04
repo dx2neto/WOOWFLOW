@@ -1,0 +1,41 @@
+{
+  "name": "Avan\u00e7ar CRM ao Confirmar Pagamento",
+  "description": "Move o cliente automaticamente para a etapa 'venda_fechada' no CRM assim que o pagamento \u00e9 detectado/confirmado no IXC.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Charge",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.status == \"paga\" and .trigger.old_data.status != \"paga\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "advance_crm_on_payment",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "advance_stage": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "advanceCrmStage",
+            "args": {
+              "phone": "${ .trigger.data.phone }",
+              "reason": "pagamento_confirmado"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Avan\u00e7ar etapa no CRM",
+            "description": "Pagamento confirmado"
+          }
+        }
+      }
+    ]
+  }
+}

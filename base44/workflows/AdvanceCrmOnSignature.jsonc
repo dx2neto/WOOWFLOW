@@ -1,0 +1,41 @@
+{
+  "name": "Avan\u00e7ar CRM ao Assinar Contrato",
+  "description": "Move o cliente automaticamente para a etapa 'venda_fechada' no CRM assim que o contrato \u00e9 assinado via ZapSign.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "SignatureRequest",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.status == \"assinado\" and .trigger.old_data.status != \"assinado\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "advance_crm_on_signature",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "advance_stage": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "advanceCrmStage",
+            "args": {
+              "phone": "${ .trigger.data.phone }",
+              "reason": "assinatura_confirmada"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Avan\u00e7ar etapa no CRM",
+            "description": "Contrato assinado"
+          }
+        }
+      }
+    ]
+  }
+}
