@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import FinancialPanel from "@/components/dashboard/FinancialPanel";
 import {
   Inbox, Users, DollarSign, Send, Clock, CheckCircle, TrendingUp,
   Star, Trophy, AlertCircle, Zap, MessageSquare, Bot
@@ -78,6 +79,8 @@ export default function Dashboard() {
           {periods.map((p) => <option key={p}>{p}</option>)}
         </select>
       </div>
+
+      <FinancialPanel />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard title="Atendimentos Abertos" value={stats.open} icon={Inbox} color="primary" trend={12} />
