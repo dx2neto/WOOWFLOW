@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Calendar, Plus, Trash2 } from "lucide-react";
 import HolidayFormModal from "@/components/tagsqueues/HolidayFormModal";
 import { format } from "date-fns";

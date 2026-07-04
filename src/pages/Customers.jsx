@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Search, MoreVertical, Filter } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 
@@ -27,7 +27,7 @@ export default function Customers() {
       } else {
         setCustomers(response?.data?.result?.registros || []);
       }
-    } catch (e) {
+    } catch {
       setError("Não foi possível carregar os clientes do IXC Provedor.");
       setCustomers([]);
     } finally {
@@ -46,7 +46,7 @@ export default function Customers() {
         grouped[ct.client_id].push(ct);
       });
       setContactsByClient(grouped);
-    } catch (e) {
+    } catch {
       setContactsByClient({});
     }
   };

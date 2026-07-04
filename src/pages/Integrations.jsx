@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import {
   MessageCircle, Database, FileSignature, ShieldCheck, Instagram,
   Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus
@@ -104,7 +104,7 @@ export default function Integrations() {
       const map = {};
       data.forEach((c) => { map[c.service] = c; });
       setConfigs(map);
-    } catch (e) {}
+    } catch {}
   };
 
   const getStatus = (service) => {
@@ -130,7 +130,7 @@ export default function Integrations() {
       } else {
         await base44.entities.IntegrationConfig.create(payload);
       }
-    } catch (e) {
+    } catch {
       const existing = configs[int.service];
       const payload = { service: int.service, display_name: int.display_name, status: "error", last_sync: new Date().toISOString() };
       if (existing) await base44.entities.IntegrationConfig.update(existing.id, payload);
@@ -153,8 +153,6 @@ export default function Integrations() {
           const Icon = int.icon;
           const status = getStatus(int.service);
           const StatusIcon = statusConfig[status]?.icon || XCircle;
-          const isEvolution = int.service === "evolution_api";
-
           return (
             <Card key={int.service} className="p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PageContainer } from "@/components/ui/Card";
+import { PageContainer } from "@/components/ui/app-card";
 import {
   LayoutDashboard, PhoneCall, ArrowDownToLine, ArrowUpFromLine,
   Network, Router, Users, ListOrdered, Voicemail

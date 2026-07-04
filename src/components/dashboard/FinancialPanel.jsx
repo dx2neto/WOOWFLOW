@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/components/ui/app-card";
 import { CheckCircle2, Clock3 } from "lucide-react";
 
 const formatBRL = (value) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

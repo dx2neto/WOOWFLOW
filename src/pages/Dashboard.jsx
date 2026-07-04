@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
 import {
   Inbox, DollarSign, Send, Clock, CheckCircle, TrendingUp,
@@ -57,7 +57,7 @@ const periods = ["Hoje", "Ontem", "Esta semana", "Este mês", "Últimos 30 dias"
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("Hoje");
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     open: 47, inProgress: 23, resolved: 156, leads: 34,
     chargesSent: 89, pixReceived: 67, defaulters: 42, unblocks: 18
   });

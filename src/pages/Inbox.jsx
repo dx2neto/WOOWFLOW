@@ -42,7 +42,7 @@ export default function Inbox() {
       const data = await base44.entities.Conversation.list("-last_message_time", 50);
       setConversations(data);
       if (data.length > 0) setSelectedId(data[0].id);
-    } catch (e) {
+    } catch {
       setConversations([]);
     } finally {
       setLoading(false);
@@ -54,7 +54,7 @@ export default function Inbox() {
     try {
       const data = await base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp");
       setMessages(data);
-    } catch (e) {
+    } catch {
       setMessages([]);
     } finally {
       setLoadingMessages(false);
@@ -86,7 +86,7 @@ export default function Inbox() {
       setMessages((prev) => [...prev, newMessage]);
       await base44.entities.Conversation.update(selected.id, { last_message: content, last_message_time: new Date().toISOString() });
       setConversations((prev) => prev.map((c) => c.id === selected.id ? { ...c, last_message: content, last_message_time: new Date().toISOString() } : c));
-    } catch (e) {
+    } catch {
       toast({ title: "Erro ao enviar mensagem", variant: "destructive" });
     } finally {
       setSending(false);

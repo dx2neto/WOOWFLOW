@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Tags, ListTree, Plus, Pencil, Trash2 } from "lucide-react";
 import TagFormModal from "@/components/tagsqueues/TagFormModal";
 import QueueFormModal from "@/components/tagsqueues/QueueFormModal";

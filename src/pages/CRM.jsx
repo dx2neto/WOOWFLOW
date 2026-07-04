@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer } from "@/components/ui/Card";
+import { PageContainer } from "@/components/ui/app-card";
 import { ChannelBadge } from "@/components/Badges";
-import { Plus, Phone, MapPin, DollarSign, AlertTriangle, Clock } from "lucide-react";
+import { Plus, Phone, MapPin, DollarSign } from "lucide-react";
 import LeadFormModal from "@/components/crm/LeadFormModal";
 
 const stages = [
@@ -18,39 +18,22 @@ const stages = [
 
 export default function CRM() {
   const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [draggedId, setDraggedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [overdueChargePhones, setOverdueChargePhones] = useState(new Set());
-  const [expiringContractPhones, setExpiringContractPhones] = useState(new Set());
 
   useEffect(() => {
     loadLeads();
-    loadAlerts();
   }, []);
 
   const loadLeads = async () => {
     try {
       const data = await base44.entities.Lead.list("-created_date", 200);
       setLeads(data);
-    } catch (e) {
+    } catch {
       setLeads([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadAlerts = async () => {
-    try {
-      const [charges, customers] = await Promise.all([
-        base44.entities.Charge.filter({ status: "vencida" }, "-created_date", 500),
-        base44.entities.Customer.filter({ contract_status: "suspenso" }, "-created_date", 500),
-      ]);
-      setOverdueChargePhones(new Set(charges.map((c) => c.phone).filter(Boolean)));
-      setExpiringContractPhones(new Set(customers.map((c) => c.phone).filter(Boolean)));
-    } catch (e) {
-      setOverdueChargePhones(new Set());
-      setExpiringContractPhones(new Set());
     }
   };
 
@@ -61,7 +44,7 @@ export default function CRM() {
       setLeads(leads.map((l) => l.id === draggedId ? { ...l, stage } : l));
       try {
         await base44.entities.Lead.update(draggedId, { stage });
-      } catch (e) {}
+      } catch {}
     }
     setDraggedId(null);
   };
@@ -112,34 +95,17 @@ export default function CRM() {
                 </div>
 
                 <div className="p-2 space-y-2 min-h-[200px] flex-1 overflow-y-auto scrollbar-thin">
-                  {stageLeads.map((lead) => {
-                    const hasOverdueCharge = overdueChargePhones.has(lead.phone);
-                    const hasExpiringContract = expiringContractPhones.has(lead.phone);
-                    return (
+                  {stageLeads.map((lead) => (
                     <div
                       key={lead.id}
                       draggable
                       onDragStart={() => setDraggedId(lead.id)}
-                      className={`bg-background border rounded-lg p-3 cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing ${(hasOverdueCharge || hasExpiringContract) ? "border-red-300" : "border-border"}`}
+                      className="bg-background border border-border rounded-lg p-3 cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <p className="font-medium text-sm leading-tight">{lead.name}</p>
                         <ChannelBadge channel={lead.origin} />
                       </div>
-                      {(hasOverdueCharge || hasExpiringContract) && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {hasOverdueCharge && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-100 text-red-700">
-                              <AlertTriangle className="w-3 h-3" /> Cobrança em atraso
-                            </span>
-                          )}
-                          {hasExpiringContract && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-100 text-amber-700">
-                              <Clock className="w-3 h-3" /> Contrato expirando
-                            </span>
-                          )}
-                        </div>
-                      )}
                       <div className="space-y-1 text-xs text-muted-foreground">
                         {lead.phone && <p className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {lead.phone}</p>}
                         {lead.city && <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.city}</p>}
@@ -157,8 +123,7 @@ export default function CRM() {
                         </div>
                       )}
                     </div>
-                    );
-                  })}
+                  ))}
                   {stageLeads.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-8">Arraste leads para cá</p>
                   )}
