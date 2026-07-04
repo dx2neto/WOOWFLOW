@@ -16,6 +16,7 @@ import Customers from '@/pages/Customers';
 import Charges from '@/pages/Charges';
 import Campaigns from '@/pages/Campaigns';
 import Chatbot from '@/pages/Chatbot';
+import MessageTemplates from '@/pages/MessageTemplates';
 import Signatures from '@/pages/Signatures';
 import KnowledgeBase from '@/pages/KnowledgeBase';
 import Reports from '@/pages/Reports';
@@ -59,6 +60,7 @@ const AuthenticatedApp = () => {
           <Route path="/charges" element={<Charges />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/chatbot" element={<Chatbot />} />
+          <Route path="/message-templates" element={<MessageTemplates />} />
           <Route path="/signatures" element={<Signatures />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/reports" element={<Reports />} />

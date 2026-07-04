@@ -11,6 +11,7 @@ const pageTitles = {
   "/charges": "Cobranças",
   "/campaigns": "Campanhas WhatsApp",
   "/chatbot": "Chatbot e IA",
+  "/message-templates": "Templates de Mensagem",
   "/signatures": "Assinatura Eletrônica",
   "/knowledge": "Base de Conhecimento",
   "/reports": "Relatórios",
