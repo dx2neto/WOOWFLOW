@@ -3,6 +3,7 @@ import { PageContainer, Card, StatCard } from "@/components/ui/Card";
 import { Download, TrendingUp, Clock, Star, Trophy, FileBarChart } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart } from "recharts";
 import { exportToCsv } from "@/lib/exportCsv";
+import GoalsSection from "@/components/reports/GoalsSection";
 
 const attendantData = [
   { name: "Ana Paula", atendimentos: 145, resolucao: 92, satisfaction: 4.8 },
@@ -61,6 +62,8 @@ export default function Reports() {
           </button>
         </div>
       </div>
+
+      <GoalsSection />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard title="Taxa de Conversão" value="36.9%" icon={TrendingUp} color="accent" trend={4} />
