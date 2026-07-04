@@ -1,6 +1,24 @@
 const isNode = typeof window === 'undefined';
-const windowObj = isNode ? { localStorage: new Map() } : window;
-const storage = windowObj.localStorage;
+
+/** In-memory fallback with the same interface as localStorage (for non-browser environments). */
+const memoryStorage = {
+	/** @type {Map<string, string>} */
+	_store: new Map(),
+	/** @param {string} key */
+	getItem(key) {
+		return this._store.has(key) ? this._store.get(key) : null;
+	},
+	/** @param {string} key @param {string} value */
+	setItem(key, value) {
+		this._store.set(key, String(value));
+	},
+	/** @param {string} key */
+	removeItem(key) {
+		this._store.delete(key);
+	},
+};
+
+const storage = isNode ? memoryStorage : window.localStorage;
 
 const toSnakeCase = (str) => {
 	return str.replace(/([A-Z])/g, '_$1').toLowerCase();

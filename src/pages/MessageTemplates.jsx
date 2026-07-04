@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Pencil, Trash2, MessageSquareText } from "lucide-react";
 import TemplateFormModal from "@/components/templates/TemplateFormModal";
 

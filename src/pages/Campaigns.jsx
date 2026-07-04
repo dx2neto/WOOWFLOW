@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { Plus, Send, CheckCircle, Eye, MessageSquare, Calendar, Instagram, Image as ImageIcon, Film, Clock, Trash2 } from "lucide-react";
 import InstagramPostForm from "@/components/campaigns/InstagramPostForm";
 import ContentCalendar from "@/components/campaigns/ContentCalendar";
@@ -45,7 +45,7 @@ export default function Campaigns() {
     try {
       const data = await base44.entities.Campaign.list("-created_date", 50);
       setCampaigns(data);
-    } catch (e) { setCampaigns([]); } finally { setLoading(false); }
+    } catch { setCampaigns([]); } finally { setLoading(false); }
   };
 
   const handleSavePost = async (postData) => {
@@ -218,7 +218,7 @@ export default function Campaigns() {
                   <Card key={p.id} className="overflow-hidden hover:shadow-md transition-shadow">
                     {p.media_url && (
                       <div className="h-40 bg-muted overflow-hidden">
-                        <img src={p.media_url} alt={p.name} className="w-full h-full object-cover" onError={(e) => e.target.parentElement.style.display = "none"} />
+                        <img src={p.media_url} alt={p.name} className="w-full h-full object-cover" onError={(e) => { if (e.currentTarget.parentElement) e.currentTarget.parentElement.style.display = "none"; }} />
                       </div>
                     )}
                     <div className="p-5">
@@ -259,7 +259,7 @@ export default function Campaigns() {
           <div className="bg-card rounded-2xl border border-border shadow-xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
             {selectedPost.media_url && (
               <div className="h-56 bg-muted">
-                <img src={selectedPost.media_url} alt={selectedPost.name} className="w-full h-full object-cover" onError={(e) => e.target.parentElement.style.display = "none"} />
+                <img src={selectedPost.media_url} alt={selectedPost.name} className="w-full h-full object-cover" onError={(e) => { if (e.currentTarget.parentElement) e.currentTarget.parentElement.style.display = "none"; }} />
               </div>
             )}
             <div className="p-6">

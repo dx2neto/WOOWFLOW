@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { StatCard } from "@/components/ui/Card";
+import { StatCard } from "@/components/ui/app-card";
 import { Phone, PhoneMissed, Clock, Radio } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { callReasons } from "../constants";
