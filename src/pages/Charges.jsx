@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
-import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Search, Filter } from "lucide-react";
+import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Search, Filter, Download } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
+import { exportToCsv } from "@/lib/exportCsv";
 
 const today = new Date();
 
@@ -95,9 +96,19 @@ export default function Charges() {
 
   return (
     <PageContainer>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold font-heading">Cobranças e PIX</h2>
-        <p className="text-sm text-muted-foreground">Gestão de cobranças automáticas e lembretes PIX</p>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold font-heading">Cobranças e PIX</h2>
+          <p className="text-sm text-muted-foreground">Gestão de cobranças automáticas e lembretes PIX</p>
+        </div>
+        <button
+          onClick={() => exportToCsv("cobrancas.csv", filtered.map((c) => ({
+            cliente: c.customer_name, telefone: c.phone, vencimento: c.due_date, valor: c.value, status: statusConfig[c.status]?.label || c.status, dias_atraso: c.days_late,
+          })))}
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
+        >
+          <Download className="w-4 h-4" /> Exportar
+        </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

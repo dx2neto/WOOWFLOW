@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PageContainer, Card, StatCard } from "@/components/ui/Card";
 import { Download, TrendingUp, Clock, Users, DollarSign, Star, Trophy, FileBarChart } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, ComposedChart } from "recharts";
+import { exportToCsv } from "@/lib/exportCsv";
 
 const attendantData = [
   { name: "Ana Paula", atendimentos: 145, resolucao: 92, satisfaction: 4.8 },
@@ -55,7 +56,7 @@ export default function Reports() {
             <option>Hoje</option><option>Ontem</option><option>Esta semana</option>
             <option>Este mês</option><option>Últimos 30 dias</option><option>Últimos 90 dias</option>
           </select>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+          <button onClick={() => exportToCsv("ranking-atendentes.csv", attendantData)} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
             <Download className="w-4 h-4" /> Exportar
           </button>
         </div>
@@ -159,8 +160,8 @@ export default function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card title="Exportar Relatórios" className="p-5">
           <div className="space-y-2">
-            {["PDF", "Excel (XLSX)", "CSV"].map((format) => (
-              <button key={format} className="w-full flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-muted/50 text-sm font-medium">
+            {["Excel (XLSX)", "CSV"].map((format) => (
+              <button key={format} onClick={() => exportToCsv("relatorio-completo.csv", attendantData)} className="w-full flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-muted/50 text-sm font-medium">
                 <FileBarChart className="w-4 h-4 text-primary" /> Relatório Completo - {format}
                 <Download className="w-4 h-4 text-muted-foreground ml-auto" />
               </button>
