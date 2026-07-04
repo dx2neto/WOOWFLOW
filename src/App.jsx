@@ -10,6 +10,11 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import LoginRedirect from '@/components/LoginRedirect';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
+// Paginas de autenticacao (rotas publicas)
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
 import Inbox from '@/pages/Inbox';
 import CRM from '@/pages/CRM';
@@ -50,7 +55,14 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
+      {/* Rotas publicas */}
       <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* Rotas protegidas (exigem login e usam o Layout com sidebar) */}
       <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -74,6 +86,7 @@ const AuthenticatedApp = () => {
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
