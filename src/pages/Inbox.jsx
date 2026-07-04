@@ -29,11 +29,34 @@ export default function Inbox() {
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sendingBoleto, setSendingBoleto] = useState(false);
+  const [instances, setInstances] = useState([]);
+  const [selectedInstance, setSelectedInstance] = useState(() => localStorage.getItem("evolution_instance") || "");
   const { toast } = useToast();
 
   useEffect(() => {
     loadConversations();
+    loadInstances();
   }, []);
+
+  const loadInstances = async () => {
+    try {
+      const response = await evolutionApi({ action: "get_instances" });
+      const list = response?.data?.instances || [];
+      setInstances(list);
+      if (!selectedInstance && list.length > 0) {
+        const first = list[0].name || list[0].instance?.instanceName || "";
+        setSelectedInstance(first);
+        localStorage.setItem("evolution_instance", first);
+      }
+    } catch {
+      setInstances([]);
+    }
+  };
+
+  const handleInstanceChange = (name) => {
+    setSelectedInstance(name);
+    localStorage.setItem("evolution_instance", name);
+  };
 
   useEffect(() => {
     const unsubscribe = base44.entities.Conversation.subscribe((event) => {
@@ -105,7 +128,7 @@ export default function Inbox() {
     setMessage("");
     setSending(true);
     try {
-      const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content });
+      const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
       if (response?.data?.error) {
         toast({ title: "Falha ao enviar mensagem", variant: "destructive" });
         return;
@@ -149,7 +172,7 @@ export default function Inbox() {
       if (fatura.linha_digitavel) linhas.push(`Linha digitável: ${fatura.linha_digitavel}`);
       const content = linhas.join("\n");
 
-      const evoResponse = await evolutionApi({ action: "send_message", phone: selected.phone, message: content });
+      const evoResponse = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
       if (evoResponse?.data?.error) {
         toast({ title: "Falha ao enviar a 2ª via", variant: "destructive" });
         return;
@@ -186,6 +209,18 @@ export default function Inbox() {
       {/* Conversation List */}
       <div className="w-80 border-r border-border bg-card flex flex-col flex-shrink-0">
         <div className="p-4 border-b border-border">
+          {instances.length > 0 && (
+            <select
+              value={selectedInstance}
+              onChange={(e) => handleInstanceChange(e.target.value)}
+              className="w-full h-9 mb-3 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+            >
+              {instances.map((inst) => {
+                const name = inst.name || inst.instance?.instanceName || "";
+                return <option key={name} value={name}>{name}</option>;
+              })}
+            </select>
+          )}
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input

@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
 
     if (body.action === 'send_message') {
-      const instance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      const instance = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
       if (!instance) {
         return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
       }
