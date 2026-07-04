@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/Card";
-import { Bot, MessageSquare, Phone, Clock, Calendar, Zap, Plus, Play, Settings, Brain } from "lucide-react";
+import { Bot, MessageSquare, Phone, Clock, Calendar, Zap, Plus, Play, Settings, Brain, Trash2 } from "lucide-react";
 import FlowFormModal from "@/components/chatbot/FlowFormModal";
 
 const intents = [
@@ -18,31 +19,39 @@ const intents = [
   { label: "Falar com atendente", icon: "👤", color: "bg-gray-50 text-gray-700" },
 ];
 
-const initialFlows = [
-  { id: 1, name: "Menu Principal WhatsApp", channel: "WhatsApp", status: "ativo", steps: 8 },
-  { id: 2, name: "Cobrança Automática PIX", channel: "WhatsApp", status: "ativo", steps: 5 },
-  { id: 3, name: "Boas-vindas Novo Cliente", channel: "WhatsApp", status: "ativo", steps: 3 },
-  { id: 4, name: "Pesquisa de Satisfação", channel: "WhatsApp", status: "ativo", steps: 4 },
-  { id: 5, name: "Fora do Horário", channel: "WhatsApp", status: "ativo", steps: 2 },
-  { id: 6, name: "Menu Instagram", channel: "Instagram", status: "rascunho", steps: 6 },
-];
-
 export default function Chatbot() {
   const [tab, setTab] = useState("flows");
-  const [flows, setFlows] = useState(initialFlows);
+  const [flows, setFlows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState(null);
 
-  const handleSaveFlow = (data) => {
-    if (editingFlow) {
-      setFlows(flows.map((f) => (f.id === editingFlow.id ? { ...f, ...data } : f)));
-    } else {
-      setFlows([...flows, { id: Date.now(), status: "rascunho", ...data }]);
-    }
+  useEffect(() => { loadFlows(); }, []);
+
+  const loadFlows = async () => {
+    setLoading(true);
+    const data = await base44.entities.ChatbotFlow.list("-created_date", 200);
+    setFlows(data);
+    setLoading(false);
   };
 
-  const toggleFlowStatus = (id) => {
-    setFlows(flows.map((f) => (f.id === id ? { ...f, status: f.status === "ativo" ? "rascunho" : "ativo" } : f)));
+  const handleSaveFlow = async (data) => {
+    if (editingFlow) {
+      await base44.entities.ChatbotFlow.update(editingFlow.id, data);
+    } else {
+      await base44.entities.ChatbotFlow.create({ status: "rascunho", ...data });
+    }
+    await loadFlows();
+  };
+
+  const toggleFlowStatus = async (flow) => {
+    await base44.entities.ChatbotFlow.update(flow.id, { status: flow.status === "ativo" ? "rascunho" : "ativo" });
+    await loadFlows();
+  };
+
+  const handleDeleteFlow = async (id) => {
+    await base44.entities.ChatbotFlow.delete(id);
+    await loadFlows();
   };
 
   const tabs = [
@@ -95,6 +104,11 @@ export default function Chatbot() {
       </div>
 
       {tab === "flows" && (
+        loading ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : flows.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground">Nenhum fluxo cadastrado ainda.</Card>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {flows.map((flow) => (
             <Card key={flow.id} className="p-5 hover:shadow-md transition-shadow">
@@ -112,13 +126,17 @@ export default function Chatbot() {
                 <button onClick={() => { setEditingFlow(flow); setShowModal(true); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90">
                   <Play className="w-3.5 h-3.5" /> Editar
                 </button>
-                <button onClick={() => toggleFlowStatus(flow.id)} title="Ativar/Desativar" className="flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs font-medium hover:bg-muted">
+                <button onClick={() => toggleFlowStatus(flow)} title="Ativar/Desativar" className="flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs font-medium hover:bg-muted">
                   <Settings className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDeleteFlow(flow.id)} title="Excluir" className="flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10">
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </Card>
           ))}
         </div>
+        )
       )}
 
       {tab === "ia" && (

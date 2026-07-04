@@ -1,0 +1,32 @@
+{
+  "name": "ChatbotFlow",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "WhatsApp",
+        "Instagram"
+      ],
+      "default": "WhatsApp"
+    },
+    "steps": {
+      "type": "number",
+      "default": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "rascunho"
+      ],
+      "default": "rascunho"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
