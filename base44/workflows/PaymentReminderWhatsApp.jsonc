@@ -5,7 +5,7 @@
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "0 */6 * * *",
+      "cron_expression": "0 9 * * *",
       "one_time_date": null,
       "timezone": "America/Sao_Paulo",
       "interval_value": null,
@@ -16,7 +16,7 @@
       "ends_after_count": null
     }
   },
-  "description": "Verifica periodicamente as faturas pendentes no IXC e envia lembrete de pagamento via WhatsApp para os clientes ainda n\u00e3o notificados",
+  "description": "Verifica diariamente as faturas vencidas h\u00e1 mais de 5 dias no IXC e envia lembrete de cobran\u00e7a via WhatsApp para os clientes ainda n\u00e3o notificados",
   "name": "Lembrete de Pagamento via WhatsApp",
   "definition": {
     "document": {
@@ -36,7 +36,7 @@
           "then": "end",
           "x-base44": {
             "title": "Enviar lembretes WhatsApp",
-            "description": "Faturas pendentes"
+            "description": "Faturas vencidas h\u00e1 +5 dias"
           }
         }
       }

@@ -20,7 +20,9 @@ Deno.serve(async (req) => {
     const pendentes = registros.filter((r) => {
       if (r.status !== 'A') return false;
       const due = r.due_date ? new Date(r.due_date) : null;
-      return due && due >= today;
+      if (!due) return false;
+      const daysLate = Math.floor((today - due) / (1000 * 60 * 60 * 24));
+      return daysLate > 5;
     });
 
     const alreadySent = await base44.asServiceRole.entities.ReminderLog.filter({});
@@ -33,7 +35,7 @@ Deno.serve(async (req) => {
       if (sentIds.has(inv.id)) continue;
       if (!inv.phone) continue;
 
-      const message = `Olá ${inv.customer_name}, sua fatura no valor de R$ ${inv.value?.toFixed(2)} vence em ${inv.due_date}. Regularize para evitar bloqueio do serviço.`;
+      const message = `Olá ${inv.customer_name}, sua fatura no valor de R$ ${inv.value?.toFixed(2)}, vencida em ${inv.due_date}, está em atraso. Regularize para evitar bloqueio do serviço.`;
 
       const sendRes = await fetch(origin + '/functions/evolutionApi', {
         method: 'POST',
