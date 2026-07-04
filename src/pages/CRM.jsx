@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/Card";
 import { ChannelBadge } from "@/components/Badges";
 import { Plus, Phone, Mail, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react";
+import LeadFormModal from "@/components/crm/LeadFormModal";
 
 const stages = [
   { key: "novo_lead", label: "Novo Lead", color: "border-t-blue-500" },
@@ -19,6 +20,7 @@ export default function CRM() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draggedId, setDraggedId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     loadLeads();
@@ -57,10 +59,20 @@ export default function CRM() {
           <h2 className="text-2xl font-bold font-heading">Funil de Vendas</h2>
           <p className="text-sm text-muted-foreground">{leads.length} oportunidades · R$ {totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em negociação · {wonLeads} vendas fechadas</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
           <Plus className="w-4 h-4" /> Novo Lead
         </button>
       </div>
+
+      {showModal && (
+        <LeadFormModal
+          onClose={() => setShowModal(false)}
+          onSave={async (data) => {
+            await base44.entities.Lead.create(data);
+            await loadLeads();
+          }}
+        />
+      )}
 
       <div className="overflow-x-auto scrollbar-thin pb-4">
         <div className="flex gap-4 min-w-max">

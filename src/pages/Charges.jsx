@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
 import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Search, Filter } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
+import { evolutionApi } from "@/functions/evolutionApi";
+import { useToast } from "@/components/ui/use-toast";
 
 const today = new Date();
 
@@ -17,8 +19,33 @@ export default function Charges() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
+  const [sendingId, setSendingId] = useState(null);
+  const { toast } = useToast();
 
   useEffect(() => { loadCharges(); }, []);
+
+  const handleSend = async (charge, type) => {
+    if (!charge.phone) {
+      toast({ title: "Cliente sem telefone cadastrado", variant: "destructive" });
+      return;
+    }
+    setSendingId(`${type}-${charge.id}`);
+    try {
+      const message = type === "pix"
+        ? `Olá ${charge.customer_name}, segue o código PIX para pagamento da sua fatura de R$ ${(charge.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`
+        : `Olá ${charge.customer_name}, segue o boleto da sua fatura de R$ ${(charge.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`;
+      const response = await evolutionApi({ action: "send_message", phone: charge.phone, message });
+      if (response?.data?.success) {
+        toast({ title: type === "pix" ? "PIX enviado com sucesso" : "Boleto enviado com sucesso" });
+      } else {
+        toast({ title: "Falha ao enviar mensagem", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro ao enviar mensagem", variant: "destructive" });
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   const loadCharges = async () => {
     setLoading(true);
@@ -132,8 +159,8 @@ export default function Charges() {
                     <td className="px-4 py-3">{c.days_late > 0 ? <span className="text-red-600 font-medium">{c.days_late} dias</span> : "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-2 hover:bg-green-50 rounded-lg text-green-600" title="Enviar PIX"><Zap className="w-4 h-4" /></button>
-                        <button className="p-2 hover:bg-blue-50 rounded-lg text-blue-600" title="Enviar Boleto"><Send className="w-4 h-4" /></button>
+                        <button disabled={sendingId === `pix-${c.id}`} onClick={() => handleSend(c, "pix")} className="p-2 hover:bg-green-50 rounded-lg text-green-600 disabled:opacity-50" title="Enviar PIX"><Zap className="w-4 h-4" /></button>
+                        <button disabled={sendingId === `boleto-${c.id}`} onClick={() => handleSend(c, "boleto")} className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 disabled:opacity-50" title="Enviar Boleto"><Send className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>

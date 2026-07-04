@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/Card";
 import { Bot, MessageSquare, Phone, Clock, Calendar, Zap, Plus, Play, Settings, Brain } from "lucide-react";
+import FlowFormModal from "@/components/chatbot/FlowFormModal";
 
 const intents = [
   { label: "Segunda via de boleto", icon: "📄", color: "bg-orange-50 text-orange-700" },
@@ -17,7 +18,7 @@ const intents = [
   { label: "Falar com atendente", icon: "👤", color: "bg-gray-50 text-gray-700" },
 ];
 
-const flows = [
+const initialFlows = [
   { id: 1, name: "Menu Principal WhatsApp", channel: "WhatsApp", status: "ativo", steps: 8 },
   { id: 2, name: "Cobrança Automática PIX", channel: "WhatsApp", status: "ativo", steps: 5 },
   { id: 3, name: "Boas-vindas Novo Cliente", channel: "WhatsApp", status: "ativo", steps: 3 },
@@ -28,6 +29,21 @@ const flows = [
 
 export default function Chatbot() {
   const [tab, setTab] = useState("flows");
+  const [flows, setFlows] = useState(initialFlows);
+  const [showModal, setShowModal] = useState(false);
+  const [editingFlow, setEditingFlow] = useState(null);
+
+  const handleSaveFlow = (data) => {
+    if (editingFlow) {
+      setFlows(flows.map((f) => (f.id === editingFlow.id ? { ...f, ...data } : f)));
+    } else {
+      setFlows([...flows, { id: Date.now(), status: "rascunho", ...data }]);
+    }
+  };
+
+  const toggleFlowStatus = (id) => {
+    setFlows(flows.map((f) => (f.id === id ? { ...f, status: f.status === "ativo" ? "rascunho" : "ativo" } : f)));
+  };
 
   const tabs = [
     { key: "flows", label: "Fluxos do Chatbot", icon: MessageSquare },
@@ -47,11 +63,19 @@ export default function Chatbot() {
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="text-sm font-medium text-green-700">IA Ativa</span>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+          <button onClick={() => { setEditingFlow(null); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
             <Plus className="w-4 h-4" /> Novo Fluxo
           </button>
         </div>
       </div>
+
+      {showModal && (
+        <FlowFormModal
+          flow={editingFlow}
+          onClose={() => setShowModal(false)}
+          onSave={handleSaveFlow}
+        />
+      )}
 
       <div className="flex gap-2 mb-6 border-b border-border">
         {tabs.map((t) => {
@@ -85,10 +109,10 @@ export default function Chatbot() {
               <h3 className="font-semibold mb-1">{flow.name}</h3>
               <p className="text-sm text-muted-foreground mb-3">{flow.channel} · {flow.steps} etapas</p>
               <div className="flex gap-2">
-                <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90">
+                <button onClick={() => { setEditingFlow(flow); setShowModal(true); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90">
                   <Play className="w-3.5 h-3.5" /> Editar
                 </button>
-                <button className="flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs font-medium hover:bg-muted">
+                <button onClick={() => toggleFlowStatus(flow.id)} title="Ativar/Desativar" className="flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs font-medium hover:bg-muted">
                   <Settings className="w-3.5 h-3.5" />
                 </button>
               </div>
