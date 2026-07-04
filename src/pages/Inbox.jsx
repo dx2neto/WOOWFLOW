@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   Send, Paperclip, Mic, Search, MoreVertical, Phone, Video,
   Bot, User, FileText, Zap, FileSignature,
-  ArrowRightCircle, CheckCircle, Star, Users as UsersIcon
+  ArrowRightCircle, CheckCircle, Star, Users as UsersIcon, RefreshCw
 } from "lucide-react";
 
 const quickActions = [
@@ -29,6 +29,7 @@ export default function Inbox() {
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sendingBoleto, setSendingBoleto] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [instances, setInstances] = useState([]);
   const [selectedInstance, setSelectedInstance] = useState(() => localStorage.getItem("evolution_instance") || "");
   const { toast } = useToast();
@@ -116,6 +117,51 @@ export default function Inbox() {
       setMessages([]);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const handleLoadConversations = async () => {
+    if (!selectedInstance || loadingConversations) return;
+    setLoadingConversations(true);
+    try {
+      const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
+      if (response?.data?.error) {
+        toast({ title: "Falha ao carregar conversas", variant: "destructive" });
+        return;
+      }
+      const rawContacts = response?.data?.contacts || {};
+      const entries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
+
+      const existingPhones = new Set(conversations.map((c) => c.phone));
+      const toCreate = [];
+      for (const entry of entries) {
+        const jid = entry.jid || entry.JID || entry.id || "";
+        if (!jid || jid.includes("@g.us")) continue;
+        const phone = jid.split("@")[0];
+        if (!phone || existingPhones.has(phone)) continue;
+        const name = entry.FullName || entry.PushName || entry.BusinessName || entry.name || phone;
+        existingPhones.add(phone);
+        toCreate.push({
+          customer_name: name,
+          phone,
+          channel: "whatsapp",
+          instance: selectedInstance,
+          status: "novo",
+        });
+      }
+
+      if (toCreate.length === 0) {
+        toast({ title: "Nenhuma conversa nova encontrada" });
+        return;
+      }
+
+      const created = await base44.entities.Conversation.bulkCreate(toCreate);
+      setConversations((prev) => [...created, ...prev]);
+      toast({ title: `${created.length} conversa(s) carregada(s)` });
+    } catch {
+      toast({ title: "Erro ao carregar conversas", variant: "destructive" });
+    } finally {
+      setLoadingConversations(false);
     }
   };
 
@@ -211,16 +257,26 @@ export default function Inbox() {
       <div className="w-80 border-r border-border bg-card flex flex-col flex-shrink-0">
         <div className="p-4 border-b border-border">
           {instances.length > 0 && (
-            <select
-              value={selectedInstance}
-              onChange={(e) => handleInstanceChange(e.target.value)}
-              className="w-full h-9 mb-3 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
-            >
-              {instances.map((inst) => {
-                const name = inst.name || inst.instance?.instanceName || "";
-                return <option key={name} value={name}>{name}</option>;
-              })}
-            </select>
+            <div className="flex gap-2 mb-3">
+              <select
+                value={selectedInstance}
+                onChange={(e) => handleInstanceChange(e.target.value)}
+                className="flex-1 h-9 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+              >
+                {instances.map((inst) => {
+                  const name = inst.name || inst.instance?.instanceName || "";
+                  return <option key={name} value={name}>{name}</option>;
+                })}
+              </select>
+              <button
+                onClick={handleLoadConversations}
+                disabled={loadingConversations}
+                title="Carregar conversas"
+                className="h-9 w-9 flex items-center justify-center bg-muted/60 rounded-lg hover:bg-muted disabled:opacity-50 flex-shrink-0"
+              >
+                <RefreshCw className={`w-4 h-4 text-muted-foreground ${loadingConversations ? "animate-spin" : ""}`} />
+              </button>
+            </div>
           )}
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

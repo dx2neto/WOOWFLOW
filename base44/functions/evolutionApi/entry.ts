@@ -49,6 +49,30 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: data });
     }
 
+    if (body.action === 'get_contacts') {
+      const instanceName = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      if (!instanceName) {
+        return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
+      }
+      const instancesRes = await fetch(baseUrl.replace(/\/$/, '') + '/instance/all', { headers: { apikey: apiKey } });
+      const instancesData = await instancesRes.json().catch(() => ({}));
+      const instanceList = instancesData.data || instancesData || [];
+      const targetInstance = instanceList.find((i) => (i.name || i.instance?.instanceName) === instanceName);
+      const instanceToken = targetInstance?.token || apiKey;
+
+      const url = baseUrl.replace(/\/$/, '') + '/user/contacts';
+      const res = await fetch(url, { headers: { apikey: instanceToken } });
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao carregar conversas', details: data }, { status: res.status });
+      }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'sucesso' });
+      return Response.json({ success: true, contacts: data.data || data });
+    }
+
     const url = baseUrl.replace(/\/$/, '') + '/instance/all';
     const res = await fetch(url, { headers: { apikey: apiKey } });
     const rawText = await res.text();
