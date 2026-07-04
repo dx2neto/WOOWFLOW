@@ -118,7 +118,7 @@ export default function InstagramPostForm({ onSave, onClose }) {
             />
             {form.media_url && (
               <div className="mt-2 rounded-lg overflow-hidden border border-border max-h-40">
-                <img src={form.media_url} alt="Preview" className="w-full object-cover" onError={(e) => e.target.style.display = "none"} />
+                <img src={form.media_url} alt="Preview" className="w-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
               </div>
             )}
           </div>

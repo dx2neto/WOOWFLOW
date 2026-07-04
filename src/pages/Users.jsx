@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { UserCog, Users as UsersIcon, ShieldCheck, Plus, Pencil, UserCheck } from "lucide-react";
 import InviteUserModal from "@/components/users/InviteUserModal";
 import EditUserModal from "@/components/users/EditUserModal";
@@ -27,7 +27,7 @@ export default function Users() {
       ]);
       setUsers(usersData);
       setProfiles(profilesData);
-    } catch (e) {
+    } catch {
       setUsers([]);
       setProfiles([]);
     } finally {
@@ -37,7 +37,7 @@ export default function Users() {
 
   const handleInvite = async (email, role) => {
     try {
-      await base44.users.inviteUser(email, role);
+      await /** @type {any} */ (base44).users.inviteUser(email, role);
       setShowInvite(false);
       await loadData();
     } catch (e) {

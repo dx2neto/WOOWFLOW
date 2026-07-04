@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Building2, Users, Calendar, Palette, Save } from "lucide-react";
 
 const sectors = [

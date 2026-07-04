@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer } from "@/components/ui/Card";
+import { PageContainer } from "@/components/ui/app-card";
 import { ChannelBadge } from "@/components/Badges";
 import { Plus, Phone, MapPin, DollarSign, AlertTriangle, Clock } from "lucide-react";
 import LeadFormModal from "@/components/crm/LeadFormModal";
@@ -18,7 +18,7 @@ const stages = [
 
 export default function CRM() {
   const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [draggedId, setDraggedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [overdueChargePhones, setOverdueChargePhones] = useState(new Set());
@@ -33,7 +33,7 @@ export default function CRM() {
     try {
       const data = await base44.entities.Lead.list("-created_date", 200);
       setLeads(data);
-    } catch (e) {
+    } catch {
       setLeads([]);
     } finally {
       setLoading(false);
@@ -48,7 +48,7 @@ export default function CRM() {
       ]);
       setOverdueChargePhones(new Set(charges.map((c) => c.phone).filter(Boolean)));
       setExpiringContractPhones(new Set(customers.map((c) => c.phone).filter(Boolean)));
-    } catch (e) {
+    } catch {
       setOverdueChargePhones(new Set());
       setExpiringContractPhones(new Set());
     }
@@ -61,7 +61,7 @@ export default function CRM() {
       setLeads(leads.map((l) => l.id === draggedId ? { ...l, stage } : l));
       try {
         await base44.entities.Lead.update(draggedId, { stage });
-      } catch (e) {}
+      } catch {}
     }
     setDraggedId(null);
   };

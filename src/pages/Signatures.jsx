@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { FileSignature, CheckCircle, Clock, XCircle, Send, Plus } from "lucide-react";
 
 const docTypeConfig = {
@@ -28,7 +28,7 @@ export default function Signatures() {
     try {
       const data = await base44.entities.SignatureRequest.list("-created_date", 50);
       setSignatures(data);
-    } catch (e) { setSignatures([]); } finally { setLoading(false); }
+    } catch { setSignatures([]); } finally { setLoading(false); }
   };
 
   const pending = signatures.filter((s) => s.status === "pendente").length;

@@ -1,5 +1,5 @@
 import React from "react";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/components/ui/app-card";
 import { ShieldCheck, Pencil, Trash2, Lock } from "lucide-react";
 import { MODULES, SPECIAL_PERMISSIONS } from "./permissionsConfig";
 

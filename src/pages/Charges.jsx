@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PageContainer, StatCard, Card } from "@/components/ui/Card";
+import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Download } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 import { evolutionApi } from "@/functions/evolutionApi";
@@ -41,7 +41,7 @@ export default function Charges() {
       } else {
         toast({ title: "Falha ao enviar mensagem", variant: "destructive" });
       }
-    } catch (e) {
+    } catch {
       toast({ title: "Erro ao enviar mensagem", variant: "destructive" });
     } finally {
       setSendingId(null);
@@ -61,12 +61,12 @@ export default function Charges() {
         const mapped = registros.map((c) => {
           const dueDate = c.due_date ? new Date(c.due_date) : null;
           const status = mapStatus(c);
-          const daysLate = status === "vencida" && dueDate ? Math.floor((today - dueDate) / 86400000) : 0;
+          const daysLate = status === "vencida" && dueDate ? Math.floor((today.getTime() - dueDate.getTime()) / 86400000) : 0;
           return { ...c, status, days_late: daysLate };
         });
         setCharges(mapped);
       }
-    } catch (e) {
+    } catch {
       setError("Não foi possível carregar as cobranças do IXC Provedor.");
       setCharges([]);
     } finally {

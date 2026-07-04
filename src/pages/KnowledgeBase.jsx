@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Search, BookOpen, Tag, Edit, Trash2 } from "lucide-react";
 
 const categoryConfig = {
@@ -28,7 +28,7 @@ export default function KnowledgeBase() {
     try {
       const data = await base44.entities.KnowledgeArticle.list("-created_date", 100);
       setArticles(data);
-    } catch (e) { setArticles([]); } finally { setLoading(false); }
+    } catch { setArticles([]); } finally { setLoading(false); }
   };
 
   const filtered = articles.filter((a) => {
