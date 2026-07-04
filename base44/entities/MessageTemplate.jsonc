@@ -13,6 +13,7 @@
       "enum": [
         "saudacao",
         "financeiro",
+        "cobranca",
         "suporte_tecnico",
         "comercial",
         "despedida",

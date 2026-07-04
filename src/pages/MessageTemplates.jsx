@@ -7,6 +7,7 @@ import TemplateFormModal from "@/components/templates/TemplateFormModal";
 const categoryLabels = {
   saudacao: "Saudação",
   financeiro: "Financeiro",
+  cobranca: "Cobrança (Lembretes)",
   suporte_tecnico: "Suporte Técnico",
   comercial: "Comercial",
   despedida: "Despedida",
@@ -75,7 +76,7 @@ export default function MessageTemplates() {
               </div>
               <h3 className="font-semibold mb-1">{tpl.title}</h3>
               {tpl.shortcut && <p className="text-xs text-primary font-mono mb-2">{tpl.shortcut}</p>}
-              <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{tpl.content}</p>
+              <p className="text-sm text-muted-foreground line-clamp-3 mb-3 whitespace-pre-wrap">{tpl.content}</p>
               <div className="flex gap-2">
                 <button onClick={() => { setEditing(tpl); setShowModal(true); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-xs font-medium hover:bg-muted">
                   <Pencil className="w-3.5 h-3.5" /> Editar
