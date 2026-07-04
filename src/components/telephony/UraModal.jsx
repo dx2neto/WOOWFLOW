@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 import { destinationTypes } from "./constants";
 
 const keypadDigits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];

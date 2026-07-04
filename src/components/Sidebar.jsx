@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Inbox, MessageSquare, Users, DollarSign,
+  LayoutDashboard, Inbox, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, Zap, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText
+  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText
 } from "lucide-react";
 
 const menuItems = [

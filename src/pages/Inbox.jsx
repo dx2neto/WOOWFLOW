@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { ChannelBadge, StatusBadge, PriorityBadge } from "@/components/Badges";
 import {
   Send, Paperclip, Mic, Search, MoreVertical, Phone, Video,
-  Bot, User, FileText, DollarSign, Zap, FileSignature,
+  Bot, User, FileText, Zap, FileSignature,
   ArrowRightCircle, CheckCircle, Star, Users as UsersIcon
 } from "lucide-react";
 

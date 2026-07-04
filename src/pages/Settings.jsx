@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/Card";
-import { Building2, Users, Calendar, Bell, Palette, Save } from "lucide-react";
+import { Building2, Users, Calendar, Palette, Save } from "lucide-react";
 
 const sectors = [
   { name: "Comercial", color: "bg-amber-500" },

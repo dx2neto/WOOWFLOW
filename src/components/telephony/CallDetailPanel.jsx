@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Phone, User, Clock, FileText } from "lucide-react";
+import { X, Phone, FileText } from "lucide-react";
 import { CallStatusBadge, SentimentBadge } from "./TelephonyBadges";
 import { callReasons } from "./constants";
 import moment from "moment";

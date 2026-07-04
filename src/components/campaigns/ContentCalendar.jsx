@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Instagram, Image as ImageIcon, Film, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Instagram, Image as ImageIcon, Film } from "lucide-react";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = [

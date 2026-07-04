@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { PageContainer, Card } from "@/components/ui/Card";
+import { PageContainer } from "@/components/ui/Card";
 import { ChannelBadge } from "@/components/Badges";
-import { Plus, Phone, Mail, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react";
+import { Plus, Phone, MapPin, DollarSign } from "lucide-react";
 import LeadFormModal from "@/components/crm/LeadFormModal";
 
 const stages = [

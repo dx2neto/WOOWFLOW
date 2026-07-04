@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
 import {
-  Inbox, Users, DollarSign, Send, Clock, CheckCircle, TrendingUp,
-  Star, Trophy, AlertCircle, Zap, MessageSquare, Bot
+  Inbox, DollarSign, Send, Clock, CheckCircle, TrendingUp,
+  Star, AlertCircle, Zap, MessageSquare
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,

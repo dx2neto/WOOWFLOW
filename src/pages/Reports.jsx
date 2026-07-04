@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { PageContainer, Card, StatCard } from "@/components/ui/Card";
-import { Download, TrendingUp, Clock, Users, DollarSign, Star, Trophy, FileBarChart } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, ComposedChart } from "recharts";
+import { Download, TrendingUp, Clock, Star, Trophy, FileBarChart } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart } from "recharts";
 import { exportToCsv } from "@/lib/exportCsv";
 
 const attendantData = [

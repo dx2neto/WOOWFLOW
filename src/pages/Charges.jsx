@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/Card";
-import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Search, Filter, Download } from "lucide-react";
+import { DollarSign, Zap, Send, CheckCircle, AlertTriangle, Download } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
