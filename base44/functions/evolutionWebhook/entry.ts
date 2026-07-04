@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       const fromMe = !!item?.key?.fromMe;
       const pushName = item?.pushName || phone;
 
-      const msg = item.message || {};
+      const msg = item.message || item.Message || {};
       const content = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || '[mídia]';
       const timestamp = item.messageTimestamp
         ? new Date(Number(item.messageTimestamp) * 1000).toISOString()

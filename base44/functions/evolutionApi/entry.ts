@@ -15,19 +15,27 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
 
     if (body.action === 'send_message') {
-      const instance = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
-      if (!instance) {
+      const instanceName = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      if (!instanceName) {
         return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
       }
       const { phone, message } = body;
       if (!phone || !message) {
         return Response.json({ error: 'phone e message são obrigatórios' }, { status: 400 });
       }
+
+      // Evolution Go autentica o envio pelo apikey (token) da própria instância.
+      const instancesRes = await fetch(baseUrl.replace(/\/$/, '') + '/instance/all', { headers: { apikey: apiKey } });
+      const instancesData = await instancesRes.json().catch(() => ({}));
+      const instanceList = instancesData.data || instancesData || [];
+      const targetInstance = instanceList.find((i) => (i.name || i.instance?.instanceName) === instanceName);
+      const instanceToken = targetInstance?.token || apiKey;
+
       const number = phone.replace(/\D/g, '');
-      const url = baseUrl.replace(/\/$/, '') + `/message/sendText/${instance}`;
+      const url = baseUrl.replace(/\/$/, '') + '/send/text';
       const res = await fetch(url, {
         method: 'POST',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({ number, text: message }),
       });
       const rawText = await res.text();
