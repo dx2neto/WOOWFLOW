@@ -12,7 +12,29 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais do IXC Provedor não configuradas' }, { status: 500 });
     }
 
-    const { cpfCnpj, action } = await req.json().catch(() => ({}));
+    const { cpfCnpj, action, search } = await req.json().catch(() => ({}));
+
+    const fetchAllPages = async (url, baseBody, maxRecords = 2000) => {
+      const rp = 200;
+      let page = 1;
+      let all = [];
+      let total = Infinity;
+      while (all.length < total && all.length < maxRecords) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
+          body: JSON.stringify({ ...baseBody, page: String(page), rp: String(rp) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, data, registros: all };
+        const registros = data.registros || [];
+        all = all.concat(registros);
+        total = parseInt(data.total || '0', 10) || all.length;
+        if (registros.length === 0) break;
+        page += 1;
+      }
+      return { ok: true, registros: all };
+    };
 
     if (action === 'faturas') {
       const areceberUrl = baseUrl.replace(/\/$/, '') + '/fn_areceber';
@@ -83,31 +105,33 @@ Deno.serve(async (req) => {
 
     if (action === 'clientes') {
       const clientesUrl = baseUrl.replace(/\/$/, '') + '/cliente';
-      const res = await fetch(clientesUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${token}`,
-          ixcsoft: 'listar',
-        },
-        body: JSON.stringify({
+
+      let baseBody;
+      if (search) {
+        baseBody = {
+          qtype: 'cliente.razao',
+          query: search,
+          oper: 'L',
+          sortname: 'cliente.id',
+          sortorder: 'desc',
+        };
+      } else {
+        baseBody = {
           qtype: 'cliente.id',
           query: '1',
           oper: '>=',
-          page: '1',
-          rp: '100',
           sortname: 'cliente.id',
           sortorder: 'desc',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
-        return Response.json({ error: 'Falha ao buscar clientes do IXC Provedor', details: data }, { status: res.status });
+        };
       }
 
-      const registros = data.registros || [];
-      const clientes = registros.map((c) => ({
+      const { ok, data, registros: rawRegistros } = await fetchAllPages(clientesUrl, baseBody);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar clientes do IXC Provedor', details: data }, { status: 500 });
+      }
+
+      const clientes = rawRegistros.map((c) => ({
         id: c.id,
         name: c.razao || c.fantasia || `Cliente #${c.id}`,
         cpf_cnpj: c.cnpj_cpf,
@@ -117,8 +141,29 @@ Deno.serve(async (req) => {
         contract_status: c.ativo === 'S' ? 'ativo' : 'cancelado',
       }));
 
-      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'sucesso' });
-      return Response.json({ success: true, result: { total: data.total, registros: clientes } });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'sucesso', details: `${clientes.length} registros carregados` });
+      return Response.json({ success: true, result: { total: clientes.length, registros: clientes } });
+    }
+
+    if (action === 'contatos') {
+      const contatosUrl = baseUrl.replace(/\/$/, '') + '/cliente_contato';
+      const baseBody = { qtype: 'cliente_contato.id', query: '1', oper: '>=', sortname: 'cliente_contato.id', sortorder: 'desc' };
+      const { ok, data, registros: rawRegistros } = await fetchAllPages(contatosUrl, baseBody);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contatos', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar contatos do IXC Provedor', details: data }, { status: 500 });
+      }
+
+      const contatos = rawRegistros.map((c) => ({
+        id: c.id,
+        client_id: c.id_cliente,
+        name: c.contato || c.nome || '',
+        phone: c.telefone || c.celular || '',
+        email: c.email || '',
+      }));
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contatos', status: 'sucesso', details: `${contatos.length} registros carregados` });
+      return Response.json({ success: true, result: { total: contatos.length, registros: contatos } });
     }
 
     const body = cpfCnpj
