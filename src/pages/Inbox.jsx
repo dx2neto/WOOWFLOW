@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { ChannelBadge, StatusBadge, PriorityBadge } from "@/components/Badges";
 import { evolutionApi } from "@/functions/evolutionApi";
+import { ixcApi } from "@/functions/ixcApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Send, Paperclip, Mic, Search, MoreVertical, Phone, Video,
@@ -11,7 +12,7 @@ import {
 
 const quickActions = [
   { label: "Consultar ERP", icon: User, color: "text-blue-600 bg-blue-50" },
-  { label: "Enviar Boleto", icon: FileText, color: "text-orange-600 bg-orange-50" },
+  { label: "Enviar Boleto", icon: FileText, color: "text-orange-600 bg-orange-50", action: "sendBoleto" },
   { label: "Enviar PIX", icon: Zap, color: "text-green-600 bg-green-50" },
   { label: "Enviar Contrato", icon: FileSignature, color: "text-purple-600 bg-purple-50" },
   { label: "Criar Oportunidade", icon: UsersIcon, color: "text-indigo-600 bg-indigo-50" },
@@ -27,6 +28,7 @@ export default function Inbox() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [sendingBoleto, setSendingBoleto] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,6 +99,52 @@ export default function Inbox() {
       toast({ title: "Erro ao enviar mensagem", variant: "destructive" });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSendBoleto = async () => {
+    if (!selected || sendingBoleto) return;
+    setSendingBoleto(true);
+    try {
+      const digits = (selected.phone || "").replace(/\D/g, "");
+      const response = await ixcApi({ action: "faturas" });
+      const registros = response?.data?.result?.registros || [];
+      const fatura = registros.find((f) => f.phone && f.phone.replace(/\D/g, "").slice(-8) === digits.slice(-8));
+
+      if (!fatura || (!fatura.boleto && !fatura.linha_digitavel)) {
+        toast({ title: "Nenhuma fatura em aberto encontrada para este cliente", variant: "destructive" });
+        return;
+      }
+
+      const linhas = [
+        `Segue a 2ª via do seu boleto, vencimento em ${fatura.due_date ? new Date(fatura.due_date).toLocaleDateString("pt-BR") : "—"}, no valor de R$ ${fatura.value?.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
+      ];
+      if (fatura.boleto) linhas.push(fatura.boleto);
+      if (fatura.linha_digitavel) linhas.push(`Linha digitável: ${fatura.linha_digitavel}`);
+      const content = linhas.join("\n");
+
+      const evoResponse = await evolutionApi({ action: "send_message", phone: selected.phone, message: content });
+      if (evoResponse?.data?.error) {
+        toast({ title: "Falha ao enviar a 2ª via", variant: "destructive" });
+        return;
+      }
+
+      const newMessage = await base44.entities.Message.create({
+        conversation_id: selected.id,
+        content,
+        direction: "out",
+        type: "text",
+        status: "sent",
+        timestamp: new Date().toISOString(),
+      });
+      setMessages((prev) => [...prev, newMessage]);
+      await base44.entities.Conversation.update(selected.id, { last_message: content, last_message_time: new Date().toISOString() });
+      setConversations((prev) => prev.map((c) => c.id === selected.id ? { ...c, last_message: content, last_message_time: new Date().toISOString() } : c));
+      toast({ title: "2ª via enviada com sucesso" });
+    } catch {
+      toast({ title: "Erro ao enviar a 2ª via", variant: "destructive" });
+    } finally {
+      setSendingBoleto(false);
     }
   };
 
@@ -296,10 +344,16 @@ export default function Inbox() {
               <div className="grid grid-cols-2 gap-2">
                 {quickActions.map((action) => {
                   const Icon = action.icon;
+                  const isBoleto = action.action === "sendBoleto";
                   return (
-                    <button key={action.label} className={`flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-muted/50 transition-colors ${action.color}`}>
+                    <button
+                      key={action.label}
+                      onClick={isBoleto ? handleSendBoleto : undefined}
+                      disabled={isBoleto && sendingBoleto}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 ${action.color}`}
+                    >
                       <Icon className="w-5 h-5" />
-                      <span className="text-xs font-medium text-center">{action.label}</span>
+                      <span className="text-xs font-medium text-center">{isBoleto && sendingBoleto ? "Enviando..." : action.label}</span>
                     </button>
                   );
                 })}
