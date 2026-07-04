@@ -166,8 +166,7 @@ export default function Inbox() {
   };
 
   const selected = conversations.find((c) => c.id === selectedId);
-  const byInstance = selectedInstance ? conversations.filter((c) => !c.instance || c.instance === selectedInstance) : conversations;
-  const filtered = filter === "all" ? byInstance : byInstance.filter((c) => c.status === filter);
+  const filtered = filter === "all" ? conversations : conversations.filter((c) => c.status === filter);
 
   const handleSend = async () => {
     if (!message.trim() || !selected || sending) return;
@@ -259,6 +258,7 @@ export default function Inbox() {
           {instances.length > 0 && (
             <div className="flex gap-2 mb-3">
               <select
+                title="Instância usada para responder"
                 value={selectedInstance}
                 onChange={(e) => handleInstanceChange(e.target.value)}
                 className="flex-1 h-9 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
@@ -335,6 +335,9 @@ export default function Inbox() {
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.last_message || "Sem mensagens"}</p>
                   <div className="flex items-center gap-1.5 mt-1.5">
                     <ChannelBadge channel={conv.channel} />
+                    {conv.instance && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{conv.instance}</span>
+                    )}
                     {conv.unread && <span className="w-2 h-2 rounded-full bg-primary" />}
                     {conv.priority === "urgente" && <span className="text-xs text-red-600 font-medium">Urgente</span>}
                   </div>
@@ -357,6 +360,9 @@ export default function Inbox() {
                 <p className="font-semibold text-sm">{selected.customer_name}</p>
                 <div className="flex items-center gap-2">
                   <ChannelBadge channel={selected.channel} />
+                  {selected.instance && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{selected.instance}</span>
+                  )}
                   <span className="text-xs text-muted-foreground">Protocolo: {selected.protocol || "N/A"}</span>
                 </div>
               </div>
