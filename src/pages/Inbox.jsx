@@ -4,6 +4,7 @@ import { ChannelBadge, StatusBadge, PriorityBadge } from "@/components/Badges";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { useToast } from "@/components/ui/use-toast";
+import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
 import {
   Send, Paperclip, Mic, Search, MoreVertical, Phone, Video,
   Bot, User, FileText, Zap, FileSignature,
@@ -32,6 +33,7 @@ export default function Inbox() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [instances, setInstances] = useState([]);
   const [selectedInstance, setSelectedInstance] = useState(() => localStorage.getItem("evolution_instance") || "");
+  const [rightTab, setRightTab] = useState("details");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -168,10 +170,8 @@ export default function Inbox() {
   const selected = conversations.find((c) => c.id === selectedId);
   const filtered = filter === "all" ? conversations : conversations.filter((c) => c.status === filter);
 
-  const handleSend = async () => {
-    if (!message.trim() || !selected || sending) return;
-    const content = message.trim();
-    setMessage("");
+  const sendMessageContent = async (content) => {
+    if (!content.trim() || !selected || sending) return;
     setSending(true);
     try {
       const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
@@ -195,6 +195,17 @@ export default function Inbox() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    const content = message.trim();
+    setMessage("");
+    await sendMessageContent(content);
+  };
+
+  const handleSendTemplate = async (content) => {
+    await sendMessageContent(content);
   };
 
   const handleSendBoleto = async () => {
@@ -442,56 +453,77 @@ export default function Inbox() {
       <div className="w-72 border-l border-border bg-card flex-shrink-0 hidden xl:flex flex-col overflow-y-auto scrollbar-thin">
         {selected && (
           <>
-            <div className="p-5 text-center border-b border-border">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-xl mx-auto mb-2">
-                {selected.customer_name?.charAt(0)?.toUpperCase()}
-              </div>
-              <p className="font-semibold">{selected.customer_name}</p>
-              <p className="text-sm text-muted-foreground">{selected.phone}</p>
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <StatusBadge status={selected.status} />
-                <PriorityBadge priority={selected.priority} />
-              </div>
-            </div>
-
-            <div className="p-4 border-b border-border">
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Setor</p>
-              <p className="text-sm">{selected.sector || "Não atribuído"}</p>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2 mt-3">Atendente</p>
-              <p className="text-sm">{selected.attendant_name || "Não atribuído"}</p>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2 mt-3">Cidade</p>
-              <p className="text-sm">{selected.city || "—"}</p>
-            </div>
-
-            <div className="p-4 border-b border-border">
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Ações Rápidas</p>
-              <div className="grid grid-cols-2 gap-2">
-                {quickActions.map((action) => {
-                  const Icon = action.icon;
-                  const isBoleto = action.action === "sendBoleto";
-                  return (
-                    <button
-                      key={action.label}
-                      onClick={isBoleto ? handleSendBoleto : undefined}
-                      disabled={isBoleto && sendingBoleto}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 ${action.color}`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="text-xs font-medium text-center">{isBoleto && sendingBoleto ? "Enviando..." : action.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="p-4">
-              <button className="w-full py-2.5 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 mb-2 flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Finalizar Atendimento
+            <div className="flex border-b border-border flex-shrink-0">
+              <button
+                onClick={() => setRightTab("details")}
+                className={`flex-1 py-2.5 text-xs font-medium ${rightTab === "details" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
+              >
+                Detalhes
               </button>
-              <button className="w-full py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/70 flex items-center justify-center gap-2">
-                <Star className="w-4 h-4" /> Enviar Pesquisa
+              <button
+                onClick={() => setRightTab("templates")}
+                className={`flex-1 py-2.5 text-xs font-medium ${rightTab === "templates" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
+              >
+                Modelos
               </button>
             </div>
+
+            {rightTab === "templates" ? (
+              <QuickReplyPanel onSend={handleSendTemplate} sending={sending} />
+            ) : (
+              <>
+                <div className="p-5 text-center border-b border-border">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-xl mx-auto mb-2">
+                    {selected.customer_name?.charAt(0)?.toUpperCase()}
+                  </div>
+                  <p className="font-semibold">{selected.customer_name}</p>
+                  <p className="text-sm text-muted-foreground">{selected.phone}</p>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <StatusBadge status={selected.status} />
+                    <PriorityBadge priority={selected.priority} />
+                  </div>
+                </div>
+
+                <div className="p-4 border-b border-border">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Setor</p>
+                  <p className="text-sm">{selected.sector || "Não atribuído"}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2 mt-3">Atendente</p>
+                  <p className="text-sm">{selected.attendant_name || "Não atribuído"}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2 mt-3">Cidade</p>
+                  <p className="text-sm">{selected.city || "—"}</p>
+                </div>
+
+                <div className="p-4 border-b border-border">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Ações Rápidas</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {quickActions.map((action) => {
+                      const Icon = action.icon;
+                      const isBoleto = action.action === "sendBoleto";
+                      return (
+                        <button
+                          key={action.label}
+                          onClick={isBoleto ? handleSendBoleto : undefined}
+                          disabled={isBoleto && sendingBoleto}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 ${action.color}`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="text-xs font-medium text-center">{isBoleto && sendingBoleto ? "Enviando..." : action.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  <button className="w-full py-2.5 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 mb-2 flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Finalizar Atendimento
+                  </button>
+                  <button className="w-full py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/70 flex items-center justify-center gap-2">
+                    <Star className="w-4 h-4" /> Enviar Pesquisa
+                  </button>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
