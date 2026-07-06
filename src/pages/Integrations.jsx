@@ -11,6 +11,7 @@ import { zapsignApi } from "@/functions/zapsignApi";
 import { serasaApi } from "@/functions/serasaApi";
 import InstanceManagerModal from "@/components/integrations/InstanceManagerModal";
 import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal";
+import GoogleSheetsSyncCard from "@/components/integrations/GoogleSheetsSyncCard";
 
 const testFunctions = {
   evolution_api: evolutionApi,
@@ -235,6 +236,7 @@ export default function Integrations() {
             </Card>
           );
         })}
+        <GoogleSheetsSyncCard />
       </div>
 
       {showInstanceManager && (

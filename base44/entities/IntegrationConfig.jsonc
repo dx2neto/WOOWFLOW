@@ -11,7 +11,8 @@
         "validacadastro",
         "instagram",
         "facebook",
-        "telegram"
+        "telegram",
+        "google_sheets"
       ],
       "default": "evolution_api"
     },
