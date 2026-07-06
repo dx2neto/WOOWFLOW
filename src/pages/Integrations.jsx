@@ -9,6 +9,7 @@ import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { zapsignApi } from "@/functions/zapsignApi";
 import { serasaApi } from "@/functions/serasaApi";
+import InstanceManagerModal from "@/components/integrations/InstanceManagerModal";
 
 const testFunctions = {
   evolution_api: evolutionApi,
@@ -93,6 +94,7 @@ const statusConfig = {
 export default function Integrations() {
   const [configs, setConfigs] = useState({});
   const [testingService, setTestingService] = useState(null);
+  const [showInstanceManager, setShowInstanceManager] = useState(false);
 
   useEffect(() => {
     loadConfigs();
@@ -176,12 +178,22 @@ export default function Integrations() {
               </div>
 
               <div className="flex gap-2">
+                {int.service === "evolution_api" && (
+                  <button
+                    onClick={() => setShowInstanceManager(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
+                  >
+                    <Settings className="w-4 h-4" /> Instâncias
+                  </button>
+                )}
                 {testFunctions[int.service] ? (
                   status === "connected" ? (
                     <>
-                      <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
-                        <Settings className="w-4 h-4" /> Configurar
-                      </button>
+                      {int.service !== "evolution_api" && (
+                        <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
+                          <Settings className="w-4 h-4" /> Configurar
+                        </button>
+                      )}
                       <button
                         onClick={() => handleTestConnection(int)}
                         disabled={testingService === int.service}
@@ -214,6 +226,10 @@ export default function Integrations() {
           );
         })}
       </div>
+
+      {showInstanceManager && (
+        <InstanceManagerModal onClose={() => setShowInstanceManager(false)} />
+      )}
     </PageContainer>
   );
 }

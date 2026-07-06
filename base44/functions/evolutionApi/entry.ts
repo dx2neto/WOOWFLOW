@@ -49,6 +49,64 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: data });
     }
 
+    if (body.action === 'create_instance') {
+      const { instanceName } = body;
+      if (!instanceName) {
+        return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      }
+      const url = baseUrl.replace(/\/$/, '') + '/instance/create';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceName }),
+      });
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'create_instance', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao criar instância', details: data }, { status: res.status });
+      }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'create_instance', status: 'sucesso' });
+      return Response.json({ success: true, result: data });
+    }
+
+    if (body.action === 'get_qrcode') {
+      const { instanceName } = body;
+      if (!instanceName) {
+        return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      }
+      const url = baseUrl.replace(/\/$/, '') + '/instance/' + encodeURIComponent(instanceName) + '/qrcode';
+      const res = await fetch(url, { headers: { apikey: apiKey } });
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao obter QR code', details: data }, { status: res.status });
+      }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso' });
+      return Response.json({ success: true, qrcode: data });
+    }
+
+    if (body.action === 'delete_instance') {
+      const { instanceName } = body;
+      if (!instanceName) {
+        return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      }
+      const url = baseUrl.replace(/\/$/, '') + '/instance/delete/' + encodeURIComponent(instanceName);
+      const res = await fetch(url, { method: 'DELETE', headers: { apikey: apiKey } });
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'delete_instance', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao excluir instância', details: data }, { status: res.status });
+      }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'delete_instance', status: 'sucesso' });
+      return Response.json({ success: true, result: data });
+    }
+
     if (body.action === 'get_contacts') {
       const instanceName = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
       if (!instanceName) {
