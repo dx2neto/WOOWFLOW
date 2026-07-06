@@ -15,6 +15,7 @@ const menuItems = [
   { label: "Cobranças", path: "/charges", icon: DollarSign },
   { label: "Campanhas", path: "/campaigns", icon: Send },
   { label: "Chatbot / IA", path: "/chatbot", icon: Bot },
+  { label: "Painel da Lara", path: "/lara-dashboard", icon: BotIcon },
   { label: "Logs da Lara", path: "/lara-logs", icon: BotIcon },
   { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
   { label: "Assinaturas", path: "/signatures", icon: FileSignature },
