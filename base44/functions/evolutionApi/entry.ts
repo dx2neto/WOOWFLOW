@@ -82,10 +82,10 @@ Deno.serve(async (req) => {
       const instanceList = instancesData.data || instancesData || [];
       const targetInstance = instanceList.find((i) => (i.name || i.instance?.instanceName) === instanceName);
       if (!targetInstance || !targetInstance.qrcode) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'falha', details: 'QR code não disponível (instância já conectada ou inexistente)' });
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'falha', details: `instância: ${instanceName} - QR code não disponível (instância já conectada ou inexistente)` });
         return Response.json({ error: 'QR code indisponível. A instância pode já estar conectada.' }, { status: 404 });
       }
-      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso' });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso', details: `instância: ${instanceName}` });
       return Response.json({ success: true, qrcode: { base64: targetInstance.qrcode } });
     }
 
