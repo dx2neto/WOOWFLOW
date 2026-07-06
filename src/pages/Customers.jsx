@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Search, MoreVertical, Filter } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
+import { useNavigate } from "react-router-dom";
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [contactsByClient, setContactsByClient] = useState({});
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ export default function Customers() {
                 <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum cliente encontrado</td></tr>
               ) : (
                 filtered.map((c) => (
-                  <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                  <tr key={c.id} onClick={() => navigate(`/customers/${c.id}`)} className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-xs">

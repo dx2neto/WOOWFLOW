@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais do IXC Provedor não configuradas' }, { status: 500 });
     }
 
-    const { cpfCnpj, action, search } = await req.json().catch(() => ({}));
+    const { cpfCnpj, action, search, clientId } = await req.json().catch(() => ({}));
 
     const fetchAllPages = async (url, baseBody, maxRecords = 2000) => {
       const rp = 200;
@@ -136,6 +136,38 @@ Deno.serve(async (req) => {
 
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'sucesso' });
       return Response.json({ success: true, result: { total: data.total, registros: faturas } });
+    }
+
+    if (action === 'faturas_cliente') {
+      if (!clientId) {
+        return Response.json({ error: 'clientId é obrigatório' }, { status: 400 });
+      }
+      const areceberUrl = baseUrl.replace(/\/$/, '') + '/fn_areceber';
+      const baseBody = {
+        qtype: 'fn_areceber.id_cliente',
+        query: String(clientId),
+        oper: '=',
+        sortname: 'fn_areceber.data_vencimento',
+        sortorder: 'desc',
+      };
+      const { ok, data, registros: rawRegistros } = await fetchAllPages(areceberUrl, baseBody, 500);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas_cliente', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar faturas do cliente no IXC Provedor', details: data }, { status: 500 });
+      }
+
+      const faturas = rawRegistros.map((r) => ({
+        id: r.id,
+        due_date: r.data_vencimento,
+        payment_date: r.data_pagamento,
+        value: parseFloat(r.valor_aberto || r.valor || '0'),
+        status: r.status,
+        boleto: r.boleto,
+        linha_digitavel: r.linha_digitavel,
+      }));
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas_cliente', status: 'sucesso', details: `${faturas.length} registros carregados` });
+      return Response.json({ success: true, result: { total: faturas.length, registros: faturas } });
     }
 
     if (action === 'contratos') {

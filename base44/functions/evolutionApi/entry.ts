@@ -119,13 +119,16 @@ Deno.serve(async (req) => {
       const instanceToken = targetInstance?.token || apiKey;
 
       const url = baseUrl.replace(/\/$/, '') + '/user/contacts';
-      const res = await fetch(url, { headers: { Token: apiKey } });
+      const res = await fetch(url, { headers: { Token: instanceToken } });
       const rawText = await res.text();
       let data;
       try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
       if (!res.ok) {
+        const friendly = res.status === 401
+          ? 'A instância do WhatsApp está desconectada. Escaneie o QR code novamente em Integrações.'
+          : 'Falha ao carregar conversas';
         await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'falha', details: `status ${res.status}: ${JSON.stringify(data).slice(0, 400)}` });
-        return Response.json({ error: 'Falha ao carregar conversas', status: res.status, details: data }, { status: res.status || 500 });
+        return Response.json({ error: friendly, status: res.status, details: data }, { status: res.status || 500 });
       }
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'sucesso' });
       return Response.json({ success: true, contacts: data.data || data });

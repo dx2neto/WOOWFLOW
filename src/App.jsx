@@ -20,6 +20,7 @@ import Inbox from '@/pages/Inbox';
 import CRM from '@/pages/CRM';
 import CrmAutomations from '@/pages/CrmAutomations';
 import Customers from '@/pages/Customers';
+import CustomerProfile from '@/pages/CustomerProfile';
 import Charges from '@/pages/Charges';
 import Campaigns from '@/pages/Campaigns';
 import Chatbot from '@/pages/Chatbot';
@@ -74,6 +75,7 @@ const AuthenticatedApp = () => {
           <Route path="/crm" element={<CRM />} />
           <Route path="/crm-automations" element={<CrmAutomations />} />
           <Route path="/customers" element={<Customers />} />
+          <Route path="/customers/:id" element={<CustomerProfile />} />
           <Route path="/charges" element={<Charges />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/chatbot" element={<Chatbot />} />
