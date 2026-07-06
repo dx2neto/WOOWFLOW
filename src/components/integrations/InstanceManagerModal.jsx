@@ -59,7 +59,7 @@ export default function InstanceManagerModal({ onClose }) {
         return;
       }
       const qr = response?.data?.qrcode || {};
-      const base64 = qr.base64 || qr.qrcode?.base64 || qr.code || null;
+      const base64 = (qr.base64 || qr.qrcode?.base64 || qr.code || "").split("|")[0] || null;
       setQrImage(base64);
     } catch {
       toast({ title: "Erro ao obter QR code", variant: "destructive" });
