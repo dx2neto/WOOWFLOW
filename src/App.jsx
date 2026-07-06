@@ -36,6 +36,7 @@ import SystemLogs from '@/pages/SystemLogs';
 import Telephony from '@/pages/Telephony';
 import LaraLogs from '@/pages/LaraLogs';
 import LaraDashboard from '@/pages/LaraDashboard';
+import LaraReports from '@/pages/LaraReports';
 import Settings from '@/pages/Settings';
 
 const AuthenticatedApp = () => {
@@ -89,6 +90,7 @@ const AuthenticatedApp = () => {
           <Route path="/telephony" element={<Telephony />} />
           <Route path="/lara-logs" element={<LaraLogs />} />
           <Route path="/lara-dashboard" element={<LaraDashboard />} />
+          <Route path="/lara-reports" element={<LaraReports />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>

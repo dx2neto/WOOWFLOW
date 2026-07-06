@@ -17,6 +17,7 @@ const menuItems = [
   { label: "Chatbot / IA", path: "/chatbot", icon: Bot },
   { label: "Painel da Lara", path: "/lara-dashboard", icon: BotIcon },
   { label: "Logs da Lara", path: "/lara-logs", icon: BotIcon },
+  { label: "Relatórios da Lara", path: "/lara-reports", icon: BarChart3 },
   { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
   { label: "Assinaturas", path: "/signatures", icon: FileSignature },
   { label: "Base de Conhecimento", path: "/knowledge", icon: BookOpen },
