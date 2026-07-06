@@ -23,7 +23,8 @@
       "enum": [
         "antes_vencimento_2d",
         "apos_vencimento_3d",
-        "atraso_5d"
+        "atraso_5d",
+        "renovacao_contrato"
       ],
       "default": "atraso_5d"
     },

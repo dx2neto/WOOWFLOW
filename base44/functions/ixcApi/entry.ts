@@ -138,6 +138,49 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: { total: data.total, registros: faturas } });
     }
 
+    if (action === 'contratos') {
+      const contratoUrl = baseUrl.replace(/\/$/, '') + '/cliente_contrato';
+      const baseBody = {
+        qtype: 'cliente_contrato.status',
+        query: 'A',
+        oper: '=',
+        sortname: 'cliente_contrato.data_expiracao',
+        sortorder: 'asc',
+      };
+      const { ok, data, registros: rawRegistros } = await fetchAllPages(contratoUrl, baseBody);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar contratos do IXC Provedor', details: data }, { status: 500 });
+      }
+
+      const clientIds = [...new Set(rawRegistros.map((r) => r.id_cliente).filter(Boolean))];
+      let clientsById = {};
+      if (clientIds.length > 0) {
+        const clientRes = await fetch(baseUrl.replace(/\/$/, '') + '/cliente', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
+          body: JSON.stringify({ qtype: 'cliente.id', query: clientIds.join(','), oper: 'IN', page: '1', rp: String(clientIds.length) }),
+        });
+        const clientData = await clientRes.json().catch(() => ({}));
+        (clientData.registros || []).forEach((c) => { clientsById[c.id] = c; });
+      }
+
+      const contratos = rawRegistros.map((r) => {
+        const cliente = clientsById[r.id_cliente] || {};
+        return {
+          id: r.id,
+          customer_name: cliente.razao || cliente.fantasia || `Cliente #${r.id_cliente}`,
+          phone: cliente.fone || cliente.telefone_celular || '',
+          plan_name: r.contrato || r.plano || '',
+          renewal_date: r.data_expiracao,
+          status: r.status,
+        };
+      });
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'sucesso', details: `${contratos.length} registros carregados` });
+      return Response.json({ success: true, result: { total: contratos.length, registros: contratos } });
+    }
+
     if (action === 'clientes') {
       const clientesUrl = baseUrl.replace(/\/$/, '') + '/cliente';
 
