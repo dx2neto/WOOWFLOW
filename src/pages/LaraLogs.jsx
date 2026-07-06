@@ -11,6 +11,8 @@ export default function LaraLogs() {
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
   const [onlyEscalated, setOnlyEscalated] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     loadConversations();
@@ -45,6 +47,12 @@ export default function LaraLogs() {
 
   const filtered = conversations.filter((c) => {
     if (onlyEscalated && !c.escalated) return false;
+    if (dateFrom || dateTo) {
+      const convDate = c.updated_date ? new Date(c.updated_date) : null;
+      if (!convDate) return false;
+      if (dateFrom && convDate < new Date(dateFrom + "T00:00:00")) return false;
+      if (dateTo && convDate > new Date(dateTo + "T23:59:59")) return false;
+    }
     if (!search.trim()) return true;
     const term = search.toLowerCase();
     const name = (c.metadata?.name || "").toLowerCase();
@@ -74,6 +82,21 @@ export default function LaraLogs() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar conversa ou mensagem..."
               className="w-full h-9 pl-9 pr-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="flex-1 h-9 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="flex-1 h-9 px-2 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
             />
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
