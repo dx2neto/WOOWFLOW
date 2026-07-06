@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText, Workflow
+  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon
 } from "lucide-react";
 
 const menuItems = [
@@ -15,6 +15,7 @@ const menuItems = [
   { label: "Cobranças", path: "/charges", icon: DollarSign },
   { label: "Campanhas", path: "/campaigns", icon: Send },
   { label: "Chatbot / IA", path: "/chatbot", icon: Bot },
+  { label: "Logs da Lara", path: "/lara-logs", icon: BotIcon },
   { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
   { label: "Assinaturas", path: "/signatures", icon: FileSignature },
   { label: "Base de Conhecimento", path: "/knowledge", icon: BookOpen },

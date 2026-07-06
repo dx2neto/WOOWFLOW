@@ -34,6 +34,7 @@ import Holidays from '@/pages/Holidays';
 import AuditLogs from '@/pages/AuditLogs';
 import SystemLogs from '@/pages/SystemLogs';
 import Telephony from '@/pages/Telephony';
+import LaraLogs from '@/pages/LaraLogs';
 import Settings from '@/pages/Settings';
 
 const AuthenticatedApp = () => {
@@ -85,6 +86,7 @@ const AuthenticatedApp = () => {
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/system-logs" element={<SystemLogs />} />
           <Route path="/telephony" element={<Telephony />} />
+          <Route path="/lara-logs" element={<LaraLogs />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
