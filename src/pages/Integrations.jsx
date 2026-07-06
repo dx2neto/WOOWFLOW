@@ -3,13 +3,14 @@ import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import {
   MessageCircle, Database, FileSignature, ShieldCheck, Instagram,
-  Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus
+  Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode
 } from "lucide-react";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { zapsignApi } from "@/functions/zapsignApi";
 import { serasaApi } from "@/functions/serasaApi";
 import InstanceManagerModal from "@/components/integrations/InstanceManagerModal";
+import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal";
 
 const testFunctions = {
   evolution_api: evolutionApi,
@@ -95,6 +96,7 @@ export default function Integrations() {
   const [configs, setConfigs] = useState({});
   const [testingService, setTestingService] = useState(null);
   const [showInstanceManager, setShowInstanceManager] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
 
   useEffect(() => {
     loadConfigs();
@@ -179,12 +181,20 @@ export default function Integrations() {
 
               <div className="flex gap-2">
                 {int.service === "evolution_api" && (
-                  <button
-                    onClick={() => setShowInstanceManager(true)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
-                  >
-                    <Settings className="w-4 h-4" /> Instâncias
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowInstanceManager(true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
+                    >
+                      <Settings className="w-4 h-4" /> Instâncias
+                    </button>
+                    <button
+                      onClick={() => setShowQrCode(true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
+                    >
+                      <QrCode className="w-4 h-4" /> QR Code
+                    </button>
+                  </>
                 )}
                 {testFunctions[int.service] ? (
                   status === "connected" ? (
@@ -229,6 +239,9 @@ export default function Integrations() {
 
       {showInstanceManager && (
         <InstanceManagerModal onClose={() => setShowInstanceManager(false)} />
+      )}
+      {showQrCode && (
+        <EvolutionQrCodeModal onClose={() => setShowQrCode(false)} />
       )}
     </PageContainer>
   );
