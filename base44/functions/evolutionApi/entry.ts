@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       const res = await fetch(url, {
         method: 'POST',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceName }),
+        body: JSON.stringify({ name: instanceName, token: crypto.randomUUID() }),
       });
       const rawText = await res.text();
       let data;
@@ -76,17 +76,17 @@ Deno.serve(async (req) => {
       if (!instanceName) {
         return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
       }
-      const url = baseUrl.replace(/\/$/, '') + '/instance/' + encodeURIComponent(instanceName) + '/qrcode';
-      const res = await fetch(url, { headers: { apikey: apiKey } });
-      const rawText = await res.text();
-      let data;
-      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
-      if (!res.ok) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
-        return Response.json({ error: 'Falha ao obter QR code', details: data }, { status: res.status });
+      // O QR code já vem embutido no retorno de /instance/all (campo "qrcode" em base64).
+      const instancesRes = await fetch(baseUrl.replace(/\/$/, '') + '/instance/all', { headers: { apikey: apiKey } });
+      const instancesData = await instancesRes.json().catch(() => ({}));
+      const instanceList = instancesData.data || instancesData || [];
+      const targetInstance = instanceList.find((i) => (i.name || i.instance?.instanceName) === instanceName);
+      if (!targetInstance || !targetInstance.qrcode) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'falha', details: 'QR code não disponível (instância já conectada ou inexistente)' });
+        return Response.json({ error: 'QR code indisponível. A instância pode já estar conectada.' }, { status: 404 });
       }
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso' });
-      return Response.json({ success: true, qrcode: data });
+      return Response.json({ success: true, qrcode: { base64: targetInstance.qrcode } });
     }
 
     if (body.action === 'delete_instance') {
@@ -94,7 +94,14 @@ Deno.serve(async (req) => {
       if (!instanceName) {
         return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
       }
-      const url = baseUrl.replace(/\/$/, '') + '/instance/delete/' + encodeURIComponent(instanceName);
+      const instancesRes = await fetch(baseUrl.replace(/\/$/, '') + '/instance/all', { headers: { apikey: apiKey } });
+      const instancesData = await instancesRes.json().catch(() => ({}));
+      const instanceList = instancesData.data || instancesData || [];
+      const targetInstance = instanceList.find((i) => (i.name || i.instance?.instanceName) === instanceName);
+      if (!targetInstance) {
+        return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      }
+      const url = baseUrl.replace(/\/$/, '') + '/instance/delete/' + encodeURIComponent(targetInstance.id);
       const res = await fetch(url, { method: 'DELETE', headers: { apikey: apiKey } });
       const rawText = await res.text();
       let data;
