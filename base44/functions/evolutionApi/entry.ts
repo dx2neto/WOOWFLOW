@@ -124,8 +124,8 @@ Deno.serve(async (req) => {
       let data;
       try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
       if (!res.ok) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
-        return Response.json({ error: 'Falha ao carregar conversas', details: data }, { status: res.status });
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'falha', details: `status ${res.status}: ${JSON.stringify(data).slice(0, 400)}` });
+        return Response.json({ error: 'Falha ao carregar conversas', status: res.status, details: data }, { status: res.status || 500 });
       }
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'get_contacts', status: 'sucesso' });
       return Response.json({ success: true, contacts: data.data || data });
