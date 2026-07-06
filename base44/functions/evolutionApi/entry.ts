@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const instanceToken = targetInstance?.token || apiKey;
 
       const url = baseUrl.replace(/\/$/, '') + '/user/contacts';
-      const res = await fetch(url, { headers: { apikey: instanceToken } });
+      const res = await fetch(url, { headers: { Token: apiKey } });
       const rawText = await res.text();
       let data;
       try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
