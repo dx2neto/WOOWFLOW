@@ -43,7 +43,7 @@ const menuGroups = [
     label: "Ferramentas",
     items: [
       { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
-      { label: "Assinaturas",           path: "/signatures",        icon: FileSignature },
+      { label: "Assinatura de Contratos", path: "/signatures",        icon: FileSignature },
       { label: "Base de Conhecimento",  path: "/knowledge",         icon: BookOpen },
       { label: "Relatórios",            path: "/reports",           icon: BarChart3 },
       { label: "Integrações",           path: "/integrations",      icon: Plug },
