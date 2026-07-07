@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     const ixcUrl    = Deno.env.get('IXC_API_URL');
     const ixcToken  = Deno.env.get('IXC_API_TOKEN');
     const evoBase   = Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud';
-    const evoKey    = Deno.env.get('EVOLUTION_API_KEY')  || '19QJ/5Vpa0[ZrZXCX?fS';
+    const evoKey    = Deno.env.get('EVOLUTION_API_KEY') || '';
     const evoInst   = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
 
     const body = await req.json().catch(() => ({}));

@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
     const ixcBaseUrl    = Deno.env.get('IXC_API_URL');
     const ixcToken      = Deno.env.get('IXC_API_TOKEN');
     const evoBaseUrl    = Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud';
-    const evoKey        = Deno.env.get('EVOLUTION_API_KEY') || '19QJ/5Vpa0[ZrZXCX?fS';
+    const evoKey        = Deno.env.get('EVOLUTION_API_KEY') || '';
     const evoDefaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
     const zapToken      = Deno.env.get('ZAPSIGN_API_TOKEN');
 
@@ -450,7 +450,7 @@ Deno.serve(async (req) => {
           }
         } catch { /* usa apiKey global como fallback */ }
 
-        // ── POST /send/text (Evolution Go) ────────────────────────────────────
+        // ── POST /send/text (Evolution Go) ──────────��─────────────────────────
         const number = customerPhone.replace(/\D/g, '');
         const evoRes = await fetch(`${base}/send/text`, {
           method: 'POST',
