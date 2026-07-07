@@ -15,9 +15,9 @@ export default function CustomerProfile() {
   const loadCustomer = async () => {
     setLoading(true);
     try {
-      const response = await ixcApi({ action: "clientes" });
+      const response = await ixcApi({ action: "cliente_por_id", clientId: id });
       const registros = response?.data?.result?.registros || [];
-      setCustomer(registros.find((c) => String(c.id) === String(id)) || null);
+      setCustomer(registros[0] || null);
     } catch {
       setCustomer(null);
     } finally {

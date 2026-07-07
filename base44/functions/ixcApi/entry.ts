@@ -12,7 +12,45 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais do IXC Provedor não configuradas' }, { status: 500 });
     }
 
-    const { cpfCnpj, action, search, clientId } = await req.json().catch(() => ({}));
+    const {
+      cpfCnpj, action, search, clientId,
+      contratoId, osId,
+      page = 1, limit = 60,
+      status, startDate, endDate, vendedorId, cidadeId,
+      data: bodyData,
+    } = await req.json().catch(() => ({}));
+
+    // Helper para construir resposta paginada padronizada
+    const paginate = (registros, total, pg = page, lim = limit) => ({
+      success: true,
+      data: registros,
+      pagination: { page: Number(pg), limit: Number(lim), total: Number(total) },
+      message: 'OK',
+    });
+
+    // Helper de fetch POST ao IXCSoft
+    const ixcPost = async (endpoint, body) => {
+      const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      return { res, data: await res.json().catch(() => ({})) };
+    };
+
+    // Helper de PUT/PATCH ao IXCSoft (criar/atualizar recursos)
+    const ixcWrite = async (endpoint, body, method = 'POST') => {
+      const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      return { res, data: await res.json().catch(() => ({})) };
+    };
 
     const fetchAllPages = async (url, baseBody, maxRecords = 2000) => {
       const rp = 200;
@@ -69,6 +107,39 @@ Deno.serve(async (req) => {
       const cidades = Object.entries(mapa).map(([id, label]) => ({ id, label }));
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'cidades', status: 'sucesso', details: `${total} cidades carregadas` });
       return Response.json({ success: true, result: { total: cidades.length, registros: cidades } });
+    }
+
+    if (action === 'cliente_por_id') {
+      if (!clientId) {
+        return Response.json({ error: 'clientId é obrigatório' }, { status: 400 });
+      }
+      const clienteUrl = baseUrl.replace(/\/$/, '') + '/cliente';
+      const res = await fetch(clienteUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
+        body: JSON.stringify({ qtype: 'cliente.id', query: String(clientId), oper: '=', page: '1', rp: '1' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'cliente_por_id', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar cliente no IXC Provedor', details: data }, { status: res.status });
+      }
+      const { mapa: cidadesById } = await carregarMapaCidades();
+      const raw = (data.registros || [])[0];
+      if (!raw) {
+        return Response.json({ success: true, result: { total: 0, registros: [] } });
+      }
+      const cliente = {
+        id: raw.id,
+        name: raw.razao || raw.fantasia || `Cliente #${raw.id}`,
+        cpf_cnpj: raw.cnpj_cpf,
+        phone: raw.telefone_celular || raw.fone || '',
+        email: raw.email,
+        city: cidadesById[String(raw.cidade)] || raw.cidade_nome || '',
+        contract_status: raw.ativo === 'S' ? 'ativo' : 'cancelado',
+      };
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'cliente_por_id', status: 'sucesso' });
+      return Response.json({ success: true, result: { total: 1, registros: [cliente] } });
     }
 
     if (action === 'faturas') {
@@ -280,6 +351,352 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: { total: contatos.length, registros: contatos } });
     }
 
+    // ── TEST CONNECTION ────────────────────────────────────────────────────────
+    if (action === 'test_connection') {
+      const t0 = Date.now();
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.id', query: '1', oper: '>=', page: '1', rp: '1' });
+      const ms = Date.now() - t0;
+      if (!res.ok) {
+        return Response.json({ success: false, error: 'Falha ao conectar ao IXC Provedor', details: `HTTP ${res.status}`, response_ms: ms });
+      }
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'test_connection', status: 'sucesso', details: `${ms}ms` });
+      return Response.json({ success: true, message: 'Conexão com IXCSoft estabelecida com sucesso', response_ms: ms, total_clientes: data.total || '?' });
+    }
+
+    // ── CONTRATO POR ID ────────────────────────────────────────────────────────
+    if (action === 'contrato_por_id') {
+      if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id', query: String(contratoId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar contrato', details: data }, { status: res.status });
+      const raw = (data.registros || [])[0];
+      if (!raw) return Response.json({ success: true, data: null, message: 'Contrato não encontrado' });
+      const { mapa: cidadesById } = await carregarMapaCidades();
+      const contrato = {
+        id: raw.id, client_id: raw.id_cliente,
+        plan_name: raw.descricao_plano || raw.plano || '', plan_id: raw.id_plano,
+        vendor_name: raw.vendedor || '', vendor_id: raw.id_vendedor,
+        city: cidadesById[String(raw.cidade || raw.id_cidade)] || raw.cidade_nome || '',
+        status: raw.status === 'A' ? 'ativo' : raw.status === 'CA' ? 'cancelado' : raw.status,
+        internet_status: raw.status_internet || '',
+        start_date: raw.data_ativacao, end_date: raw.data_vencimento_contrato || raw.data_expiracao,
+        ip: raw.ip || '', mac: raw.mac || '',
+        olt: raw.nome_olt || raw.olt || '', cto: raw.nome_cto || raw.cto || '',
+        address: [raw.endereco, raw.numero, raw.bairro].filter(Boolean).join(', '),
+        download: raw.download || '', upload: raw.upload || '',
+      };
+      return Response.json({ success: true, data: contrato, message: 'OK' });
+    }
+
+    // ── PLANOS ─────────────────────────────────────────────────────────────────
+    if (action === 'planos') {
+      const baseBody: Record<string, string> = { qtype: 'plano.id', query: '1', oper: '>=', sortname: 'plano.nome', sortorder: 'asc' };
+      if (search) { baseBody.qtype = 'plano.nome'; baseBody.query = search; baseBody.oper = 'L'; }
+      const { ok, registros } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/plano', baseBody, 500);
+      if (!ok) return Response.json({ success: false, error: 'Falha ao buscar planos do IXC Provedor' }, { status: 500 });
+      const planos = registros.map((r: any) => ({
+        id: r.id,
+        name: r.nome || r.descricao || `Plano #${r.id}`,
+        download: r.velocidade_down || r.download || '',
+        upload: r.velocidade_up || r.upload || '',
+        price: parseFloat(r.valor || '0'),
+        active: r.ativo === 'S',
+        type: r.tipo_plano || r.tecnologia || '',
+        fidelity: r.fidelidade || '',
+        total_contratos: 0,
+      }));
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'planos', status: 'sucesso', details: `${planos.length} planos` });
+      return Response.json(paginate(planos, planos.length));
+    }
+
+    // ── VENDEDORES ─────────────────────────────────────────────────────────────
+    if (action === 'vendedores') {
+      const baseBody: Record<string, string> = { qtype: 'vendedor.id', query: '1', oper: '>=', sortname: 'vendedor.nome', sortorder: 'asc' };
+      if (search) { baseBody.qtype = 'vendedor.nome'; baseBody.query = search; baseBody.oper = 'L'; }
+      const { ok, registros } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/vendedor', baseBody, 500);
+      if (!ok) return Response.json({ success: false, error: 'Falha ao buscar vendedores' }, { status: 500 });
+      const vendedores = registros.map((r: any) => ({
+        id: r.id, name: r.nome || `Vendedor #${r.id}`,
+        email: r.email || '', phone: r.fone || r.telefone || '',
+        active: r.ativo === 'S', cpf: r.cpf || '',
+      }));
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'vendedores', status: 'sucesso', details: `${vendedores.length} vendedores` });
+      return Response.json(paginate(vendedores, vendedores.length));
+    }
+
+    // ── TÍTULOS FINANCEIROS ────────────────────────────────────────────────────
+    if (action === 'titulos') {
+      const pg = Number(page) || 1; const lim = Number(limit) || 60;
+      const baseBody: Record<string, string> = {
+        qtype: 'fn_areceber.id', query: '1', oper: '>=',
+        sortname: 'fn_areceber.data_vencimento', sortorder: 'desc',
+        page: String(pg), rp: String(lim),
+      };
+      if (status) { baseBody.qtype = 'fn_areceber.status'; baseBody.query = status; baseBody.oper = '='; }
+      if (startDate) { baseBody.qtype = 'fn_areceber.data_vencimento'; baseBody.query = startDate; baseBody.oper = '>='; }
+      const { res, data } = await ixcPost('fn_areceber', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar títulos', details: data }, { status: res.status });
+      const registros = (data.registros || []).map((r: any) => ({
+        id: r.id, client_id: r.id_cliente, contract_id: r.id_contrato,
+        value: parseFloat(r.valor_aberto || r.valor || '0'),
+        due_date: r.data_vencimento, payment_date: r.data_pagamento,
+        status: r.status === 'P' ? 'pago' : r.status === 'A' ? 'aberto' : r.status,
+        boleto: r.boleto || '', linha_digitavel: r.linha_digitavel || '',
+        pix_code: r.pix_qrcode || r.pix || '',
+        nome_cliente: r.nome_cliente || `Cliente #${r.id_cliente}`,
+      }));
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'titulos', status: 'sucesso' });
+      return Response.json(paginate(registros, data.total || registros.length, pg, lim));
+    }
+
+    // ── INADIMPLENTES ──────────────────────────────────────────────────────────
+    if (action === 'inadimplentes') {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const pg = Number(page) || 1; const lim = Number(limit) || 60;
+      const baseBody: Record<string, string> = {
+        qtype: 'fn_areceber.data_vencimento',
+        query: hoje, oper: '<',
+        sortname: 'fn_areceber.data_vencimento', sortorder: 'asc',
+        page: String(pg), rp: String(lim),
+      };
+      const { res, data } = await ixcPost('fn_areceber', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar inadimplentes', details: data }, { status: res.status });
+
+      const rawList = (data.registros || []).filter((r: any) => r.status === 'A');
+      const clientIds = [...new Set(rawList.map((r: any) => r.id_cliente).filter(Boolean))];
+      let clientsById: Record<string, any> = {};
+      if (clientIds.length > 0) {
+        const cr = await ixcPost('cliente', { qtype: 'cliente.id', query: (clientIds as string[]).join(','), oper: 'IN', page: '1', rp: String(clientIds.length) });
+        (cr.data.registros || []).forEach((c: any) => { clientsById[c.id] = c; });
+      }
+
+      const todayMs = new Date().setHours(0, 0, 0, 0);
+      const inadimplentes = rawList.map((r: any) => {
+        const c = clientsById[r.id_cliente] || {};
+        const venc = r.data_vencimento ? new Date(r.data_vencimento).getTime() : 0;
+        const dias = venc ? Math.floor((todayMs - venc) / 86_400_000) : 0;
+        return {
+          id: r.id, client_id: r.id_cliente,
+          client_name: c.razao || c.fantasia || r.nome_cliente || `Cliente #${r.id_cliente}`,
+          phone: c.telefone_celular || c.fone || '',
+          city: c.cidade_nome || '',
+          value: parseFloat(r.valor_aberto || r.valor || '0'),
+          due_date: r.data_vencimento, days_late: dias,
+          boleto: r.boleto || '', linha_digitavel: r.linha_digitavel || '',
+          pix_code: r.pix_qrcode || r.pix || '',
+          status: 'vencido',
+          faixa: dias <= 7 ? '1-7d' : dias <= 15 ? '8-15d' : dias <= 30 ? '16-30d' : dias <= 60 ? '31-60d' : '+60d',
+        };
+      });
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'inadimplentes', status: 'sucesso', details: `${inadimplentes.length} inadimplentes` });
+      return Response.json(paginate(inadimplentes, data.total || inadimplentes.length, pg, lim));
+    }
+
+    // ── SEGUNDA VIA ────────────────────────────────────────────────────────────
+    if (action === 'segunda_via') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', {
+        qtype: 'fn_areceber.id_cliente', query: String(clientId), oper: '=',
+        sortname: 'fn_areceber.data_vencimento', sortorder: 'desc', page: '1', rp: '10',
+      });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar faturas para segunda via', details: data }, { status: res.status });
+      const abertos = (data.registros || []).filter((r: any) => r.status === 'A');
+      const faturas = abertos.map((r: any) => ({
+        id: r.id, due_date: r.data_vencimento,
+        value: parseFloat(r.valor_aberto || r.valor || '0'),
+        boleto: r.boleto || '', linha_digitavel: r.linha_digitavel || '',
+        pix_code: r.pix_qrcode || r.pix || '',
+      }));
+      return Response.json({ success: true, data: faturas, message: `${faturas.length} fatura(s) em aberto` });
+    }
+
+    // ── ORDENS DE SERVIÇO ──────────────────────────────────────────────────────
+    if (action === 'os') {
+      const pg = Number(page) || 1; const lim = Number(limit) || 60;
+      const baseBody: Record<string, string> = {
+        qtype: 'atendimento.id', query: '1', oper: '>=',
+        sortname: 'atendimento.data_abertura', sortorder: 'desc',
+        page: String(pg), rp: String(lim),
+      };
+      if (status) { baseBody.qtype = 'atendimento.status'; baseBody.query = status; baseBody.oper = '='; }
+      if (search) { baseBody.qtype = 'atendimento.assunto'; baseBody.query = search; baseBody.oper = 'L'; }
+      if (clientId) { baseBody.qtype = 'atendimento.id_cliente'; baseBody.query = String(clientId); baseBody.oper = '='; }
+      const { res, data } = await ixcPost('atendimento', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar ordens de serviço', details: data }, { status: res.status });
+      const os = (data.registros || []).map((r: any) => ({
+        id: r.id, client_id: r.id_cliente, client_name: r.nome_cliente || `Cliente #${r.id_cliente}`,
+        contract_id: r.id_contrato || '',
+        subject: r.assunto || r.tipo || '', description: r.descricao || '',
+        solution: r.solucao || '', status: r.status || '', tech_name: r.nome_tecnico || r.tecnico || '',
+        open_date: r.data_abertura, scheduled_date: r.data_atendimento || r.data_agendamento || '',
+        close_date: r.data_fechamento || '', priority: r.prioridade || '',
+        city: r.cidade || '', address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', '),
+        phone: r.fone_cliente || r.telefone || '',
+      }));
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'os', status: 'sucesso' });
+      return Response.json(paginate(os, data.total || os.length, pg, lim));
+    }
+
+    if (action === 'os_por_id') {
+      if (!osId) return Response.json({ success: false, error: 'osId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('atendimento', { qtype: 'atendimento.id', query: String(osId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar OS', details: data }, { status: res.status });
+      const r = (data.registros || [])[0];
+      if (!r) return Response.json({ success: false, error: 'OS não encontrada' }, { status: 404 });
+      return Response.json({ success: true, data: r, message: 'OK' });
+    }
+
+    if (action === 'os_create') {
+      if (!bodyData) return Response.json({ success: false, error: 'Dados da OS são obrigatórios' }, { status: 400 });
+      const required = ['id_cliente', 'assunto'];
+      const missing = required.filter(f => !bodyData[f]);
+      if (missing.length > 0) return Response.json({ success: false, error: `Campos obrigatórios ausentes: ${missing.join(', ')}` }, { status: 400 });
+      const { res, data } = await ixcWrite('atendimento', bodyData, 'POST');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao criar OS', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'os_create', status: 'sucesso', details: JSON.stringify(data).slice(0, 200) });
+      return Response.json({ success: true, data, message: 'OS criada com sucesso' });
+    }
+
+    if (action === 'os_update') {
+      if (!osId || !bodyData) return Response.json({ success: false, error: 'osId e dados são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite(`atendimento/${osId}`, bodyData, 'PUT');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao atualizar OS', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'os_update', status: 'sucesso', details: `OS ${osId}` });
+      return Response.json({ success: true, data, message: 'OS atualizada com sucesso' });
+    }
+
+    // ── ATENDIMENTOS ───────────────────────────────────────────────────────────
+    if (action === 'atendimentos') {
+      const pg = Number(page) || 1; const lim = Number(limit) || 60;
+      const baseBody: Record<string, string> = {
+        qtype: 'atendimento.id', query: '1', oper: '>=',
+        sortname: 'atendimento.data_abertura', sortorder: 'desc',
+        page: String(pg), rp: String(lim),
+      };
+      if (status) { baseBody.qtype = 'atendimento.status'; baseBody.query = status; baseBody.oper = '='; }
+      const { res, data } = await ixcPost('atendimento', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar atendimentos', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'atendimentos', status: 'sucesso' });
+      return Response.json(paginate(data.registros || [], data.total || 0, pg, lim));
+    }
+
+    // ── DASHBOARD ──────────────────────────────────────────────────────────────
+    if (action === 'dashboard') {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const mesAtual = hoje.slice(0, 7);
+
+      // Todas as chamadas em paralelo para reduzir latência
+      const [clientesRes, contratosRes, titulosRes, osAbertas] = await Promise.allSettled([
+        ixcPost('cliente', { qtype: 'cliente.ativo', query: 'S', oper: '=', page: '1', rp: '1' }),
+        ixcPost('cliente_contrato', { qtype: 'cliente_contrato.status', query: 'A', oper: '=', page: '1', rp: '1' }),
+        ixcPost('fn_areceber', { qtype: 'fn_areceber.status', query: 'A', oper: '=', page: '1', rp: '1', sortname: 'fn_areceber.data_vencimento', sortorder: 'asc' }),
+        ixcPost('atendimento', { qtype: 'atendimento.status', query: 'A', oper: '=', page: '1', rp: '1' }),
+      ]);
+
+      const totalAtivos    = (clientesRes.status === 'fulfilled' && clientesRes.value.res.ok) ? parseInt(clientesRes.value.data.total || '0') : 0;
+      const totalContratos = (contratosRes.status === 'fulfilled' && contratosRes.value.res.ok) ? parseInt(contratosRes.value.data.total || '0') : 0;
+      const titulosAbertos = (titulosRes.status === 'fulfilled' && titulosRes.value.res.ok) ? parseInt(titulosRes.value.data.total || '0') : 0;
+      const osCount        = (osAbertas.status === 'fulfilled' && osAbertas.value.res.ok) ? parseInt(osAbertas.value.data.total || '0') : 0;
+
+      // Valor vencido (faturas A com vencimento < hoje)
+      const vencidoRes = await ixcPost('fn_areceber', { qtype: 'fn_areceber.data_vencimento', query: hoje, oper: '<', page: '1', rp: '200', sortname: 'fn_areceber.data_vencimento', sortorder: 'asc' });
+      const vencidos = (vencidoRes.data.registros || []).filter((r: any) => r.status === 'A');
+      const valorVencido = vencidos.reduce((s: number, r: any) => s + parseFloat(r.valor_aberto || r.valor || '0'), 0);
+
+      // Novos clientes no mês
+      const novosRes = await ixcPost('cliente', { qtype: 'cliente.data_cadastro', query: `${mesAtual}-01`, oper: '>=', page: '1', rp: '1' });
+      const novosMes = (novosRes.res.ok) ? parseInt(novosRes.data.total || '0') : 0;
+
+      const dashboard = {
+        clientes_ativos:       totalAtivos,
+        contratos_ativos:      totalContratos,
+        novos_clientes_mes:    novosMes,
+        titulos_abertos:       titulosAbertos,
+        os_abertas:            osCount,
+        valor_vencido:         valorVencido,
+        inadimplentes:         vencidos.length,
+        taxa_inadimplencia:    totalContratos > 0 ? Math.round((vencidos.length / totalContratos) * 100 * 10) / 10 : 0,
+        // Campos que dependem de integrações externas (NOC, RADIUS, OLT) — aguardando
+        clientes_offline:      null,
+        clientes_sinal_ruim:   null,
+      };
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'dashboard', status: 'sucesso' });
+      return Response.json({ success: true, data: dashboard, message: 'OK' });
+    }
+
+    // ── NOC — OFFLINE ──────────────────────────────────────────────────────────
+    if (action === 'noc_offline') {
+      // IXCSoft suspende contratos com status_internet = 'S' (suspenso por inadimplência)
+      // ou status 'I' (inativo). Clientes tecnicamente offline dependem de integração RADIUS/OLT.
+      // Por ora, retornamos contratos suspensos/inativos como proxy de "offline".
+      const { res, data } = await ixcPost('cliente_contrato', {
+        qtype: 'cliente_contrato.status_internet', query: 'S', oper: '=',
+        sortname: 'cliente_contrato.id', sortorder: 'desc', page: String(page), rp: String(limit),
+      });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar clientes offline', details: data }, { status: res.status });
+
+      const clientIds = [...new Set((data.registros || []).map((r: any) => r.id_cliente).filter(Boolean))];
+      let clientsById: Record<string, any> = {};
+      if (clientIds.length > 0) {
+        const cr = await ixcPost('cliente', { qtype: 'cliente.id', query: (clientIds as string[]).join(','), oper: 'IN', page: '1', rp: String(clientIds.length) });
+        (cr.data.registros || []).forEach((c: any) => { clientsById[c.id] = c; });
+      }
+
+      const { mapa: cidadesById } = await carregarMapaCidades();
+      const offline = (data.registros || []).map((r: any) => {
+        const c = clientsById[r.id_cliente] || {};
+        return {
+          contract_id: r.id, client_id: r.id_cliente,
+          client_name: c.razao || c.fantasia || `Cliente #${r.id_cliente}`,
+          phone: c.telefone_celular || c.fone || '',
+          city: cidadesById[String(r.cidade || r.id_cidade)] || r.cidade_nome || c.cidade_nome || '',
+          plan_name: r.descricao_plano || r.plano || '',
+          olt: r.nome_olt || r.olt || '',
+          cto: r.nome_cto || r.cto || '',
+          status_internet: r.status_internet || '',
+          ip: r.ip || '', mac: r.mac || '',
+          // tempo offline: requer integração RADIUS — pendente
+          offline_since: null,
+        };
+      });
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'noc_offline', status: 'sucesso', details: `${offline.length} contratos suspensos` });
+      return Response.json(paginate(offline, data.total || offline.length));
+    }
+
+    if (action === 'noc_sinal_ruim') {
+      // Sinal óptico ruim requer integração OLT/Zabbix.
+      // Por enquanto retorna contratos com alerta de sinal (campo signal_level se disponível no IXC).
+      // Documentado como pendente de integração OLT.
+      return Response.json({
+        success: true, data: [],
+        pagination: { page: 1, limit: 60, total: 0 },
+        message: 'Módulo NOC — sinal ruim requer integração com OLT/RADIUS/Zabbix. Pendente de configuração.',
+        pending: true,
+      });
+    }
+
+    if (action === 'noc_cliente') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const [clienteRes, contratosRes2] = await Promise.all([
+        ixcPost('cliente', { qtype: 'cliente.id', query: String(clientId), oper: '=', page: '1', rp: '1' }),
+        ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id_cliente', query: String(clientId), oper: '=', page: '1', rp: '10' }),
+      ]);
+      const cliente = (clienteRes.data.registros || [])[0] || null;
+      const contratos = contratosRes2.data.registros || [];
+      return Response.json({ success: true, data: { cliente, contratos }, message: 'OK' });
+    }
+
+    if (action === 'noc_contrato') {
+      if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id', query: String(contratoId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar contrato NOC', details: data }, { status: res.status });
+      const contrato = (data.registros || [])[0] || null;
+      return Response.json({ success: true, data: contrato, message: 'OK' });
+    }
+
+    // ── FALLBACK (compatibilidade legada) ──────────────────────────────────────
     const body = cpfCnpj
       ? { qtype: 'cliente.cnpj_cpf', query: cpfCnpj, oper: '=', page: '1', rp: '1' }
       : { qtype: 'cliente.id', query: '1', oper: '>=', page: '1', rp: '1' };

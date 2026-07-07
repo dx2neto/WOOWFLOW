@@ -3,33 +3,62 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Inbox, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
-  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall, AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon
+  ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
+  AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
+  FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2
 } from "lucide-react";
 
-const menuItems = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Caixa de Entrada", path: "/inbox", icon: Inbox, badge: 12 },
-  { label: "CRM", path: "/crm", icon: Users },
-  { label: "Automações do CRM", path: "/crm-automations", icon: Workflow },
-  { label: "Clientes", path: "/customers", icon: Users },
-  { label: "Cobranças", path: "/charges", icon: DollarSign },
-  { label: "Campanhas", path: "/campaigns", icon: Send },
-  { label: "Chatbot / IA", path: "/chatbot", icon: Bot },
-  { label: "Painel da Lara", path: "/lara-dashboard", icon: BotIcon },
-  { label: "Logs da Lara", path: "/lara-logs", icon: BotIcon },
-  { label: "Relatórios da Lara", path: "/lara-reports", icon: BarChart3 },
-  { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
-  { label: "Assinaturas", path: "/signatures", icon: FileSignature },
-  { label: "Base de Conhecimento", path: "/knowledge", icon: BookOpen },
-  { label: "Relatórios", path: "/reports", icon: BarChart3 },
-  { label: "Integrações", path: "/integrations", icon: Plug },
-  { label: "Usuários", path: "/users", icon: UserCog },
-  { label: "Etiquetas e Filas", path: "/tags-queues", icon: Tags },
-  { label: "Feriados e Horários", path: "/holidays", icon: CalendarDays },
-  { label: "Logs de Auditoria", path: "/audit-logs", icon: ScrollText },
-  { label: "Logs do Sistema", path: "/system-logs", icon: AlertTriangle },
-  { label: "Telefonia Omnichannel", path: "/telephony", icon: PhoneCall },
-  { label: "Configurações", path: "/settings", icon: Settings },
+const menuGroups = [
+  {
+    label: "Atendimento",
+    items: [
+      { label: "Dashboard",           path: "/dashboard",      icon: LayoutDashboard },
+      { label: "Caixa de Entrada",    path: "/inbox",          icon: Inbox, badge: 12 },
+      { label: "CRM",                 path: "/crm",            icon: Users },
+      { label: "Automações do CRM",   path: "/crm-automations",icon: Workflow },
+      { label: "Campanhas",           path: "/campaigns",      icon: Send },
+      { label: "Chatbot / IA",        path: "/chatbot",        icon: Bot },
+      { label: "Painel da Lara",      path: "/lara-dashboard", icon: BotIcon },
+      { label: "Logs da Lara",        path: "/lara-logs",      icon: BotIcon },
+      { label: "Relatórios da Lara",  path: "/lara-reports",   icon: BarChart3 },
+    ],
+  },
+  {
+    label: "IXCSoft — Provedor",
+    items: [
+      { label: "Clientes",                  path: "/customers",   icon: Users },
+      { label: "Contratos",                 path: "/contracts",   icon: FileText },
+      { label: "Planos",                    path: "/plans",       icon: Wifi },
+      { label: "Vendedores",                path: "/vendors",     icon: ShoppingBag },
+      { label: "Cobranças",                 path: "/charges",     icon: DollarSign },
+      { label: "Financeiro / Inadimplência",path: "/financial",   icon: TrendingDown },
+      { label: "Ordens de Serviço",         path: "/work-orders", icon: Wrench },
+      { label: "NOC",                       path: "/noc",         icon: WifiOff },
+      { label: "Teste IXCSoft",             path: "/ixc-test",    icon: TestTube2 },
+    ],
+  },
+  {
+    label: "Ferramentas",
+    items: [
+      { label: "Templates de Mensagem", path: "/message-templates", icon: MessageSquareText },
+      { label: "Assinaturas",           path: "/signatures",        icon: FileSignature },
+      { label: "Base de Conhecimento",  path: "/knowledge",         icon: BookOpen },
+      { label: "Relatórios",            path: "/reports",           icon: BarChart3 },
+      { label: "Integrações",           path: "/integrations",      icon: Plug },
+      { label: "Telefonia Omnichannel", path: "/telephony",         icon: PhoneCall },
+    ],
+  },
+  {
+    label: "Configurações",
+    items: [
+      { label: "Usuários",             path: "/users",        icon: UserCog },
+      { label: "Etiquetas e Filas",    path: "/tags-queues",  icon: Tags },
+      { label: "Feriados e Horários",  path: "/holidays",     icon: CalendarDays },
+      { label: "Logs de Auditoria",    path: "/audit-logs",   icon: ScrollText },
+      { label: "Logs do Sistema",      path: "/system-logs",  icon: AlertTriangle },
+      { label: "Configurações",        path: "/settings",     icon: Settings },
+    ],
+  },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed }) {
@@ -55,30 +84,39 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2">
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-              {!collapsed && item.badge && (
-                <span className="bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        {menuGroups.map((group) => (
+          <div key={group.label} className="mb-3">
+            {!collapsed && (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/40 px-3 mb-1">
+                {group.label}
+              </p>
+            )}
+            {group.items.map((item) => {
+              const isActive = location.pathname === item.path;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                  {!collapsed && item.badge && (
+                    <span className="bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <button

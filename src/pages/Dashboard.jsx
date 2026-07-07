@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
+import { ixcApi } from "@/functions/ixcApi";
 import {
   Inbox, DollarSign, Send, Clock, CheckCircle, TrendingUp,
-  Star, AlertCircle, Zap, MessageSquare
+  Star, AlertCircle, Zap, MessageSquare, Users, FileText, Wrench, WifiOff, TrendingDown
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -55,6 +56,45 @@ const attendantRanking = [
 
 const periods = ["Hoje", "Ontem", "Esta semana", "Este mês", "Últimos 30 dias", "Últimos 60 dias", "Últimos 90 dias"];
 
+function IxcPanel() {
+  const [ixc, setIxc]         = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    ixcApi({ action: "dashboard" })
+      .then((res) => { if (res?.data?.success) setIxc(res.data.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmtBRL = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  if (loading) return (
+    <Card title="Painel IXCSoft" className="p-5 mb-6">
+      <p className="text-sm text-muted-foreground text-center py-4">Carregando dados do IXCSoft...</p>
+    </Card>
+  );
+  if (!ixc) return null;
+
+  return (
+    <Card title="Painel IXCSoft — Dados em Tempo Real" className="p-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard title="Clientes Ativos"    value={ixc.clientes_ativos?.toLocaleString("pt-BR") ?? "—"} icon={Users}        color="primary" />
+        <StatCard title="Contratos Ativos"   value={ixc.contratos_ativos?.toLocaleString("pt-BR") ?? "—"} icon={FileText}     color="accent" />
+        <StatCard title="Títulos em Aberto"  value={ixc.titulos_abertos?.toLocaleString("pt-BR") ?? "—"} icon={DollarSign}   color="warning" />
+        <StatCard title="Valor Vencido"      value={fmtBRL(ixc.valor_vencido)}                           icon={TrendingDown}  color="danger" />
+        <StatCard title="Inadimplentes"      value={ixc.inadimplentes?.toLocaleString("pt-BR") ?? "—"}  icon={AlertCircle}  color="danger" />
+        <StatCard title="Taxa Inadimplência" value={`${ixc.taxa_inadimplencia ?? "—"}%`}                icon={TrendingDown}  color="warning" />
+        <StatCard title="OS Abertas"         value={ixc.os_abertas?.toLocaleString("pt-BR") ?? "—"}     icon={Wrench}        color="indigo" />
+        <StatCard title="Novos Clientes/Mês" value={ixc.novos_clientes_mes?.toLocaleString("pt-BR") ?? "—"} icon={Users}    color="accent" />
+      </div>
+      {(ixc.clientes_offline === null) && (
+        <p className="text-xs text-muted-foreground mt-3 italic">* Clientes offline e sinal ruim dependem de integração OLT/RADIUS — pendente.</p>
+      )}
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const [period, setPeriod] = useState("Hoje");
   const [stats] = useState({
@@ -78,6 +118,7 @@ export default function Dashboard() {
         </select>
       </div>
 
+      <IxcPanel />
       <FinancialPanel />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

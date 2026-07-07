@@ -39,6 +39,13 @@ import LaraLogs from '@/pages/LaraLogs';
 import LaraDashboard from '@/pages/LaraDashboard';
 import LaraReports from '@/pages/LaraReports';
 import Settings from '@/pages/Settings';
+import Contracts from '@/pages/Contracts';
+import Plans from '@/pages/Plans';
+import Financial from '@/pages/Financial';
+import WorkOrders from '@/pages/WorkOrders';
+import NOC from '@/pages/NOC';
+import Vendors from '@/pages/Vendors';
+import IxcTest from '@/pages/IxcTest';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -94,6 +101,14 @@ const AuthenticatedApp = () => {
           <Route path="/lara-dashboard" element={<LaraDashboard />} />
           <Route path="/lara-reports" element={<LaraReports />} />
           <Route path="/settings" element={<Settings />} />
+          {/* IXCSoft pages */}
+          <Route path="/contracts"   element={<Contracts />} />
+          <Route path="/plans"       element={<Plans />} />
+          <Route path="/financial"   element={<Financial />} />
+          <Route path="/work-orders" element={<WorkOrders />} />
+          <Route path="/noc"         element={<NOC />} />
+          <Route path="/vendors"     element={<Vendors />} />
+          <Route path="/ixc-test"    element={<IxcTest />} />
         </Route>
       </Route>
 
