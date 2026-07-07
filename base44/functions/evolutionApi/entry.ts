@@ -69,7 +69,8 @@ Deno.serve(async (req) => {
     // ── list_instances (default) ─────────────────────────────────────────────
     // GET /instance/all  →  apikey: globalKey
     // Retorna array normalizado com: name, token, state, qrcode (base64 ou null)
-    if (action === 'list_instances' || !body.action) {
+    // Aliases: list_instances | get_instances | (sem action)
+    if (action === 'list_instances' || action === 'get_instances' || !body.action) {
       const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: globalKey } });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({

@@ -1,176 +1,315 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
-import { X, RefreshCw, QrCode as QrCodeIcon, CheckCircle, XCircle } from "lucide-react";
+import {
+  X, RefreshCw, QrCode as QrCodeIcon, CheckCircle, XCircle,
+  Wifi, WifiOff, Loader2, RotateCcw, AlertCircle, Smartphone
+} from "lucide-react";
+
+function StateBadge({ state }) {
+  const cfg = {
+    connected:    { label: "Conectado",    cls: "bg-green-100 text-green-700", Icon: Wifi },
+    connecting:   { label: "Aguard. scan", cls: "bg-amber-100 text-amber-700", Icon: QrCodeIcon },
+    disconnected: { label: "Desconectado", cls: "bg-red-100 text-red-600",     Icon: WifiOff },
+    unknown:      { label: "Desconhecido", cls: "bg-gray-100 text-gray-600",   Icon: AlertCircle },
+  }[state] || { label: state, cls: "bg-gray-100 text-gray-600", Icon: AlertCircle };
+  const { label, cls, Icon } = cfg;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      <Icon className="w-3 h-3" /> {label}
+    </span>
+  );
+}
 
 export default function EvolutionQrCodeModal({ onClose }) {
+  const { toast } = useToast();
+  const [tab, setTab]           = useState("qrcode");
   const [instances, setInstances] = useState([]);
   const [selected, setSelected] = useState("");
-  const [qrImage, setQrImage] = useState(null);
-  const [loadingInstances, setLoadingInstances] = useState(true);
-  const [loadingQr, setLoadingQr] = useState(false);
-  const [tab, setTab] = useState("qrcode");
-  const [history, setHistory] = useState([]);
+  const [state, setState]       = useState(null);
+  const [qrImage, setQrImage]   = useState(null);
+  const [loadingInst, setLoadingInst] = useState(true);
+  const [loadingQr, setLoadingQr]     = useState(false);
+  const [connecting, setConnecting]   = useState(false);
+  const [error, setError]       = useState(null);
+  const [history, setHistory]   = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const { toast } = useToast();
+  const pollRef = useRef(null);
+  const refreshRef = useRef(null);
 
-  useEffect(() => { loadInstances(); }, []);
-  useEffect(() => { if (selected) loadQrCode(selected); }, [selected]);
-  useEffect(() => { if (tab === "history") loadHistory(); }, [tab]);
-
-  const loadHistory = async () => {
-    setLoadingHistory(true);
+  // ── Load instances ─────────────────────────────────────────────────────────
+  const loadInstances = useCallback(async () => {
+    setLoadingInst(true);
     try {
-      const logs = await base44.entities.IntegrationLog.filter({ integration: "evolutionApi", action: "get_qrcode" }, "-created_date", 50);
-      setHistory(logs);
-    } catch {
-      setHistory([]);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const lastSuccess = history.find((h) => h.status === "sucesso");
-
-  const loadInstances = async () => {
-    setLoadingInstances(true);
-    try {
-      const response = await evolutionApi({});
-      const list = response?.data?.instances || [];
+      const res = await evolutionApi({ action: "list_instances" });
+      const list = res?.data?.instances || [];
       setInstances(list);
-      const first = list[0]?.name || list[0]?.instance?.instanceName || "";
-      if (first) setSelected(first);
+      if (!selected && list.length > 0) {
+        setSelected(list[0].name || "");
+      }
     } catch {
       setInstances([]);
     } finally {
-      setLoadingInstances(false);
+      setLoadingInst(false);
+    }
+  }, [selected]);
+
+  useEffect(() => { loadInstances(); }, []);
+
+  // ── Fetch QR code ──────────────────────────────────────────────────────────
+  const fetchQr = useCallback(async (silent = false) => {
+    if (!selected) return;
+    if (!silent) { setLoadingQr(true); setError(null); setQrImage(null); }
+    try {
+      const res = await evolutionApi({ action: "get_qrcode", instanceName: selected });
+      const d   = res?.data;
+
+      if (d?.success) {
+        const b64 = d.qrcode?.base64 ?? null;
+        if (b64) {
+          setQrImage(b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`);
+          setState("connecting");
+          setError(null);
+        }
+      } else {
+        // Instância já conectada
+        if (d?.state === "connected") {
+          setState("connected");
+          setQrImage(null);
+          setError(null);
+          clearPolling();
+          return;
+        }
+        setError(d?.error || "QR code indisponível. Clique em Reconectar para gerar um novo.");
+        setQrImage(null);
+        if (d?.state) setState(d.state);
+      }
+    } catch {
+      if (!silent) setError("Erro de conexão ao buscar QR code");
+    } finally {
+      if (!silent) setLoadingQr(false);
+    }
+  }, [selected]);
+
+  // ── Poll connection state every 5s when QR is visible ─────────────────────
+  const clearPolling = () => {
+    clearInterval(pollRef.current);
+    clearInterval(refreshRef.current);
+    pollRef.current = null;
+    refreshRef.current = null;
+  };
+
+  const checkConnected = useCallback(async () => {
+    if (!selected) return;
+    try {
+      const res = await evolutionApi({ action: "get_instance_info", instanceName: selected });
+      const s = res?.data?.instance?.state;
+      if (s === "connected") {
+        setState("connected");
+        setQrImage(null);
+        setError(null);
+        clearPolling();
+        toast({ title: `✅ ${selected} conectado com sucesso!` });
+        await loadInstances();
+      }
+    } catch { /* silent */ }
+  }, [selected, toast, loadInstances]);
+
+  // Start polling when QR is shown
+  useEffect(() => {
+    clearPolling();
+    if (qrImage) {
+      pollRef.current   = setInterval(checkConnected, 5000);   // verifica conexão
+      refreshRef.current = setInterval(() => fetchQr(true), 25000); // atualiza QR
+    }
+    return clearPolling;
+  }, [qrImage, checkConnected, fetchQr]);
+
+  // Load QR when instance changes
+  useEffect(() => {
+    if (selected) {
+      setQrImage(null);
+      setState(null);
+      setError(null);
+      fetchQr();
+    }
+  }, [selected]);
+
+  // ── Reconnect ──────────────────────────────────────────────────────────────
+  const handleReconnect = async () => {
+    if (!selected || connecting) return;
+    setConnecting(true);
+    setQrImage(null);
+    setError(null);
+    try {
+      await evolutionApi({ action: "connect_instance", instanceName: selected });
+      await new Promise((r) => setTimeout(r, 1200));
+      await fetchQr();
+    } catch {
+      setError("Falha ao reconectar. Tente novamente.");
+    } finally {
+      setConnecting(false);
     }
   };
 
-  const loadQrCode = async (instanceName) => {
-    setQrImage(null);
-    setLoadingQr(true);
-    try {
-      const response = await evolutionApi({ action: "get_qrcode", instanceName });
-      if (response?.data?.error) {
-        toast({ title: "Falha ao obter QR code", variant: "destructive" });
-        return;
-      }
-      const qr = response?.data?.qrcode || {};
-      const base64 = (qr.base64 || qr.qrcode?.base64 || qr.code || "").split("|")[0];
-      setQrImage(base64 || null);
-    } catch {
-      toast({ title: "Erro ao obter QR code", variant: "destructive" });
-    } finally {
-      setLoadingQr(false);
+  // ── History ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (tab === "history") {
+      setLoadingHistory(true);
+      base44.entities.IntegrationLog.filter(
+        { integration: "evolutionApi" }, "-created_date", 60
+      ).then((logs) => setHistory(logs || [])).catch(() => setHistory([])).finally(() => setLoadingHistory(false));
     }
-  };
+  }, [tab]);
+
+  const lastSuccess = history.find((h) => h.status === "sucesso" && h.action === "list_instances");
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-xl w-full max-w-md flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h3 className="font-semibold text-lg">QR Code da Instância</h3>
+      <div className="bg-card rounded-2xl w-full max-w-md flex flex-col shadow-2xl max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="font-bold text-base">Conexão WhatsApp — Evolution Go</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-lg">
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="flex border-b border-border flex-shrink-0">
-          <button
-            onClick={() => setTab("qrcode")}
-            className={`flex-1 py-2.5 text-sm font-medium ${tab === "qrcode" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
-          >
-            QR Code
-          </button>
-          <button
-            onClick={() => setTab("history")}
-            className={`flex-1 py-2.5 text-sm font-medium ${tab === "history" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
-          >
-            Histórico de Conexão
-          </button>
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          {[["qrcode", "QR Code"], ["history", "Histórico"]].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${tab === key ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="p-5 space-y-4">
-          {tab === "qrcode" ? (
-            loadingInstances ? (
-              <p className="text-center text-sm text-muted-foreground py-4">Carregando instâncias...</p>
-            ) : instances.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-4">Nenhuma instância cadastrada</p>
-            ) : (
-              <>
-                <select
-                  value={selected}
-                  onChange={(e) => setSelected(e.target.value)}
-                  className="w-full h-10 px-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
-                >
-                  {instances.map((inst) => {
-                    const name = inst.name || inst.instance?.instanceName || "";
-                    return <option key={name} value={name}>{name}</option>;
-                  })}
-                </select>
-
-                <div className="flex flex-col items-center justify-center border border-border rounded-lg p-6 min-h-[240px]">
-                  {loadingQr ? (
-                    <p className="text-sm text-muted-foreground">Gerando QR code...</p>
-                  ) : qrImage ? (
-                    <img
-                      src={qrImage.startsWith("data:") ? qrImage : `data:image/png;base64,${qrImage}`}
-                      alt={`QR Code ${selected}`}
-                      className="w-52 h-52 object-contain"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <QrCodeIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">QR code indisponível. A instância pode já estar conectada.</p>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => loadQrCode(selected)}
-                  disabled={loadingQr}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loadingQr ? "animate-spin" : ""}`} /> Atualizar QR Code
-                </button>
-
-                <p className="text-xs text-muted-foreground text-center">Escaneie com o WhatsApp em Aparelhos Conectados para conectar "{selected}"</p>
-              </>
-            )
-          ) : (
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {tab === "qrcode" && (
             <>
-              <div className="rounded-lg bg-muted/40 border border-border p-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Última conexão bem-sucedida</p>
+              {/* Instance selector */}
+              {loadingInst ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando instâncias...
+                </div>
+              ) : instances.length === 0 ? (
+                <div className="text-center py-4">
+                  <Smartphone className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Nenhuma instância encontrada. Crie uma em Integrações → Gerenciar Instâncias.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Selector + status */}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selected}
+                      onChange={(e) => setSelected(e.target.value)}
+                      className="flex-1 h-9 px-3 bg-muted/60 rounded-lg text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {instances.map((inst) => (
+                        <option key={inst.name} value={inst.name}>{inst.name}</option>
+                      ))}
+                    </select>
+                    {state && <StateBadge state={state} />}
+                  </div>
+
+                  {/* QR / Status display */}
+                  <div className="flex flex-col items-center justify-center border border-border rounded-xl p-6 min-h-[260px] bg-muted/10">
+                    {loadingQr || connecting ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">{connecting ? "Gerando novo QR code..." : "Buscando QR code..."}</p>
+                      </div>
+                    ) : state === "connected" ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                          <CheckCircle className="w-8 h-8 text-green-600" />
+                        </div>
+                        <p className="font-semibold text-green-700">Conectado!</p>
+                        <p className="text-xs text-muted-foreground text-center">A instância <strong>{selected}</strong> está conectada e pronta para uso.</p>
+                      </div>
+                    ) : qrImage ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <img src={qrImage} alt="QR Code" className="w-52 h-52 rounded-lg border border-border object-contain bg-white p-1" />
+                        <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          Aguardando scan... atualiza a cada 25s
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-center">
+                        <QrCodeIcon className="w-12 h-12 text-muted-foreground/30" />
+                        <p className="text-sm font-medium text-muted-foreground">{error || "QR code indisponível"}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Instructions */}
+                  {qrImage && (
+                    <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                      <li>Abra o WhatsApp no seu celular</li>
+                      <li>Toque em <strong>Aparelhos conectados</strong></li>
+                      <li>Toque em <strong>Conectar aparelho</strong></li>
+                      <li>Aponte a câmera para o QR code acima</li>
+                    </ol>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleReconnect}
+                      disabled={loadingQr || connecting}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
+                    >
+                      <RotateCcw className={`w-4 h-4 ${connecting ? "animate-spin" : ""}`} />
+                      Reconectar / Novo QR
+                    </button>
+                    <button
+                      onClick={() => fetchQr()}
+                      disabled={loadingQr || connecting}
+                      className="flex items-center justify-center gap-2 px-3 py-2.5 border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-colors"
+                      title="Atualizar"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loadingQr ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {tab === "history" && (
+            <>
+              <div className="rounded-xl bg-muted/40 border border-border p-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Última atividade bem-sucedida</p>
                 <p className="text-sm">
                   {lastSuccess
                     ? new Date(lastSuccess.created_date).toLocaleString("pt-BR")
-                    : "Nenhuma conexão bem-sucedida registrada"}
+                    : "Nenhuma registrada ainda"}
                 </p>
               </div>
 
-              <div className="max-h-72 overflow-y-auto scrollbar-thin space-y-2">
+              <div className="space-y-2 max-h-72 overflow-y-auto">
                 {loadingHistory ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">Carregando histórico...</p>
+                  <p className="text-center text-sm text-muted-foreground py-4">Carregando...</p>
                 ) : history.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">Nenhuma tentativa registrada ainda</p>
-                ) : (
-                  history.map((h) => (
-                    <div key={h.id} className="flex items-start gap-2 p-2.5 border border-border rounded-lg">
-                      {h.status === "sucesso" ? (
-                        <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{h.status === "sucesso" ? "QR code gerado com sucesso" : "Falha ao gerar QR code"}</p>
-                        {h.details && <p className="text-xs text-muted-foreground truncate">{h.details}</p>}
-                        <p className="text-xs text-muted-foreground">{new Date(h.created_date).toLocaleString("pt-BR")}</p>
-                      </div>
+                  <p className="text-center text-sm text-muted-foreground py-4">Sem histórico</p>
+                ) : history.map((h) => (
+                  <div key={h.id} className="flex items-start gap-2 p-2.5 border border-border rounded-lg">
+                    {h.status === "sucesso"
+                      ? <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      : <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{h.action} — {h.status}</p>
+                      {h.details && <p className="text-xs text-muted-foreground truncate">{h.details}</p>}
+                      <p className="text-xs text-muted-foreground">{new Date(h.created_date).toLocaleString("pt-BR")}</p>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
               </div>
             </>
           )}
