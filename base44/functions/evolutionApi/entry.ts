@@ -6,16 +6,15 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const baseUrl = Deno.env.get('EVOLUTION_API_URL');
-    const apiKey = Deno.env.get('EVOLUTION_API_KEY');
-    if (!baseUrl || !apiKey) {
-      return Response.json({ error: 'Credenciais da Evolution API não configuradas' }, { status: 500 });
-    }
+    // Evolution Go: URL e key têm defaults embutidos caso as variáveis de ambiente não estejam definidas
+    const baseUrl = Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud';
+    const apiKey  = Deno.env.get('EVOLUTION_API_KEY')  || '19QJ/5Vpa0[ZrZXCX?fS';
+    const defaultInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
 
     const body = await req.json().catch(() => ({}));
 
     if (body.action === 'send_message') {
-      const instanceName = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      const instanceName = body.instance || defaultInstance;
       if (!instanceName) {
         return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
       }
@@ -115,7 +114,7 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === 'get_contacts') {
-      const instanceName = body.instance || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      const instanceName = body.instance || defaultInstance;
       if (!instanceName) {
         return Response.json({ error: 'Instância da Evolution API não configurada' }, { status: 500 });
       }

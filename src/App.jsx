@@ -46,6 +46,9 @@ import WorkOrders from '@/pages/WorkOrders';
 import NOC from '@/pages/NOC';
 import Vendors from '@/pages/Vendors';
 import IxcTest from '@/pages/IxcTest';
+import Agreements from '@/pages/Agreements';
+import AgreementDetail from '@/pages/AgreementDetail';
+import AgreementSettings from '@/pages/AgreementSettings';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -109,6 +112,10 @@ const AuthenticatedApp = () => {
           <Route path="/noc"         element={<NOC />} />
           <Route path="/vendors"     element={<Vendors />} />
           <Route path="/ixc-test"    element={<IxcTest />} />
+          {/* Módulo de Verificação de Acordo */}
+          <Route path="/agreements"          element={<Agreements />} />
+          <Route path="/agreements/settings" element={<AgreementSettings />} />
+          <Route path="/agreements/:id"      element={<AgreementDetail />} />
         </Route>
       </Route>
 

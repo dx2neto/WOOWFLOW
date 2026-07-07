@@ -243,40 +243,75 @@ Deno.serve(async (req) => {
 
     if (action === 'contratos') {
       const contratoUrl = baseUrl.replace(/\/$/, '') + '/cliente_contrato';
-      const baseBody = {
-        qtype: 'cliente_contrato.status',
-        query: 'A',
-        oper: '=',
+      // Busca ativos e cancelados para permitir filtro no frontend
+      // Se status foi passado pelo frontend, filtra; caso contrário traz todos
+      const contratoBaseBody: Record<string, string> = {
+        qtype: 'cliente_contrato.id',
+        query: '1',
+        oper: '>=',
         sortname: 'cliente_contrato.data_expiracao',
-        sortorder: 'asc',
+        sortorder: 'desc',
       };
-      const { ok, data, registros: rawRegistros } = await fetchAllPages(contratoUrl, baseBody);
+      if (status) {
+        contratoBaseBody.qtype = 'cliente_contrato.status';
+        contratoBaseBody.query = status;
+        contratoBaseBody.oper = '=';
+      }
+      if (search) {
+        // busca por id_cliente se vier número, senão pelo contrato/plano
+        contratoBaseBody.qtype = 'cliente_contrato.id_cliente';
+        contratoBaseBody.query = search;
+        contratoBaseBody.oper = 'L';
+      }
+      if (clientId) {
+        contratoBaseBody.qtype = 'cliente_contrato.id_cliente';
+        contratoBaseBody.query = String(clientId);
+        contratoBaseBody.oper = '=';
+      }
+      const { ok, data: dataContratos, registros: rawRegistros } = await fetchAllPages(contratoUrl, contratoBaseBody);
       if (!ok) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
-        return Response.json({ error: 'Falha ao buscar contratos do IXC Provedor', details: data }, { status: 500 });
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'falha', details: JSON.stringify(dataContratos).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar contratos do IXC Provedor', details: dataContratos }, { status: 500 });
       }
 
-      const clientIds = [...new Set(rawRegistros.map((r) => r.id_cliente).filter(Boolean))];
-      let clientsById = {};
+      const clientIds = [...new Set(rawRegistros.map((r: any) => r.id_cliente).filter(Boolean))];
+      let clientsById: Record<string, any> = {};
       if (clientIds.length > 0) {
         const clientRes = await fetch(baseUrl.replace(/\/$/, '') + '/cliente', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
-          body: JSON.stringify({ qtype: 'cliente.id', query: clientIds.join(','), oper: 'IN', page: '1', rp: String(clientIds.length) }),
+          body: JSON.stringify({ qtype: 'cliente.id', query: (clientIds as string[]).join(','), oper: 'IN', page: '1', rp: String(clientIds.length) }),
         });
         const clientData = await clientRes.json().catch(() => ({}));
-        (clientData.registros || []).forEach((c) => { clientsById[c.id] = c; });
+        (clientData.registros || []).forEach((c: any) => { clientsById[c.id] = c; });
       }
 
-      const contratos = rawRegistros.map((r) => {
+      // Carrega mapa de cidades para resolver nomes
+      const { mapa: cidadesById } = await carregarMapaCidades();
+
+      const contratos = rawRegistros.map((r: any) => {
         const cliente = clientsById[r.id_cliente] || {};
         return {
           id: r.id,
+          client_id: r.id_cliente,
           customer_name: cliente.razao || cliente.fantasia || `Cliente #${r.id_cliente}`,
           phone: cliente.fone || cliente.telefone_celular || '',
-          plan_name: r.contrato || r.plano || '',
-          renewal_date: r.data_expiracao,
+          plan_name: r.descricao_plano || r.plano || r.contrato || '',
+          plan_id: r.id_plano || '',
+          vendor_name: r.vendedor || r.nome_vendedor || '',
+          vendor_id: r.id_vendedor || '',
+          city: cidadesById[String(r.cidade || r.id_cidade || '')] || r.cidade_nome || cliente.cidade_nome || '',
+          renewal_date: r.data_expiracao || r.data_vencimento_contrato || '',
+          start_date: r.data_ativacao || '',
           status: r.status,
+          internet_status: r.status_internet || '',
+          download: r.velocidade_down || r.download || '',
+          upload: r.velocidade_up || r.upload || '',
+          ip: r.ip || '',
+          mac: r.mac || '',
+          olt: r.nome_olt || r.olt || '',
+          cto: r.nome_cto || r.cto || '',
+          address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', '),
         };
       });
 

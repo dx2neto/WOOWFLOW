@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/app-card";
+// Note: lucide-react removed Instagram and Facebook icons; Camera/Globe used as substitutes
 import {
-  MessageCircle, Database, FileSignature, ShieldCheck, Instagram,
-  Facebook, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode
+  MessageCircle, Database, FileSignature, ShieldCheck, Camera,
+  Globe, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode
 } from "lucide-react";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
@@ -61,7 +62,7 @@ const integrations = [
     service: "instagram",
     display_name: "Instagram Business",
     description: "Recebimento de mensagens do Instagram Direct",
-    icon: Instagram,
+    icon: Camera,
     color: "from-pink-500 to-rose-600",
     status: "disconnected",
     fields: ["OAuth - Conectar conta"],
@@ -70,7 +71,7 @@ const integrations = [
     service: "facebook",
     display_name: "Facebook Messenger",
     description: "Recebimento de mensagens do Facebook Messenger",
-    icon: Facebook,
+    icon: Globe,
     color: "from-blue-600 to-blue-700",
     status: "disconnected",
     fields: ["OAuth - Conectar conta"],

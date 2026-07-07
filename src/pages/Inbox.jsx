@@ -5,10 +5,12 @@ import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { useToast } from "@/components/ui/use-toast";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
+import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import {
   Send, Paperclip, Mic, Search, MoreVertical, Phone, Video,
   Bot, User, FileText, Zap, FileSignature,
-  ArrowRightCircle, CheckCircle, Star, Users as UsersIcon, RefreshCw
+  ArrowRightCircle, CheckCircle, Star, Users as UsersIcon, RefreshCw,
+  Shield
 } from "lucide-react";
 
 const quickActions = [
@@ -461,6 +463,12 @@ export default function Inbox() {
                 Detalhes
               </button>
               <button
+                onClick={() => setRightTab("acordo")}
+                className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1 ${rightTab === "acordo" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
+              >
+                <Shield className="w-3 h-3" /> Acordo
+              </button>
+              <button
                 onClick={() => setRightTab("templates")}
                 className={`flex-1 py-2.5 text-xs font-medium ${rightTab === "templates" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}
               >
@@ -470,6 +478,10 @@ export default function Inbox() {
 
             {rightTab === "templates" ? (
               <QuickReplyPanel onSend={handleSendTemplate} sending={sending} />
+            ) : rightTab === "acordo" ? (
+              <div className="p-3 overflow-y-auto flex-1">
+                <AgreementCheckPanel conversation={selected} instance={selectedInstance} />
+              </div>
             ) : (
               <>
                 <div className="p-5 text-center border-b border-border">

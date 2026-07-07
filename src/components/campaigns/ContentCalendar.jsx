@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Instagram, Image as ImageIcon, Film } from "lucide-react";
+import { ChevronLeft, ChevronRight, Camera, Image as ImageIcon, Film } from "lucide-react";
+// Note: lucide-react removed the Instagram icon; Camera is used as visual substitute
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = [
@@ -10,7 +11,7 @@ const MONTHS = [
 const postTypeIcon = {
   feed: ImageIcon,
   reel: Film,
-  story: Instagram,
+  story: Camera,
 };
 
 const postTypeColor = {
@@ -103,7 +104,7 @@ export default function ContentCalendar({ posts, onSelectPost }) {
               </span>
               <div className="space-y-1">
                 {dayPosts.slice(0, 3).map((p) => {
-                  const Icon = postTypeIcon[p.instagram_post_type] || Instagram;
+                  const Icon = postTypeIcon[p.instagram_post_type] || Camera;
                   const time = p.scheduled_date
                     ? new Date(p.scheduled_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
                     : "";

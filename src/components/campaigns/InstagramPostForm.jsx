@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { X, Image as ImageIcon, Film, Instagram, Calendar as CalendarIcon } from "lucide-react";
+import { X, Image as ImageIcon, Film, Camera, Calendar as CalendarIcon } from "lucide-react";
+// Note: lucide-react removed the Instagram icon; Camera is used as visual substitute
 
 const postTypeConfig = {
   feed: { label: "Post (Feed)", icon: ImageIcon, color: "bg-purple-100 text-purple-700" },
   reel: { label: "Reel", icon: Film, color: "bg-pink-100 text-pink-700" },
-  story: { label: "Story", icon: Instagram, color: "bg-orange-100 text-orange-700" },
+  story: { label: "Story", icon: Camera, color: "bg-orange-100 text-orange-700" },
 };
 
 export default function InstagramPostForm({ onSave, onClose }) {
@@ -39,7 +40,7 @@ export default function InstagramPostForm({ onSave, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card rounded-t-2xl">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center">
-              <Instagram className="w-4 h-4 text-white" />
+              <Camera className="w-4 h-4 text-white" />
             </div>
             <h3 className="font-semibold font-heading">Agendar Postagem Instagram</h3>
           </div>

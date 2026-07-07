@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
-import { Plus, Send, CheckCircle, Eye, MessageSquare, Calendar, Instagram, Image as ImageIcon, Film, Clock, Trash2 } from "lucide-react";
+import { Plus, Send, CheckCircle, Eye, MessageSquare, Calendar, Camera, Image as ImageIcon, Film, Clock, Trash2 } from "lucide-react";
+// Note: lucide-react removed the Instagram icon; Camera is used as visual substitute
 import InstagramPostForm from "@/components/campaigns/InstagramPostForm";
 import ContentCalendar from "@/components/campaigns/ContentCalendar";
 
@@ -29,7 +30,7 @@ const statusConfig = {
 const igTypeConfig = {
   feed: { label: "Feed", icon: ImageIcon, color: "bg-purple-100 text-purple-700" },
   reel: { label: "Reel", icon: Film, color: "bg-pink-100 text-pink-700" },
-  story: { label: "Story", icon: Instagram, color: "bg-orange-100 text-orange-700" },
+  story: { label: "Story", icon: Camera, color: "bg-orange-100 text-orange-700" },
 };
 
 export default function Campaigns() {
@@ -82,7 +83,7 @@ export default function Campaigns() {
 
   const tabs = [
     { key: "whatsapp", label: "Campanhas WhatsApp", icon: Send },
-    { key: "instagram", label: "Instagram", icon: Instagram },
+    { key: "instagram", label: "Instagram", icon: Camera },
   ];
 
   return (
@@ -192,7 +193,7 @@ export default function Campaigns() {
       {activeTab === "instagram" && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Total de Posts" value={instagramPosts.length} icon={Instagram} color="purple" />
+            <StatCard title="Total de Posts" value={instagramPosts.length} icon={Camera} color="purple" />
             <StatCard title="Agendadas" value={igScheduled} icon={Clock} color="primary" />
             <StatCard title="Rascunhos" value={igDrafts} icon={ImageIcon} color="warning" />
             <StatCard title="Publicadas" value={igPublished} icon={CheckCircle} color="accent" />
@@ -207,13 +208,13 @@ export default function Campaigns() {
               <div className="col-span-full text-center py-12 text-muted-foreground">Carregando postagens...</div>
             ) : instagramPosts.length === 0 ? (
               <div className="col-span-full text-center py-12">
-                <Instagram className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+                <Camera className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-muted-foreground mb-1">Nenhuma postagem agendada</p>
                 <p className="text-sm text-muted-foreground/70">Clique em "Nova Postagem" para agendar seu primeiro conteúdo</p>
               </div>
             ) : (
               instagramPosts.map((p) => {
-                const IgIcon = igTypeConfig[p.instagram_post_type]?.icon || Instagram;
+                const IgIcon = igTypeConfig[p.instagram_post_type]?.icon || Camera;
                 return (
                   <Card key={p.id} className="overflow-hidden hover:shadow-md transition-shadow">
                     {p.media_url && (

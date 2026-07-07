@@ -1,0 +1,43 @@
+{
+  "name": "AgreementInstallment",
+  "type": "object",
+  "properties": {
+    "agreement_id": {
+      "type": "string"
+    },
+    "installment_number": {
+      "type": "number"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "paid_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "paid", "overdue", "cancelled"],
+      "default": "pending"
+    },
+    "ixc_invoice_id": {
+      "type": "string"
+    },
+    "boleto_url": {
+      "type": "string"
+    },
+    "pix_code": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "agreement_id",
+    "installment_number",
+    "amount",
+    "due_date"
+  ]
+}

@@ -5,7 +5,8 @@ import {
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
-  FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2
+  FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
+  Shield
 } from "lucide-react";
 
 const menuGroups = [
@@ -32,6 +33,7 @@ const menuGroups = [
       { label: "Vendedores",                path: "/vendors",     icon: ShoppingBag },
       { label: "Cobranças",                 path: "/charges",     icon: DollarSign },
       { label: "Financeiro / Inadimplência",path: "/financial",   icon: TrendingDown },
+      { label: "Verificação de Acordo",     path: "/agreements",  icon: Shield },
       { label: "Ordens de Serviço",         path: "/work-orders", icon: Wrench },
       { label: "NOC",                       path: "/noc",         icon: WifiOff },
       { label: "Teste IXCSoft",             path: "/ixc-test",    icon: TestTube2 },
