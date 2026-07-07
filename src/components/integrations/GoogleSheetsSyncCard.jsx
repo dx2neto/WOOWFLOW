@@ -110,7 +110,7 @@ export default function GoogleSheetsSyncCard() {
       <p className="text-sm text-muted-foreground mb-4">Sincronize dados financeiros de clientes do IXCSoft com uma planilha</p>
 
       {!user ? (
-        <button onClick={() => base44.auth.redirectToLogin()} className="w-full py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+        <button onClick={() => base44.auth.redirectToLogin(window.location.href)} className="w-full py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
           Fazer login para conectar
         </button>
       ) : !connected ? (

@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
 
-      if (!appParams.appId) {
+      if (!appParams.appId || !import.meta.env.VITE_BASE44_APP_BASE_URL) {
         setAppPublicSettings(null);
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);

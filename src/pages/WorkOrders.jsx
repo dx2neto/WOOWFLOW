@@ -4,7 +4,7 @@ import { ixcApi } from "@/functions/ixcApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Search, Plus, Loader2, RefreshCw, ChevronLeft, ChevronRight,
-  Wrench, CheckCircle, Clock, XCircle
+  Wrench, CheckCircle, Clock
 } from "lucide-react";
 
 const STATUS_CONFIG = {

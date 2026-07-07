@@ -21,13 +21,15 @@ export default function LaraLogs() {
   const loadConversations = async () => {
     setLoading(true);
     try {
-      const list = await base44.agents.listConversations({ agent_name: "lara" });
+      const list = await base44.agents.listConversations({ q: { agent_name: "lara" } });
       const full = await Promise.all(
         list.map(async (c) => {
           try {
             const detail = await base44.agents.getConversation(c.id);
             const escalated = (detail.messages || []).some(
-              (m) => m.role === "assistant" && ESCALATION_REGEX.test(m.content || "")
+              (m) => m.role === "assistant" && ESCALATION_REGEX.test(
+                typeof m.content === "string" ? m.content : JSON.stringify(m.content || "")
+              )
             );
             return { ...c, ...detail, escalated };
           } catch {
@@ -35,7 +37,7 @@ export default function LaraLogs() {
           }
         })
       );
-      full.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0));
+      full.sort((a, b) => new Date(b.updated_date || 0).getTime() - new Date(a.updated_date || 0).getTime());
       setConversations(full);
       if (full.length > 0) setSelectedId(full[0].id);
     } catch {

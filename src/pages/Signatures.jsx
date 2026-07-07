@@ -5,8 +5,8 @@ import { useToast } from "@/components/ui/use-toast";
 import SendContractModal from "@/components/signatures/SendContractModal";
 import {
   FileSignature, CheckCircle, Clock, XCircle, Send, Plus,
-  RefreshCw, Loader2, FileText, Settings, Trash2, Edit2,
-  ExternalLink, AlertTriangle, Save, X, ChevronDown, Search
+  RefreshCw, Loader2, FileText, Trash2, Edit2,
+  ExternalLink, AlertTriangle, Save, X, Search
 } from "lucide-react";
 
 // ── Config maps ───────────────────────────────────────────────────────────────

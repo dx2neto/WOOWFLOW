@@ -3,7 +3,7 @@ import { zapsignApi } from "@/functions/zapsignApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
   X, Search, Loader2, ChevronRight, ChevronLeft,
-  User, FileText, Send, CheckCircle, AlertTriangle, RefreshCw
+  User, FileText, Send, CheckCircle, AlertTriangle
 } from "lucide-react";
 
 const DOC_TYPE_LABEL = {

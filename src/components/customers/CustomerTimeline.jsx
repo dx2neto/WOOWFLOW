@@ -39,7 +39,7 @@ export default function CustomerTimeline({ phone, clientId }) {
 
       const merged = [...laraEvents, ...billingEvents]
         .filter((e) => e.date)
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       setEvents(merged);
     } catch {

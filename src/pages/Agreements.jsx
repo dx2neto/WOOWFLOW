@@ -4,8 +4,8 @@ import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { agreementApi } from "@/functions/agreementApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  FileText, AlertTriangle, CheckCircle, Clock, XCircle,
-  Search, Filter, RefreshCw, Plus, Eye, Loader2,
+  FileText, CheckCircle, Clock, XCircle,
+  Search, RefreshCw, Plus, Eye, Loader2,
   DollarSign, TrendingDown, Shield, PenLine
 } from "lucide-react";
 

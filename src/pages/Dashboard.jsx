@@ -6,7 +6,7 @@ import { agreementApi } from "@/functions/agreementApi";
 import { Link } from "react-router-dom";
 import {
   Inbox, DollarSign, Send, Clock, CheckCircle, TrendingUp,
-  Star, AlertCircle, Zap, MessageSquare, Users, FileText, Wrench, WifiOff, TrendingDown,
+  Star, AlertCircle, Zap, MessageSquare, Users, FileText, Wrench, TrendingDown,
   Shield, XCircle, Calendar, ArrowRight
 } from "lucide-react";
 import {

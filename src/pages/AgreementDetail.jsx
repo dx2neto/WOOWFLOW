@@ -6,8 +6,7 @@ import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
   ArrowLeft, CheckCircle, Clock, XCircle, PenLine, FileText,
-  DollarSign, Send, RefreshCw, Loader2, Shield, AlertTriangle,
-  Phone, User, Calendar, FileSignature, History, ChevronDown
+  DollarSign, Send, RefreshCw, Loader2, Shield, AlertTriangle, User, Calendar, FileSignature, History
 } from "lucide-react";
 
 const STATUS_CONFIG = {
@@ -144,7 +143,7 @@ export default function AgreementDetail() {
           negotiated_amount: negAmt,
           remaining_amount:  negAmt,
           paid_amount: 0,
-          installments: parseInt(form.installments) || 1,
+          installments: parseInt(String(form.installments), 10) || 1,
         },
       });
       if (res?.data?.success && res?.data?.data?.id) {
