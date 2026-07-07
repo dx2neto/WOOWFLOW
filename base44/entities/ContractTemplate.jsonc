@@ -1,0 +1,85 @@
+{
+  "name": "ContractTemplate",
+  "type": "object",
+  "properties": {
+    // ── Identificação ─────────────────────────────────────────────────────────
+    "name": {
+      "type": "string",
+      "description": "Nome interno do template (ex: Contrato Residencial Fibra)"
+    },
+    "description": { "type": "string" },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "contrato",
+        "termo_adesao",
+        "termo_comodato",
+        "termo_permanencia",
+        "aceite_eletronico",
+        "aditivo"
+      ],
+      "default": "contrato"
+    },
+    "active": { "type": "boolean", "default": true },
+
+    // ── ZapSign ───────────────────────────────────────────────────────────────
+    "zapsign_template_id": {
+      "type": "string",
+      "description": "ID (token) do template no ZapSign. Deixe vazio para criar documento via PDF."
+    },
+    "zapsign_sandbox": {
+      "type": "boolean",
+      "default": false,
+      "description": "Usar ambiente sandbox do ZapSign para testes"
+    },
+
+    // ── Variáveis do template ─────────────────────────────────────────────────
+    "variables": {
+      "type": "string",
+      "description": "JSON array de variáveis: [{key, label, source, default}]. source = ixc|manual. Exemplos de source=ixc: nome_cliente, cpf_cnpj, plano, valor_mensalidade, data_inicio, cidade, id_contrato"
+    },
+
+    // ── Vinculação IXCSoft ────────────────────────────────────────────────────
+    "ixc_plan_ids": {
+      "type": "string",
+      "description": "JSON array de IDs de planos IXC que devem usar este template automaticamente"
+    },
+    "auto_send": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enviar automaticamente quando novo contrato IXC for detectado?"
+    },
+
+    // ── Entrega ───────────────────────────────────────────────────────────────
+    "send_via_whatsapp": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enviar link de assinatura por WhatsApp"
+    },
+    "send_via_email": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enviar link de assinatura por e-mail"
+    },
+    "whatsapp_message_template": {
+      "type": "string",
+      "description": "Mensagem WhatsApp com {nome}, {link_assinatura}, {plano}, {valor}"
+    },
+    "expires_in_days": {
+      "type": "number",
+      "default": 30,
+      "description": "Dias até expiração do documento"
+    },
+
+    // ── Signatários extras ────────────────────────────────────────────────────
+    "extra_signers": {
+      "type": "string",
+      "description": "JSON array de signatários fixos além do cliente: [{name, email}]"
+    },
+
+    // ── Metadados ─────────────────────────────────────────────────────────────
+    "created_by": { "type": "string" },
+    "usage_count": { "type": "number", "default": 0 }
+  },
+  "required": ["name", "document_type"]
+}
