@@ -2,9 +2,12 @@ import React, { useState, useEffect } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
 import { ixcApi } from "@/functions/ixcApi";
+import { agreementApi } from "@/functions/agreementApi";
+import { Link } from "react-router-dom";
 import {
   Inbox, DollarSign, Send, Clock, CheckCircle, TrendingUp,
-  Star, AlertCircle, Zap, MessageSquare, Users, FileText, Wrench, WifiOff, TrendingDown
+  Star, AlertCircle, Zap, MessageSquare, Users, FileText, Wrench, WifiOff, TrendingDown,
+  Shield, XCircle, Calendar, ArrowRight
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -55,6 +58,114 @@ const attendantRanking = [
 ];
 
 const periods = ["Hoje", "Ontem", "Esta semana", "Este mês", "Últimos 30 dias", "Últimos 60 dias", "Últimos 90 dias"];
+
+// ── Painel de Verificação de Acordo ──────────────────────────────────────────
+function AgreementPanel() {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    agreementApi({ action: "dashboard" })
+      .then((res) => { if (res?.data?.success) setData(res.data.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmtBRL = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  if (loading) return (
+    <Card title="Acordos — Verificação Financeira" className="p-5 mb-6">
+      <p className="text-sm text-muted-foreground text-center py-4">Carregando acordos...</p>
+    </Card>
+  );
+  if (!data) return null;
+
+  return (
+    <Card className="p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-base flex items-center gap-2">
+          <Shield className="w-5 h-5 text-primary" />
+          Verificação de Acordo — Resumo
+        </h3>
+        <Link
+          to="/agreements"
+          className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+        >
+          Ver todos <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
+      {/* Status cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <StatCard
+          title="Acordos Ativos"
+          value={data.active ?? "—"}
+          icon={<CheckCircle className="w-5 h-5 text-green-500" />}
+          color="accent"
+        />
+        <StatCard
+          title="Acordos Vencidos"
+          value={data.overdue ?? "—"}
+          icon={<Clock className="w-5 h-5 text-amber-500" />}
+          color="warning"
+        />
+        <StatCard
+          title="Acordos Quebrados"
+          value={data.broken ?? "—"}
+          icon={<XCircle className="w-5 h-5 text-red-500" />}
+          color="danger"
+        />
+        <StatCard
+          title="Acordos Quitados"
+          value={data.paid ?? "—"}
+          icon={<Shield className="w-5 h-5 text-blue-500" />}
+          color="primary"
+        />
+      </div>
+
+      {/* Value cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+          <p className="text-xs font-semibold text-emerald-600 mb-1">Total Negociado</p>
+          <p className="text-lg font-bold text-emerald-700 font-mono">{fmtBRL(data.total_negotiated)}</p>
+        </div>
+        <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+          <p className="text-xs font-semibold text-red-600 mb-1">Em Atraso</p>
+          <p className="text-lg font-bold text-red-700 font-mono">{fmtBRL(data.total_overdue_amount)}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p className="text-xs font-semibold text-blue-600 mb-1">Valor Recuperado</p>
+          <p className="text-lg font-bold text-blue-700 font-mono">{fmtBRL(data.total_recovered)}</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+          <p className="text-xs font-semibold text-amber-600 mb-1 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5" /> Venc. em 7 dias
+          </p>
+          <p className="text-lg font-bold text-amber-700">{data.next_due_7_days ?? "—"} acord{data.next_due_7_days === 1 ? "o" : "os"}</p>
+        </div>
+      </div>
+
+      {/* Alerta se tiver acordos vencidos ou quebrados */}
+      {((data.overdue || 0) + (data.broken || 0)) > 0 && (
+        <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700 font-medium">
+              {(data.overdue || 0) + (data.broken || 0)} acordo(s) precisam de atenção imediata
+              {data.pending_signature > 0 && ` · ${data.pending_signature} aguardando assinatura`}
+            </p>
+          </div>
+          <Link
+            to="/agreements"
+            className="text-xs font-semibold text-red-700 hover:underline whitespace-nowrap ml-3"
+          >
+            Resolver →
+          </Link>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function IxcPanel() {
   const [ixc, setIxc]         = useState(null);
@@ -118,6 +229,7 @@ export default function Dashboard() {
         </select>
       </div>
 
+      <AgreementPanel />
       <IxcPanel />
       <FinancialPanel />
 
