@@ -41,6 +41,10 @@ function extractToken(inst: Record<string, unknown>, fallback: string): string {
  * Normaliza o estado de conexão de uma instância para um valor canônico.
  */
 function normalizeState(inst: Record<string, unknown>): string {
+  // Evolution Go expõe o estado de conexão no booleano `connected`.
+  if (typeof inst?.connected === 'boolean') {
+    return inst.connected ? 'connected' : 'disconnected';
+  }
   const raw = String(
     inst?.status ?? inst?.connectionStatus ??
     (inst?.instance as Record<string, unknown>)?.state ?? ''
@@ -133,14 +137,17 @@ Deno.serve(async (req) => {
 
       const created = r.data as Record<string, unknown>;
 
-      // Após criar, busca QR code imediatamente via /instance/qrcode/{name}
+      // O token da nova instância vem no retorno (ou aninhado em data).
+      const createdData = (created?.data as Record<string, unknown>) ?? created;
+      const newToken = extractToken(createdData, globalKey);
+
+      // Após criar, busca QR code imediatamente via /instance/qr (token da instância).
       let qrcode: string | null = null;
-      const qrr = await evoFetch(`${base}/instance/qrcode/${encodeURIComponent(instanceName.trim())}`, {
-        headers: { apikey: globalKey },
-      });
+      const qrr = await evoFetch(`${base}/instance/qr`, { headers: { apikey: newToken } });
       if (qrr.ok) {
-        const qd = qrr.data as Record<string, unknown>;
-        qrcode = String(qd?.qrcode ?? qd?.base64 ?? qd?.code ?? '').split('|')[0] || null;
+        const qd = (qrr.data as Record<string, unknown>)?.data as Record<string, unknown> | undefined
+          ?? (qrr.data as Record<string, unknown>);
+        qrcode = String(qd?.Qrcode ?? qd?.qrcode ?? qd?.base64 ?? qd?.code ?? '').split('|')[0] || null;
         if (qrcode && !qrcode.startsWith('data:')) qrcode = `data:image/png;base64,${qrcode}`;
       }
 
@@ -152,14 +159,19 @@ Deno.serve(async (req) => {
     }
 
     // ── connect_instance ─────────────────────────────────────────────────────
-    // POST /instance/connect/{name}  → regenera QR code (reconectar após logout)
+    // POST /instance/connect  (autenticado com o TOKEN da instância) → regenera QR
+    // No Evolution Go a instância é identificada pelo token no header, não pela URL.
     if (action === 'connect_instance') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const r = await evoFetch(`${base}/instance/connect/${encodeURIComponent(instanceName)}`, {
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(found, globalKey);
+
+      const r = await evoFetch(`${base}/instance/connect`, {
         method: 'POST',
-        headers: { apikey: globalKey, 'Content-Type': 'application/json' },
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
       });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
@@ -177,74 +189,78 @@ Deno.serve(async (req) => {
     }
 
     // ── get_qrcode ───────────────────────────────────────────────────────────
-    // GET /instance/qrcode/{name}  →  { qrcode: "base64..." }
-    // Retorna QR code para instâncias em estado disconnected/connecting.
+    // GET /instance/qr  (autenticado com o TOKEN da instância)
+    //   → { data: { Qrcode: "data:image/png;base64,..." }, message: "success" }
+    // Antes verifica /instance/status para não gerar QR de instância já logada.
     if (action === 'get_qrcode') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      // Tentativa 1: endpoint dedicado GET /instance/qrcode/{name}
-      const r = await evoFetch(`${base}/instance/qrcode/${encodeURIComponent(instanceName)}`, {
-        headers: { apikey: globalKey },
-      });
-
-      if (r.ok) {
-        const qd = r.data as Record<string, unknown>;
-        let qrcode = String(qd?.qrcode ?? qd?.base64 ?? qd?.code ?? '').split('|')[0] || null;
-        if (qrcode && !qrcode.startsWith('data:')) qrcode = `data:image/png;base64,${qrcode}`;
-
-        await b44.asServiceRole.entities.IntegrationLog.create({
-          integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',
-          details: `instance: ${instanceName}`,
-        });
-        return Response.json({ success: true, qrcode: { base64: qrcode }, raw: qd });
-      }
-
-      // Tentativa 2: campo embutido em /instance/all
       const inst = await findInstance(base, globalKey, instanceName);
-      if (inst) {
-        const embedded = inst.qrcode ?? (inst.instance as Record<string, unknown>)?.qrcode;
-        if (embedded) {
-          let qrcode = String(embedded).split('|')[0];
-          if (!qrcode.startsWith('data:')) qrcode = `data:image/png;base64,${qrcode}`;
-          await b44.asServiceRole.entities.IntegrationLog.create({
-            integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',
-            details: `instance: ${instanceName} (embedded)`,
-          });
-          return Response.json({ success: true, qrcode: { base64: qrcode } });
-        }
-
-        // Instância existe mas sem QR — pode já estar conectada
-        const state = normalizeState(inst);
+      if (!inst) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'get_qrcode', status: 'falha',
-          details: `instance: ${instanceName} state=${state} — QR indisponível`,
+          details: `instance: ${instanceName} — não encontrada`,
+        });
+        return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      }
+      const instToken = extractToken(inst, globalKey);
+
+      // Se já está logada (pareada), não há QR a gerar.
+      const st = await evoFetch(`${base}/instance/status`, { headers: { apikey: instToken } });
+      const stData = (st.data as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+      if (stData?.LoggedIn === true) {
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'evolutionApi', action: 'get_qrcode', status: 'falha',
+          details: `instance: ${instanceName} — já conectada`,
         });
         return Response.json({
           success: false,
-          error: state === 'connected'
-            ? 'A instância já está conectada. Não é necessário escanear o QR code.'
-            : 'QR code indisponível. Clique em "Reconectar" para gerar um novo.',
-          state,
-        }, { status: 404 });
+          error: 'A instância já está conectada. Não é necessário escanear o QR code.',
+          state: 'connected',
+        }, { status: 409 });
+      }
+
+      // Busca o QR code.
+      const r = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instToken } });
+      if (r.ok) {
+        const qd = (r.data as Record<string, unknown>)?.data as Record<string, unknown> | undefined
+          ?? (r.data as Record<string, unknown>);
+        let qrcode = String(qd?.Qrcode ?? qd?.qrcode ?? qd?.base64 ?? qd?.code ?? '').split('|')[0] || null;
+        if (qrcode && !qrcode.startsWith('data:')) qrcode = `data:image/png;base64,${qrcode}`;
+
+        if (qrcode) {
+          await b44.asServiceRole.entities.IntegrationLog.create({
+            integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',
+            details: `instance: ${instanceName}`,
+          });
+          return Response.json({ success: true, qrcode: { base64: qrcode } });
+        }
       }
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'get_qrcode', status: 'falha',
-        details: `instance: ${instanceName} — não encontrada`,
+        details: `instance: ${instanceName} — QR indisponível: ${JSON.stringify(r.data).slice(0, 300)}`,
       });
-      return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      return Response.json({
+        success: false,
+        error: 'QR code indisponível. Clique em "Reconectar" para gerar um novo.',
+      }, { status: 404 });
     }
 
     // ── logout_instance ──────────────────────────────────────────────────────
-    // POST /instance/logout/{name}  → desconecta o WhatsApp (mantém instância)
+    // DELETE /instance/logout  (token da instância)  → desconecta o WhatsApp (mantém instância)
     if (action === 'logout_instance') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const r = await evoFetch(`${base}/instance/logout/${encodeURIComponent(instanceName)}`, {
-        method: 'POST',
-        headers: { apikey: globalKey, 'Content-Type': 'application/json' },
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(found, globalKey);
+
+      const r = await evoFetch(`${base}/instance/logout`, {
+        method: 'DELETE',
+        headers: { apikey: instToken },
       });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
@@ -261,12 +277,17 @@ Deno.serve(async (req) => {
     }
 
     // ── delete_instance ──────────────────────────────────────────────────────
-    // DELETE /instance/{name}  (Evolution Go usa nome, não ID)
+    // DELETE /instance/delete/{id}  (global key; usa o id interno da instância)
     if (action === 'delete_instance') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const r = await evoFetch(`${base}/instance/${encodeURIComponent(instanceName)}`, {
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? '');
+      if (!instanceId) return Response.json({ error: 'ID da instância não encontrado' }, { status: 404 });
+
+      const r = await evoFetch(`${base}/instance/delete/${encodeURIComponent(instanceId)}`, {
         method: 'DELETE',
         headers: { apikey: globalKey },
       });
@@ -314,7 +335,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: r.data });
     }
 
-    // ── get_instance_info ────────────────────────────────────────────────────
+    // ── get_instance_info ──────��─────────────────────────────────────────────
     // Retorna detalhes de uma instância específica
     if (action === 'get_instance_info') {
       const { instanceName } = body;
@@ -340,7 +361,7 @@ Deno.serve(async (req) => {
       const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
 
       const r = await evoFetch(`${base}/user/contacts`, {
-        headers: { Token: instanceToken },
+        headers: { apikey: instanceToken },
       });
       if (!r.ok) {
         const friendly = r.status === 401
