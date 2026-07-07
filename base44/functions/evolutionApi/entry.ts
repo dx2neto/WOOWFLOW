@@ -60,8 +60,15 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const base        = BASE(Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud');
-    const globalKey   = Deno.env.get('EVOLUTION_API_KEY')  || '19QJ/5Vpa0[ZrZXCX?fS';
+    const globalKey   = Deno.env.get('EVOLUTION_API_KEY') || '';
     const defaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+
+    if (!globalKey) {
+      return Response.json({
+        success: false,
+        error: { code: 'EVOLUTION_NOT_CONFIGURED', message: 'EVOLUTION_API_KEY não configurada nas variáveis de ambiente.' },
+      }, { status: 500 });
+    }
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list_instances';

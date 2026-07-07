@@ -14,14 +14,19 @@ Deno.serve(async (req) => {
 
     const { cpfCnpj, tipoPessoa } = await req.json().catch(() => ({}));
 
+    const doc = String(cpfCnpj || '').replace(/\D/g, '');
+    if (!doc) {
+      return Response.json({ error: 'cpfCnpj é obrigatório' }, { status: 400 });
+    }
+
     const payload = {
       CodigoProduto: '630',
       Versao: '20180521',
       ChaveAcesso: chaveAcesso,
       Info: { Solicitante: 'Atendimento 360 ISP' },
       Parametros: {
-        TipoPessoa: tipoPessoa || 'J',
-        CPFCNPJ: cpfCnpj || '77973317000139',
+        TipoPessoa: tipoPessoa || (doc.length > 11 ? 'J' : 'F'),
+        CPFCNPJ: doc,
       },
       WebHook: { UrlCallBack: '' },
     };
