@@ -310,8 +310,8 @@ export default function Inbox() {
         const existingPhones = new Set(conversations.map((c) => c.phone));
         const matches = [];
         for (const entry of entries) {
-          const jid = entry.jid || entry.JID || entry.id || "";
-          if (!jid || jid.includes("@g.us")) continue;
+          const jid = entry.jid || entry.JID || entry.Jid || entry.id || "";
+          if (!jid || !jid.includes("@s.whatsapp.net")) continue;
           const phone = jid.split("@")[0];
           if (!phone || existingPhones.has(phone)) continue;
           const name = entry.FullName || entry.PushName || entry.BusinessName || entry.name || phone;
@@ -379,20 +379,25 @@ export default function Inbox() {
         }
         const rawContacts = response?.data?.contacts || {};
         const rawEntries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
-        entries = rawEntries.map((entry) => ({
-          jid: entry.jid || entry.JID || entry.id || "",
-          phone: (entry.jid || entry.JID || entry.id || "").split("@")[0],
-          name: entry.FullName || entry.PushName || entry.BusinessName || entry.name,
-          last_message: null,
-          last_message_time: null,
-        }));
+        entries = rawEntries
+          .map((entry) => {
+            const jid = entry.jid || entry.JID || entry.Jid || entry.id || "";
+            return {
+              jid,
+              phone: jid.split("@")[0],
+              name: entry.FullName || entry.PushName || entry.BusinessName || entry.name,
+              last_message: null,
+              last_message_time: null,
+            };
+          })
+          .filter((entry) => entry.jid.includes("@s.whatsapp.net"));
       }
 
       const existingPhones = new Set(conversations.map((c) => c.phone));
       const toCreate = [];
 
       for (const entry of entries) {
-        const phone = entry.phone || (entry.jid || "").split("@")[0];
+        const phone = entry.phone;
         if (!phone || existingPhones.has(phone)) continue;
         existingPhones.add(phone);
         toCreate.push({
