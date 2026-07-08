@@ -1,14 +1,16 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/lib/AuthContext";
 import {
   LayoutDashboard, Inbox, Users, DollarSign,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
   FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
-  Shield
+  Shield, Building2, Package
 } from "lucide-react";
 
+// role minima para ver o grupo/item: agent < admin < super_admin
 const menuGroups = [
   {
     label: "Atendimento",
@@ -46,12 +48,13 @@ const menuGroups = [
       { label: "Assinatura de Contratos", path: "/signatures",        icon: FileSignature },
       { label: "Base de Conhecimento",  path: "/knowledge",         icon: BookOpen },
       { label: "Relatórios",            path: "/reports",           icon: BarChart3 },
-      { label: "Integrações",           path: "/integrations",      icon: Plug },
+      { label: "Integrações",           path: "/integrations",      icon: Plug, minRole: "admin" },
       { label: "Telefonia Omnichannel", path: "/telephony",         icon: PhoneCall },
     ],
   },
   {
     label: "Configurações",
+    minRole: "admin",
     items: [
       { label: "Usuários",             path: "/users",        icon: UserCog },
       { label: "Etiquetas e Filas",    path: "/tags-queues",  icon: Tags },
@@ -61,10 +64,35 @@ const menuGroups = [
       { label: "Configurações",        path: "/settings",     icon: Settings },
     ],
   },
+  {
+    label: "Plataforma",
+    minRole: "super_admin",
+    items: [
+      { label: "Organizações",         path: "/platform/organizations", icon: Building2 },
+      { label: "Planos SaaS",          path: "/platform/plans",         icon: Package },
+    ],
+  },
 ];
+
+const roleRank = { agent: 1, admin: 2, super_admin: 3 };
+
+function canSee(minRole, userRole) {
+  if (!minRole) return true;
+  return (roleRank[userRole] || 1) >= (roleRank[minRole] || 1);
+}
 
 export default function Sidebar({ collapsed, setCollapsed }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const role = user?.role || "agent";
+
+  const visibleGroups = menuGroups
+    .filter((group) => canSee(group.minRole, role))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canSee(item.minRole, role)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className={`${collapsed ? "w-20" : "w-64"} flex-shrink-0 bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 border-r border-sidebar-border`}>
@@ -86,7 +114,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2">
-        {menuGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label} className="mb-3">
             {!collapsed && (
               <p className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/40 px-3 mb-1">

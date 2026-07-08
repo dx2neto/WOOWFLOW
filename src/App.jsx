@@ -3,13 +3,14 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { AuthProvider } from '@/lib/AuthContext';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import LoginRedirect from '@/components/LoginRedirect';
+import AdminRoute from '@/components/AdminRoute';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
+import PlatformOrganizations from '@/pages/platform/PlatformOrganizations';
+import PlatformPlans from '@/pages/platform/PlatformPlans';
 // Paginas de autenticacao (rotas publicas)
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -51,22 +52,6 @@ import AgreementDetail from '@/pages/AgreementDetail';
 import AgreementSettings from '@/pages/AgreementSettings';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  // Handle authentication errors
-  if (authError && authError.type === 'user_not_registered') {
-    return <UserNotRegisteredError />;
-  }
-
   // Render the main app
   return (
     <Routes>
@@ -78,7 +63,7 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Rotas protegidas (exigem login e usam o Layout com sidebar) */}
-      <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
+      <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />
@@ -93,17 +78,28 @@ const AuthenticatedApp = () => {
           <Route path="/signatures" element={<Signatures />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/integrations" element={<Integrations />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/tags-queues" element={<TagsQueues />} />
-          <Route path="/holidays" element={<Holidays />} />
-          <Route path="/audit-logs" element={<AuditLogs />} />
-          <Route path="/system-logs" element={<SystemLogs />} />
           <Route path="/telephony" element={<Telephony />} />
           <Route path="/lara-logs" element={<LaraLogs />} />
           <Route path="/lara-dashboard" element={<LaraDashboard />} />
           <Route path="/lara-reports" element={<LaraReports />} />
           <Route path="/settings" element={<Settings />} />
+
+          {/* Rotas administrativas (admin da organizacao ou super admin) */}
+          <Route element={<AdminRoute />}>
+            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/tags-queues" element={<TagsQueues />} />
+            <Route path="/holidays" element={<Holidays />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/system-logs" element={<SystemLogs />} />
+          </Route>
+
+          {/* Area da plataforma (somente super admin / dono) */}
+          <Route element={<AdminRoute superOnly />}>
+            <Route path="/platform/organizations" element={<PlatformOrganizations />} />
+            <Route path="/platform/plans" element={<PlatformPlans />} />
+          </Route>
+
           {/* IXCSoft pages */}
           <Route path="/contracts"   element={<Contracts />} />
           <Route path="/plans"       element={<Plans />} />
