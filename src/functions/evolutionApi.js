@@ -6,6 +6,15 @@ export const evolutionApi = async (data) => {
     return await base44.functions.invoke("evolutionApi", data);
   } catch (error) {
     if (error?.response) return error.response;
+    if (error?.name === "Base44Error") {
+      return {
+        status: error.status,
+        data: error.data || {
+          success: false,
+          error: error.message || "Falha ao chamar Evolution Go",
+        },
+      };
+    }
     throw error;
   }
 };
