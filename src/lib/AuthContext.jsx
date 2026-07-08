@@ -4,6 +4,7 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
+const isApiKeyAuth = import.meta.env.VITE_BASE44_AUTH_MODE === 'api_key';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -47,8 +48,8 @@ export const AuthProvider = ({ children }) => {
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
         setAppPublicSettings(publicSettings);
         
-        // If we got the app public settings successfully, check if user is authenticated
-        if (appParams.token) {
+        // If API key auth is enabled locally, auth.me() is authenticated by the Vite proxy.
+        if (appParams.token || isApiKeyAuth) {
           await checkUserAuth();
         } else {
           setIsLoadingAuth(false);
