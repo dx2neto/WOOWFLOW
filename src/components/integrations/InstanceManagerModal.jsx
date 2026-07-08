@@ -39,7 +39,7 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
   const { toast } = useToast();
   const [qrcode, setQrcode]     = useState(() => normalizeQrImage(initialQr?.base64 || initialQr));
   const [pairingCode, setPairingCode] = useState(initialQr?.code || null);
-  const [loading, setLoading]   = useState(true);
+  const [loading, setLoading]   = useState(!initialQr);
   const [error, setError]       = useState(null);
   const [connecting, setConnecting] = useState(false);
   const intervalRef = useRef(null);
@@ -50,25 +50,29 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
     try {
       const res = await evolutionApi({ action: "get_qrcode", instanceName });
       const d = res?.data;
+      if (d?.state === "connected") {
+        setQrcode(null);
+        setPairingCode(null);
+        setError(null);
+        onConnected?.();
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        return;
+      }
+
       if (d?.success) {
-        const b64 = d.qrcode?.base64 ?? null;
-        setQrcode(b64 ? (b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`) : null);
+        const qr = qrPayloadFromResponse(d);
+        const image = normalizeQrImage(qr?.base64);
+        setQrcode(image);
+        setPairingCode(qr?.code || null);
         // Se veio QR code, inicia polling para detectar quando conectar
-        if (b64 && !intervalRef.current) {
+        if ((image || qr?.code) && !intervalRef.current) {
           intervalRef.current = setInterval(() => checkStatus(), 5000);
         }
       } else {
-        // Instância já conectada?
-        if (d?.state === "connected") {
-          setQrcode(null);
-          setError(null);
-          onConnected?.();
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        } else {
-          setError(d?.error || "QR code indisponível");
-          setQrcode(null);
-        }
+        setError(d?.error?.message || d?.error || "QR code indisponível");
+        setQrcode(null);
+        setPairingCode(null);
       }
     } catch {
       setError("Erro de conexão ao buscar QR code");
@@ -85,6 +89,7 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
         setQrcode(null);
+        setPairingCode(null);
         onConnected?.();
         toast({ title: `✅ ${instanceName} conectado com sucesso!` });
       }
@@ -94,10 +99,23 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
   const handleReconnect = async () => {
     setConnecting(true);
     setQrcode(null);
+    setPairingCode(null);
     setError(null);
     try {
-      await evolutionApi({ action: "connect_instance", instanceName });
-      // Aguarda 1s para o Evolution Go gerar o QR
+      const res = await evolutionApi({ action: "connect_instance", instanceName });
+      const d = res?.data;
+      const qr = qrPayloadFromResponse(d);
+      const image = normalizeQrImage(qr?.base64);
+      if (d?.state === "connected") {
+        onConnected?.();
+        return;
+      }
+      if (image || qr?.code) {
+        setQrcode(image);
+        setPairingCode(qr?.code || null);
+        if (!intervalRef.current) intervalRef.current = setInterval(() => checkStatus(), 5000);
+        return;
+      }
       await new Promise((r) => setTimeout(r, 1200));
       await fetchQr();
     } catch {
@@ -108,14 +126,14 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
   };
 
   useEffect(() => {
-    fetchQr();
+    fetchQr(Boolean(initialQr));
     // Auto-refresh QR a cada 25s (QR expira em ~60s)
     const refreshTimer = setInterval(() => fetchQr(true), 25000);
     return () => {
       clearInterval(refreshTimer);
       clearInterval(intervalRef.current);
     };
-  }, [fetchQr]);
+  }, [fetchQr, initialQr]);
 
   return (
     <div className="border-t border-border p-4 bg-muted/10">
@@ -131,6 +149,14 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
             <img src={qrcode} alt={`QR ${instanceName}`} className="w-52 h-52 rounded-lg border border-border object-contain bg-white p-1" />
             <p className="text-[11px] text-muted-foreground text-center">Abra o WhatsApp → Aparelhos conectados → Conectar aparelho</p>
             <p className="text-[11px] text-amber-600 font-medium">QR atualiza automaticamente a cada 25 segundos</p>
+          </>
+        ) : pairingCode ? (
+          <>
+            <p className="text-xs font-semibold text-center">Código de pareamento</p>
+            <div className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm break-all">
+              {pairingCode}
+            </div>
+            <p className="text-[11px] text-muted-foreground text-center">Use este código no WhatsApp para concluir a conexão.</p>
           </>
         ) : (
           <div className="flex flex-col items-center gap-2 py-2 text-center">
@@ -162,14 +188,22 @@ export default function InstanceManagerModal({ onClose }) {
   const [openQr, setOpenQr]       = useState(null);   // nome da instância com QR aberto
   const [actingOn, setActingOn]   = useState(null);   // nome da instância em ação
   const [newInstQr, setNewInstQr] = useState(null);   // QR logo após criar instância
+  const [loadError, setLoadError] = useState(null);
 
   const loadInstances = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await evolutionApi({ action: "list_instances" });
+      if (res?.data?.success === false) {
+        setInstances([]);
+        setLoadError(res.data.error?.message || res.data.error || "Falha ao carregar instâncias");
+        return;
+      }
       setInstances(res?.data?.instances || []);
     } catch {
       setInstances([]);
+      setLoadError("Erro ao carregar instâncias da Evolution Go");
     } finally {
       setLoading(false);
     }
@@ -189,14 +223,15 @@ export default function InstanceManagerModal({ onClose }) {
         setNewName("");
         await loadInstances();
         // Se veio QR code na criação, exibe-o
-        if (res.data.qrcode) {
-          setNewInstQr({ name, qrcode: res.data.qrcode });
+        const qr = qrPayloadFromResponse(res.data);
+        if (qr?.base64 || qr?.code) {
+          setNewInstQr({ name, qrcode: qr });
           setOpenQr(name);
         } else {
           setOpenQr(name); // abre painel de QR mesmo assim para buscar
         }
       } else {
-        toast({ title: res?.data?.error || "Falha ao criar instância", variant: "destructive" });
+        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao criar instância", variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao criar instância", variant: "destructive" });
@@ -214,7 +249,7 @@ export default function InstanceManagerModal({ onClose }) {
         toast({ title: `${name} desconectado` });
         await loadInstances();
       } else {
-        toast({ title: res?.data?.error || "Falha ao desconectar", variant: "destructive" });
+        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao desconectar", variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao desconectar", variant: "destructive" });
@@ -234,7 +269,7 @@ export default function InstanceManagerModal({ onClose }) {
         if (openQr === name) setOpenQr(null);
         await loadInstances();
       } else {
-        toast({ title: res?.data?.error || "Falha ao excluir", variant: "destructive" });
+        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao excluir", variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao excluir", variant: "destructive" });
@@ -291,6 +326,12 @@ export default function InstanceManagerModal({ onClose }) {
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
               <Loader2 className="w-6 h-6 animate-spin" />
               <p className="text-sm">Carregando instâncias...</p>
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center px-6">
+              <AlertCircle className="w-10 h-10 text-amber-500" />
+              <p className="text-sm font-semibold">Evolution Go indisponível</p>
+              <p className="text-xs text-muted-foreground">{loadError}</p>
             </div>
           ) : instances.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
@@ -373,6 +414,7 @@ export default function InstanceManagerModal({ onClose }) {
                     {isQrOpen && (
                       <QrPanel
                         instanceName={name}
+                        initialQr={newInstQr?.name === name ? newInstQr.qrcode : null}
                         onConnected={async () => {
                           setOpenQr(null);
                           await loadInstances();
@@ -389,7 +431,7 @@ export default function InstanceManagerModal({ onClose }) {
         {/* Footer info */}
         <div className="px-5 py-3 border-t border-border bg-muted/10">
           <p className="text-[11px] text-muted-foreground text-center">
-            Evolution Go · <span className="font-mono">CONNECT</span> · QR atualiza automáticamente · Status verifica a cada 5s após scan
+            Evolution Go · <span className="font-mono">CONNECT</span> · QR atualiza automaticamente · Status verifica a cada 5s após scan
           </p>
         </div>
       </div>

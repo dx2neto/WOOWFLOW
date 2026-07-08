@@ -22,6 +22,16 @@ function StateBadge({ state }) {
   );
 }
 
+function normalizeQrImage(value) {
+  if (!value || typeof value !== "string") return null;
+  return value.startsWith("data:") ? value : `data:image/png;base64,${value}`;
+}
+
+function qrPayloadFromResponse(data) {
+  if (typeof data?.qrcode === "string") return { base64: data.qrcode, code: null };
+  return data?.qrcode || data?.qrCode || null;
+}
+
 export default function EvolutionQrCodeModal({ onClose }) {
   const { toast } = useToast();
   const [tab, setTab]           = useState("qrcode");
@@ -29,6 +39,7 @@ export default function EvolutionQrCodeModal({ onClose }) {
   const [selected, setSelected] = useState("");
   const [state, setState]       = useState(null);
   const [qrImage, setQrImage]   = useState(null);
+  const [pairingCode, setPairingCode] = useState(null);
   const [loadingInst, setLoadingInst] = useState(true);
   const [loadingQr, setLoadingQr]     = useState(false);
   const [connecting, setConnecting]   = useState(false);
@@ -43,6 +54,11 @@ export default function EvolutionQrCodeModal({ onClose }) {
     setLoadingInst(true);
     try {
       const res = await evolutionApi({ action: "list_instances" });
+      if (res?.data?.success === false) {
+        setInstances([]);
+        setError(res.data.error?.message || res.data.error || "Falha ao carregar instâncias");
+        return;
+      }
       const list = res?.data?.instances || [];
       setInstances(list);
       if (!selected && list.length > 0) {
@@ -50,6 +66,7 @@ export default function EvolutionQrCodeModal({ onClose }) {
       }
     } catch {
       setInstances([]);
+      setError("Erro ao carregar instâncias da Evolution Go");
     } finally {
       setLoadingInst(false);
     }
@@ -60,29 +77,33 @@ export default function EvolutionQrCodeModal({ onClose }) {
   // ── Fetch QR code ──────────────────────────────────────────────────────────
   const fetchQr = useCallback(async (silent = false) => {
     if (!selected) return;
-    if (!silent) { setLoadingQr(true); setError(null); setQrImage(null); }
+    if (!silent) { setLoadingQr(true); setError(null); setQrImage(null); setPairingCode(null); }
     try {
       const res = await evolutionApi({ action: "get_qrcode", instanceName: selected });
       const d   = res?.data;
 
+      if (d?.state === "connected") {
+        setState("connected");
+        setQrImage(null);
+        setPairingCode(null);
+        setError(null);
+        clearPolling();
+        return;
+      }
+
       if (d?.success) {
-        const b64 = d.qrcode?.base64 ?? null;
-        if (b64) {
-          setQrImage(b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`);
+        const qr = qrPayloadFromResponse(d);
+        const image = normalizeQrImage(qr?.base64);
+        if (image || qr?.code) {
+          setQrImage(image);
+          setPairingCode(qr?.code || null);
           setState("connecting");
           setError(null);
         }
       } else {
-        // Instância já conectada
-        if (d?.state === "connected") {
-          setState("connected");
-          setQrImage(null);
-          setError(null);
-          clearPolling();
-          return;
-        }
-        setError(d?.error || "QR code indisponível. Clique em Reconectar para gerar um novo.");
+        setError(d?.error?.message || d?.error || "QR code indisponível. Clique em Reconectar para gerar um novo.");
         setQrImage(null);
+        setPairingCode(null);
         if (d?.state) setState(d.state);
       }
     } catch {
@@ -108,6 +129,7 @@ export default function EvolutionQrCodeModal({ onClose }) {
       if (s === "connected") {
         setState("connected");
         setQrImage(null);
+        setPairingCode(null);
         setError(null);
         clearPolling();
         toast({ title: `✅ ${selected} conectado com sucesso!` });
@@ -119,17 +141,18 @@ export default function EvolutionQrCodeModal({ onClose }) {
   // Start polling when QR is shown
   useEffect(() => {
     clearPolling();
-    if (qrImage) {
+    if (qrImage || pairingCode) {
       pollRef.current   = setInterval(checkConnected, 5000);   // verifica conexão
       refreshRef.current = setInterval(() => fetchQr(true), 25000); // atualiza QR
     }
     return clearPolling;
-  }, [qrImage, checkConnected, fetchQr]);
+  }, [qrImage, pairingCode, checkConnected, fetchQr]);
 
   // Load QR when instance changes
   useEffect(() => {
     if (selected) {
       setQrImage(null);
+      setPairingCode(null);
       setState(null);
       setError(null);
       fetchQr();
@@ -141,9 +164,23 @@ export default function EvolutionQrCodeModal({ onClose }) {
     if (!selected || connecting) return;
     setConnecting(true);
     setQrImage(null);
+    setPairingCode(null);
     setError(null);
     try {
-      await evolutionApi({ action: "connect_instance", instanceName: selected });
+      const res = await evolutionApi({ action: "connect_instance", instanceName: selected });
+      const d = res?.data;
+      const qr = qrPayloadFromResponse(d);
+      const image = normalizeQrImage(qr?.base64);
+      if (d?.state === "connected") {
+        setState("connected");
+        return;
+      }
+      if (image || qr?.code) {
+        setQrImage(image);
+        setPairingCode(qr?.code || null);
+        setState("connecting");
+        return;
+      }
       await new Promise((r) => setTimeout(r, 1200));
       await fetchQr();
     } catch {
@@ -198,8 +235,18 @@ export default function EvolutionQrCodeModal({ onClose }) {
                 </div>
               ) : instances.length === 0 ? (
                 <div className="text-center py-4">
-                  <Smartphone className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Nenhuma instância encontrada. Crie uma em Integrações → Gerenciar Instâncias.</p>
+                  {error ? (
+                    <>
+                      <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+                      <p className="text-sm font-medium">Evolution Go indisponível</p>
+                      <p className="text-xs text-muted-foreground mt-1">{error}</p>
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Nenhuma instância encontrada. Crie uma em Integrações → Gerenciar Instâncias.</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <>
@@ -238,6 +285,14 @@ export default function EvolutionQrCodeModal({ onClose }) {
                         <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                           Aguardando scan... atualiza a cada 25s
+                        </div>
+                      </div>
+                    ) : pairingCode ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <QrCodeIcon className="w-12 h-12 text-amber-500" />
+                        <p className="text-sm font-semibold">Código de pareamento</p>
+                        <div className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm break-all">
+                          {pairingCode}
                         </div>
                       </div>
                     ) : (

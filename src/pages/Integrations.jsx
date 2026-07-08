@@ -24,11 +24,11 @@ const testFunctions = {
 const integrations = [
   {
     service: "evolution_api",
-    display_name: "Evolution API",
+    display_name: "Evolution Go",
     description: "WhatsApp Business API para envio e recebimento de mensagens",
     icon: MessageCircle,
     color: "from-green-500 to-green-600",
-    status: "connected",
+    status: "pending",
     fields: ["URL da API", "API Key", "Nome da Instância"],
   },
   {
@@ -122,7 +122,7 @@ export default function Integrations() {
     if (!testFn) return;
     setTestingService(int.service);
     try {
-      const response = await testFn({});
+      const response = await testFn(int.service === "evolution_api" ? { action: "test_connection" } : {});
       const success = response?.data?.success;
       const payload = {
         service: int.service,
