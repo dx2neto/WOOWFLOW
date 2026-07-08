@@ -4,6 +4,7 @@ import { appParams } from '@/lib/app-params';
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 const hasUrlAppId = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('app_id');
 const hasBase44Config = Boolean(import.meta.env.VITE_BASE44_APP_ID || import.meta.env.VITE_BASE44_APP_BASE_URL || hasUrlAppId);
+const localApiKeyProxyUrl = import.meta.env.VITE_BASE44_AUTH_MODE === 'api_key' ? '/b44' : '';
 
 const missingConfigError = () => new Error(
   'Base44 não está configurado neste ambiente local. Defina VITE_BASE44_APP_ID e VITE_BASE44_APP_BASE_URL no .env.local ou rode pelo base44 dev.'
@@ -51,7 +52,7 @@ export const base44 = hasBase44Config ? createClient({
   appId,
   token,
   functionsVersion,
-  serverUrl: '',
+  serverUrl: localApiKeyProxyUrl,
   requiresAuth: false,
   appBaseUrl
 }) : unavailableClient;

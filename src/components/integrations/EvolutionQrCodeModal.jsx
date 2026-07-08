@@ -32,6 +32,14 @@ function qrPayloadFromResponse(data) {
   return data?.qrcode || data?.qrCode || null;
 }
 
+function evolutionErrorMessage(data, fallback) {
+  const message = data?.error?.message || data?.error || data?.message || fallback;
+  if (/authentication required|view users|unauthorized/i.test(String(message))) {
+    return "Faça login na Base44 para gerar QR Code e gerenciar instâncias.";
+  }
+  return message;
+}
+
 export default function EvolutionQrCodeModal({ onClose }) {
   const { toast } = useToast();
   const [tab, setTab]           = useState("qrcode");
@@ -54,9 +62,9 @@ export default function EvolutionQrCodeModal({ onClose }) {
     setLoadingInst(true);
     try {
       const res = await evolutionApi({ action: "list_instances" });
-      if (res?.data?.success === false) {
+      if (res?.data?.error || res?.data?.success === false) {
         setInstances([]);
-        setError(res.data.error?.message || res.data.error || "Falha ao carregar instâncias");
+        setError(evolutionErrorMessage(res.data, "Falha ao carregar instâncias"));
         return;
       }
       const list = res?.data?.instances || [];
@@ -101,7 +109,7 @@ export default function EvolutionQrCodeModal({ onClose }) {
           setError(null);
         }
       } else {
-        setError(d?.error?.message || d?.error || "QR code indisponível. Clique em Reconectar para gerar um novo.");
+        setError(evolutionErrorMessage(d, "QR code indisponível. Clique em Reconectar para gerar um novo."));
         setQrImage(null);
         setPairingCode(null);
         if (d?.state) setState(d.state);
@@ -169,6 +177,10 @@ export default function EvolutionQrCodeModal({ onClose }) {
     try {
       const res = await evolutionApi({ action: "connect_instance", instanceName: selected });
       const d = res?.data;
+      if (d?.error || d?.success === false) {
+        setError(evolutionErrorMessage(d, "Falha ao reconectar. Tente novamente."));
+        return;
+      }
       const qr = qrPayloadFromResponse(d);
       const image = normalizeQrImage(qr?.base64);
       if (d?.state === "connected") {

@@ -34,6 +34,14 @@ function qrPayloadFromResponse(data) {
   return data?.qrcode || data?.qrCode || null;
 }
 
+function evolutionErrorMessage(data, fallback) {
+  const message = data?.error?.message || data?.error || data?.message || fallback;
+  if (/authentication required|view users|unauthorized/i.test(String(message))) {
+    return "Faça login na Base44 para gerar QR Code e gerenciar instâncias.";
+  }
+  return message;
+}
+
 // ── QR Code panel (inline por instância) ─────────────────────────────────────
 function QrPanel({ instanceName, initialQr, onConnected }) {
   const { toast } = useToast();
@@ -70,7 +78,7 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
           intervalRef.current = setInterval(() => checkStatus(), 5000);
         }
       } else {
-        setError(d?.error?.message || d?.error || "QR code indisponível");
+        setError(evolutionErrorMessage(d, "QR code indisponível"));
         setQrcode(null);
         setPairingCode(null);
       }
@@ -104,6 +112,10 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
     try {
       const res = await evolutionApi({ action: "connect_instance", instanceName });
       const d = res?.data;
+      if (d?.error || d?.success === false) {
+        setError(evolutionErrorMessage(d, "Falha ao reconectar. Tente novamente."));
+        return;
+      }
       const qr = qrPayloadFromResponse(d);
       const image = normalizeQrImage(qr?.base64);
       if (d?.state === "connected") {
@@ -195,9 +207,9 @@ export default function InstanceManagerModal({ onClose }) {
     setLoadError(null);
     try {
       const res = await evolutionApi({ action: "list_instances" });
-      if (res?.data?.success === false) {
+      if (res?.data?.error || res?.data?.success === false) {
         setInstances([]);
-        setLoadError(res.data.error?.message || res.data.error || "Falha ao carregar instâncias");
+        setLoadError(evolutionErrorMessage(res.data, "Falha ao carregar instâncias"));
         return;
       }
       setInstances(res?.data?.instances || []);
@@ -231,7 +243,7 @@ export default function InstanceManagerModal({ onClose }) {
           setOpenQr(name); // abre painel de QR mesmo assim para buscar
         }
       } else {
-        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao criar instância", variant: "destructive" });
+        toast({ title: evolutionErrorMessage(res?.data, "Falha ao criar instância"), variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao criar instância", variant: "destructive" });
@@ -249,7 +261,7 @@ export default function InstanceManagerModal({ onClose }) {
         toast({ title: `${name} desconectado` });
         await loadInstances();
       } else {
-        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao desconectar", variant: "destructive" });
+        toast({ title: evolutionErrorMessage(res?.data, "Falha ao desconectar"), variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao desconectar", variant: "destructive" });
@@ -269,7 +281,7 @@ export default function InstanceManagerModal({ onClose }) {
         if (openQr === name) setOpenQr(null);
         await loadInstances();
       } else {
-        toast({ title: res?.data?.error?.message || res?.data?.error || "Falha ao excluir", variant: "destructive" });
+        toast({ title: evolutionErrorMessage(res?.data, "Falha ao excluir"), variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao excluir", variant: "destructive" });
