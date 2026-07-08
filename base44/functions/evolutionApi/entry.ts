@@ -502,59 +502,6 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: r.data });
     }
 
-    // ── get_messages ─────────────────────────────────────────────────────────
-    // POST /chat/findMessages  (autenticado com o TOKEN da instância)
-    // Busca o histórico real de mensagens de uma conversa do WhatsApp.
-    if (action === 'get_messages') {
-      const instanceName = body.instance || defaultInst;
-      const { phone } = body;
-      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
-
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const number = String(phone).replace(/\D/g, '');
-      const remoteJid = `${number}@s.whatsapp.net`;
-
-      const r = await evoFetch(`${base}/chat/findMessages`, {
-        method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ where: { key: { remoteJid } } }),
-      });
-      if (!r.ok) {
-        await b44.asServiceRole.entities.IntegrationLog.create({
-          integration: 'evolutionApi', action: 'get_messages', status: 'falha',
-          details: `phone: ${phone} — ${JSON.stringify(r.data).slice(0, 400)}`,
-        });
-        return Response.json({ success: false, error: 'Falha ao buscar histórico de mensagens', details: r.data }, { status: r.status || 502 });
-      }
-
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.messages ?? raw);
-      const messages = list.map((item: unknown) => {
-        const rec = asRecord(item);
-        const key = asRecord(rec.key);
-        const fromMe = Boolean(key.fromMe);
-        const msg = asRecord(rec.message);
-        const content = String(
-          msg.conversation ??
-          asRecord(msg.extendedTextMessage).text ??
-          asRecord(msg.imageMessage).caption ??
-          asRecord(msg.videoMessage).caption ??
-          '[mídia]'
-        );
-        const timestamp = rec.messageTimestamp
-          ? new Date(Number(rec.messageTimestamp) * 1000).toISOString()
-          : new Date().toISOString();
-        return { content, direction: fromMe ? 'out' : 'in', timestamp, sender_name: rec.pushName ?? null };
-      });
-
-      await b44.asServiceRole.entities.IntegrationLog.create({
-        integration: 'evolutionApi', action: 'get_messages', status: 'sucesso',
-        details: `phone: ${phone} — ${messages.length} mensagem(ns)`,
-      });
-      return Response.json({ success: true, messages });
-    }
-
     // ── get_instance_info ────────────────────────────────────────────────────
     // Retorna detalhes de uma instância específica
     if (action === 'get_instance_info') {
