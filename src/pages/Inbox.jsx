@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
+import WhatsAppSearchResults from "@/components/inbox/WhatsAppSearchResults";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { serasaApi } from "@/functions/serasaApi";
@@ -125,6 +126,8 @@ export default function Inbox() {
   const [form, setForm] = useState(defaultForm);
   const [creating, setCreating] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [waResults, setWaResults] = useState([]);
+  const [searchingWa, setSearchingWa] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -252,6 +255,61 @@ export default function Inbox() {
       return matchesChannel && matchesStatus && matchesQuery;
     });
   }, [channel, conversations, query, status]);
+
+  useEffect(() => {
+    const term = query.trim().toLowerCase();
+    if (!term || channel === "instagram" || channel === "facebook" || channel === "telefone" || channel === "email" || !selectedInstance) {
+      setWaResults([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setSearchingWa(true);
+      try {
+        const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
+        const rawContacts = response?.data?.contacts || {};
+        const entries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
+        const existingPhones = new Set(conversations.map((c) => c.phone));
+        const matches = [];
+        for (const entry of entries) {
+          const jid = entry.jid || entry.JID || entry.id || "";
+          if (!jid || jid.includes("@g.us")) continue;
+          const phone = jid.split("@")[0];
+          if (!phone || existingPhones.has(phone)) continue;
+          const name = entry.FullName || entry.PushName || entry.BusinessName || entry.name || phone;
+          if (!name.toLowerCase().includes(term) && !phone.includes(term)) continue;
+          matches.push({ phone, name });
+        }
+        setWaResults(matches.slice(0, 20));
+      } catch {
+        setWaResults([]);
+      } finally {
+        setSearchingWa(false);
+      }
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [query, channel, selectedInstance, conversations]);
+
+  const startConversationFromWa = async (contact) => {
+    try {
+      const now = new Date().toISOString();
+      const created = await base44.entities.Conversation.create({
+        customer_name: contact.name,
+        phone: contact.phone,
+        channel: "whatsapp",
+        instance: selectedInstance,
+        status: "novo",
+        sector: "Atendimento",
+        last_message: "Conversa iniciada a partir da busca no Evolution Go",
+        last_message_time: now,
+      });
+      setConversations((prev) => [created, ...prev]);
+      setSelectedId(created.id);
+      setQuery("");
+      setWaResults([]);
+    } catch {
+      toast({ title: "Erro ao iniciar conversa", variant: "destructive" });
+    }
+  };
 
   const handleInstanceChange = (name) => {
     setSelectedInstance(name);
@@ -502,6 +560,8 @@ export default function Inbox() {
               ))}
             </div>
           </div>
+
+          <WhatsAppSearchResults results={waResults} loading={searchingWa} onSelect={startConversationFromWa} />
 
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
             {loading ? (
