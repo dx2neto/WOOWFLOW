@@ -541,7 +541,7 @@ export default function Inbox() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar conversa, contato ou protocolo..."
+                placeholder="Busca avançada: nome ou telefone (inclui WhatsApp)..."
                 className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
