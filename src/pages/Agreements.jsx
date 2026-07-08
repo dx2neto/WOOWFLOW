@@ -98,26 +98,26 @@ export default function Agreements() {
         <StatCard
           title="Acordos Ativos"
           value={dashboard?.active ?? "—"}
-          icon={<CheckCircle className="w-5 h-5 text-green-500" />}
-          color="green"
+          icon={CheckCircle}
+          color="accent"
         />
         <StatCard
           title="Vencidos"
           value={dashboard?.overdue ?? "—"}
-          icon={<Clock className="w-5 h-5 text-amber-500" />}
-          color="amber"
+          icon={Clock}
+          color="warning"
         />
         <StatCard
           title="Quebrados"
           value={dashboard?.broken ?? "—"}
-          icon={<XCircle className="w-5 h-5 text-red-500" />}
-          color="red"
+          icon={XCircle}
+          color="danger"
         />
         <StatCard
           title="Quitados"
           value={dashboard?.paid ?? "—"}
-          icon={<Shield className="w-5 h-5 text-blue-500" />}
-          color="blue"
+          icon={Shield}
+          color="primary"
         />
       </div>
 
@@ -125,19 +125,20 @@ export default function Agreements() {
         <StatCard
           title="Total Negociado"
           value={fmtBRL(dashboard?.total_negotiated)}
-          icon={<DollarSign className="w-5 h-5 text-emerald-500" />}
+          icon={DollarSign}
+          color="accent"
         />
         <StatCard
           title="Em Atraso"
           value={fmtBRL(dashboard?.total_overdue_amount)}
-          icon={<TrendingDown className="w-5 h-5 text-red-500" />}
-          color="red"
+          icon={TrendingDown}
+          color="danger"
         />
         <StatCard
           title="Valor Recuperado"
           value={fmtBRL(dashboard?.total_recovered)}
-          icon={<CheckCircle className="w-5 h-5 text-blue-500" />}
-          color="blue"
+          icon={CheckCircle}
+          color="primary"
         />
       </div>
 
