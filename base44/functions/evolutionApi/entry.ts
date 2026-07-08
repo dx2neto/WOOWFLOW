@@ -6,7 +6,6 @@ type AnyRecord = Record<string, unknown>;
 
 /**
  * Faz uma requisição à Evolution Go e retorna { ok, status, data }.
- * Normaliza erros de parse e loga falhas automaticamente.
  */
 async function evoFetch(url: string, opts: RequestInit = {}) {
   try {
@@ -38,15 +37,8 @@ function payloadList(data: unknown): unknown[] {
   const root = asRecord(data);
   const nested = asRecord(root.data);
   const candidates = [
-    root.instances,
-    root.instance,
-    root.result,
-    root.response,
-    root.data,
-    nested.instances,
-    nested.instance,
-    nested.result,
-    nested.response,
+    root.instances, root.instance, root.result, root.response, root.data,
+    nested.instances, nested.instance, nested.result, nested.response,
   ];
   for (const value of candidates) {
     if (Array.isArray(value)) return value;
@@ -60,71 +52,35 @@ function nestedInstance(inst: AnyRecord): AnyRecord {
 
 function instanceNameOf(inst: AnyRecord): string {
   const nested = nestedInstance(inst);
-  return String(
-    inst.name ??
-    inst.instanceName ??
-    nested.name ??
-    nested.instanceName ??
-    inst.id ??
-    ''
-  );
+  return String(inst.name ?? inst.instanceName ?? nested.name ?? nested.instanceName ?? inst.id ?? '');
 }
 
-/**
- * Busca todas as instâncias e retorna o objeto da instância pelo nome.
- */
-async function findInstance(base: string, globalKey: string, name: string) {
-  const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: globalKey } });
+// Busca todas as instâncias (endpoint admin) e retorna a instância pelo nome.
+async function findInstance(base: string, adminToken: string, name: string) {
+  const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: adminToken } });
   if (!r.ok) return null;
   const list = payloadList(r.data);
-  return list.find((i: unknown) => {
-    const inst = asRecord(i);
-    return instanceNameOf(inst) === name;
-  }) as AnyRecord | undefined;
+  return list.find((i: unknown) => instanceNameOf(asRecord(i)) === name) as AnyRecord | undefined;
 }
 
-/**
- * Extrai o token de autenticação da instância (necessário para enviar mensagens).
- * Evolution Go: cada instância tem token próprio diferente da Global API Key.
- */
+// Extrai o TOKEN DA INSTÂNCIA (usado como apikey em todas as rotas por-instância: /send, /user, /chat, /message, /group, /instance/status, /instance/qr, /instance/connect, etc.)
 function extractToken(inst: AnyRecord, fallback: string): string {
   const nested = nestedInstance(inst);
   return String(
-    inst.token ??
-    inst.apitoken ??
-    inst.apiToken ??
-    inst.instanceToken ??
-    nested.token ??
-    nested.apitoken ??
-    nested.apiToken ??
-    nested.instanceToken ??
+    inst.token ?? inst.apitoken ?? inst.apiToken ?? inst.instanceToken ??
+    nested.token ?? nested.apitoken ?? nested.apiToken ?? nested.instanceToken ??
     fallback
   );
 }
 
-/**
- * Normaliza o estado de conexão de uma instância para um valor canônico.
- */
 function normalizeState(inst: AnyRecord): string {
   const nested = nestedInstance(inst);
-
-  if (asRecord(inst.data).LoggedIn === true || inst.LoggedIn === true || nested.LoggedIn === true) {
-    return 'connected';
-  }
-  // Evolution Go expõe o estado de conexão no booleano `connected`.
-  if (typeof inst?.connected === 'boolean') {
-    return inst.connected ? 'connected' : 'disconnected';
-  }
-  if (typeof nested?.connected === 'boolean') {
-    return nested.connected ? 'connected' : 'disconnected';
-  }
+  if (asRecord(inst.data).LoggedIn === true || inst.LoggedIn === true || nested.LoggedIn === true) return 'connected';
+  if (typeof inst?.connected === 'boolean') return inst.connected ? 'connected' : 'disconnected';
+  if (typeof nested?.connected === 'boolean') return nested.connected ? 'connected' : 'disconnected';
   const raw = String(
-    inst?.status ?? inst?.connectionStatus ??
-    inst?.state ??
-    nested?.status ??
-    nested?.connectionStatus ??
-    nested?.state ??
-    ''
+    inst?.status ?? inst?.connectionStatus ?? inst?.state ??
+    nested?.status ?? nested?.connectionStatus ?? nested?.state ?? ''
   ).toLowerCase();
   if (raw.includes('open') || raw.includes('logged') || raw === 'true') return 'connected';
   if (raw.includes('qr') || raw.includes('connect') || raw.includes('pair')) return 'connecting';
@@ -136,19 +92,15 @@ function normalizeQrString(value: unknown) {
   if (typeof value !== 'string') return { base64: null as string | null, code: null as string | null };
   const raw = value.trim();
   if (!raw) return { base64: null, code: null };
-
   const firstPart = raw.split('|')[0].trim();
   if (firstPart.startsWith('data:image/')) return { base64: firstPart, code: null };
   if (firstPart.includes('base64,')) {
-    const dataUrl = firstPart.startsWith('data:')
-      ? firstPart
-      : `data:image/png;base64,${firstPart.split('base64,').pop()}`;
+    const dataUrl = firstPart.startsWith('data:') ? firstPart : `data:image/png;base64,${firstPart.split('base64,').pop()}`;
     return { base64: dataUrl, code: null };
   }
   if (/^(iVBORw0KGgo|\/9j\/|R0lGOD|PHN2Zy)/.test(firstPart) || (firstPart.length > 400 && /^[A-Za-z0-9+/=\s]+$/.test(firstPart))) {
     return { base64: `data:image/png;base64,${firstPart.replace(/\s/g, '')}`, code: null };
   }
-
   return { base64: null, code: raw };
 }
 
@@ -157,24 +109,17 @@ function normalizeQrPayload(payload: unknown) {
   const qrKeys = new Set(['qrcode', 'qrCode', 'Qrcode', 'QRCode', 'qr', 'base64', 'code']);
   const queue = [payload];
   let code: string | null = null;
-
   while (queue.length) {
     const current = queue.shift();
     if (!current || seen.has(current)) continue;
     seen.add(current);
-
     if (typeof current === 'string') {
       const parsed = normalizeQrString(current);
       if (parsed.base64) return parsed;
       if (parsed.code && !code) code = parsed.code;
       continue;
     }
-
-    if (Array.isArray(current)) {
-      queue.push(...current);
-      continue;
-    }
-
+    if (Array.isArray(current)) { queue.push(...current); continue; }
     if (typeof current === 'object') {
       const record = current as AnyRecord;
       for (const key of qrKeys) {
@@ -187,46 +132,7 @@ function normalizeQrPayload(payload: unknown) {
       queue.push(...Object.values(record).filter((value) => value && typeof value === 'object'));
     }
   }
-
   return { base64: null as string | null, code };
-}
-
-/**
- * Busca QR code tentando múltiplos endpoints/autenticações da Evolution Go.
- * Prioridade: GET /instance/{name}/qrcode → GET /instance/qr (legado)
- */
-async function fetchQrCode(
-  base: string,
-  instanceName: string,
-  instanceToken: string,
-  globalKey: string,
-  instanceId: string,
-) {
-  type QrResult = { base64: string | null; code: string | null };
-  const fallback = { response: { ok: false, status: 404, data: {} }, qrcode: null as QrResult | null };
-
-  // Tentativa 1: GET /instance/{name}/qrcode com globalKey (padrão Evolution Go)
-  const r1 = await evoFetch(`${base}/instance/${encodeURIComponent(instanceName)}/qrcode`, {
-    headers: {
-      apikey: globalKey,
-      ...(instanceId ? { instanceId } : {}),
-    },
-  });
-  if (r1.ok) return { response: r1, qrcode: normalizeQrPayload(r1.data) };
-
-  // Tentativa 2: GET /instance/qr com instanceToken (comportamento anterior)
-  const r2 = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instanceToken } });
-  if (r2.ok) return { response: r2, qrcode: normalizeQrPayload(r2.data) };
-
-  // Tentativa 3: GET /instance/qr com globalKey + instanceId header
-  if (instanceId) {
-    const r3 = await evoFetch(`${base}/instance/qr`, {
-      headers: { apikey: globalKey, instanceId },
-    });
-    if (r3.ok) return { response: r3, qrcode: normalizeQrPayload(r3.data) };
-  }
-
-  return fallback;
 }
 
 function normalizeInstance(raw: unknown) {
@@ -251,10 +157,11 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const base        = BASE(Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud');
-    const globalKey   = Deno.env.get('EVOLUTION_API_KEY') || Deno.env.get('GLOBAL_API_KEY') || '';
+    // Na Evolution Go, este é o "adminToken": autentica endpoints administrativos (/instance/create, /instance/all, /instance/info, /instance/logs, /instance/delete).
+    const adminToken   = Deno.env.get('EVOLUTION_API_KEY') || Deno.env.get('GLOBAL_API_KEY') || '';
     const defaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
 
-    if (!globalKey) {
+    if (!adminToken) {
       return Response.json({
         success: false,
         error: { code: 'EVOLUTION_NOT_CONFIGURED', message: 'EVOLUTION_API_KEY não configurada nas variáveis de ambiente.' },
@@ -264,12 +171,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list_instances';
 
-    // ── list_instances (default) ─────────────────────────────────────────────
-    // GET /instance/all  →  apikey: globalKey
-    // Retorna array normalizado com: name, state, qrcode (base64 ou null)
-    // Aliases: list_instances | get_instances | (sem action)
+    // ── list_instances ───────────────────────────────────────────────────────
+    // GET /instance/all  (apikey: adminToken)
     if (action === 'list_instances' || action === 'get_instances' || action === 'test_connection' || !body.action) {
-      const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: globalKey } });
+      const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: adminToken } });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'list_instances', status: 'falha',
@@ -277,9 +182,7 @@ Deno.serve(async (req) => {
         });
         return Response.json({ success: false, error: 'Falha ao conectar à Evolution Go API', details: r.data }, { status: r.status || 502 });
       }
-
       const instances = payloadList(r.data).map(normalizeInstance).filter((inst) => inst.name);
-
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: action === 'test_connection' ? 'test_connection' : 'list_instances', status: 'sucesso',
       });
@@ -287,17 +190,17 @@ Deno.serve(async (req) => {
     }
 
     // ── create_instance ──────────────────────────────────────────────────────
-    // POST /instance/create  body: { name, instanceName } — Evolution Go aceita ambos
-    // Após criar, dispara connect para registrar webhook e obter QR.
+    // POST /instance/create  (apikey: adminToken)  body: { instanceId?, name, token }
     if (action === 'create_instance') {
       const { instanceName, webhookUrl } = body;
       if (!instanceName?.trim()) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
       const name = String(instanceName).trim();
+      const newToken = crypto.randomUUID();
 
       const r = await evoFetch(`${base}/instance/create`, {
         method: 'POST',
-        headers: { apikey: globalKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, instanceName: name }),
+        headers: { apikey: adminToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, token: newToken }),
       });
 
       if (!r.ok) {
@@ -308,39 +211,24 @@ Deno.serve(async (req) => {
         return Response.json({ success: false, error: 'Falha ao criar instância', details: r.data }, { status: r.status || 502 });
       }
 
-      const created     = asRecord(r.data);
-      const createdData = asRecord(created.data);
-      let inst          = await findInstance(base, globalKey, name);
-      const tokenSource = inst ?? (Object.keys(createdData).length ? createdData : created);
-      const newToken    = extractToken(tokenSource, globalKey);
-      const newId       = String((inst ?? asRecord(createdData)).id ?? '');
+      // Conecta a instância recém-criada para gerar o QR code (auth com o token da própria instância).
+      const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
+      const connectBody: Record<string, unknown> = { subscribe: ['ALL'] };
+      if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
 
-      let qrcode = normalizeQrPayload(r.data);
+      const connect = await evoFetch(`${base}/instance/connect`, {
+        method: 'POST',
+        headers: { apikey: newToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(connectBody),
+      });
 
-      // Dispara connect para registrar webhook e pegar QR
+      let qrcode = normalizeQrPayload(connect.ok ? connect.data : null);
       if (!qrcode.base64) {
-        const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
-        const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
-        if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
-
-        const connect = await evoFetch(`${base}/instance/connect`, {
-          method: 'POST',
-          headers: {
-            apikey: globalKey,
-            'Content-Type': 'application/json',
-            ...(newId ? { instanceId: newId } : {}),
-          },
-          body: JSON.stringify(connectBody),
-        });
-        if (connect.ok) qrcode = normalizeQrPayload(connect.data);
+        const qrResp = await evoFetch(`${base}/instance/qr`, { headers: { apikey: newToken } });
+        if (qrResp.ok) qrcode = normalizeQrPayload(qrResp.data);
       }
 
-      if (!qrcode.base64) {
-        const qrResult = await fetchQrCode(base, name, newToken, globalKey, newId);
-        if (qrResult.qrcode) qrcode = qrResult.qrcode;
-      }
-
-      inst = inst ?? (await findInstance(base, globalKey, name));
+      const inst = await findInstance(base, adminToken, name);
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'create_instance', status: 'sucesso',
@@ -348,47 +236,31 @@ Deno.serve(async (req) => {
       });
       return Response.json({
         success: true,
-        instance: normalizeInstance(inst ?? created),
+        instance: normalizeInstance(inst ?? { name, token: newToken }),
         qrcode: qrcode.base64,
         qrCode: qrcode,
       });
     }
 
     // ── connect_instance ─────────────────────────────────────────────────────
-    // POST /instance/connect  header: apikey=globalKey + instanceId=<uuid>
-    // body: { webhookUrl, subscribe: ["ALL"], immediate: true }
+    // POST /instance/connect  (apikey: TOKEN DA INSTÂNCIA)  body: { subscribe: ["ALL"], webhookUrl }
     if (action === 'connect_instance') {
       const { instanceName, webhookUrl } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found      = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      const instanceId = String(found.id ?? nestedInstance(found).id ?? '');
-      const instToken  = extractToken(found, globalKey);
+      const instToken = extractToken(found, adminToken);
 
       const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
-      const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
+      const connectBody: Record<string, unknown> = { subscribe: ['ALL'] };
       if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
 
-      // Tenta com global key + instanceId header (padrão Evolution Go)
-      let r = await evoFetch(`${base}/instance/connect`, {
+      const r = await evoFetch(`${base}/instance/connect`, {
         method: 'POST',
-        headers: {
-          apikey: globalKey,
-          'Content-Type': 'application/json',
-          ...(instanceId ? { instanceId } : {}),
-        },
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
         body: JSON.stringify(connectBody),
       });
-
-      // Fallback: token da instância como apikey
-      if (!r.ok && instToken !== globalKey) {
-        r = await evoFetch(`${base}/instance/connect`, {
-          method: 'POST',
-          headers: { apikey: instToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify(connectBody),
-        });
-      }
 
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
@@ -400,8 +272,8 @@ Deno.serve(async (req) => {
 
       let qrcode = normalizeQrPayload(r.data);
       if (!qrcode.base64) {
-        const qrResult = await fetchQrCode(base, instanceName, instToken, globalKey, instanceId);
-        if (qrResult.qrcode) qrcode = qrResult.qrcode;
+        const qrResp = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instToken } });
+        if (qrResp.ok) qrcode = normalizeQrPayload(qrResp.data);
       }
 
       await b44.asServiceRole.entities.IntegrationLog.create({
@@ -412,14 +284,12 @@ Deno.serve(async (req) => {
     }
 
     // ── get_qrcode ───────────────────────────────────────────────────────────
-    // GET /instance/qr  (autenticado com o TOKEN da instância)
-    //   → { data: { Qrcode: "data:image/png;base64,..." }, message: "success" }
-    // Antes verifica /instance/status para não gerar QR de instância já logada.
+    // GET /instance/qr  (apikey: TOKEN DA INSTÂNCIA)
     if (action === 'get_qrcode') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const inst = await findInstance(base, globalKey, instanceName);
+      const inst = await findInstance(base, adminToken, instanceName);
       if (!inst) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'get_qrcode', status: 'falha',
@@ -427,9 +297,8 @@ Deno.serve(async (req) => {
         });
         return Response.json({ error: 'Instância não encontrada' }, { status: 404 });
       }
-      const instToken = extractToken(inst, globalKey);
+      const instToken = extractToken(inst, adminToken);
 
-      // Se já está logada (pareada), não há QR a gerar.
       const st = await evoFetch(`${base}/instance/status`, { headers: { apikey: instToken } });
       const statusState = st.ok ? normalizeState(asRecord(st.data)) : normalizeState(inst);
       if (statusState === 'connected') {
@@ -437,50 +306,41 @@ Deno.serve(async (req) => {
           integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',
           details: `instance: ${instanceName} — já conectada`,
         });
-        return Response.json({
-          success: true,
-          qrcode: null,
-          state: 'connected',
-          message: 'A instância já está conectada.',
-        });
+        return Response.json({ success: true, qrcode: null, state: 'connected', message: 'A instância já está conectada.' });
       }
 
-      // Busca o QR code.
-      const instanceId = String(inst.id ?? nestedInstance(inst).id ?? '');
-      const r = await fetchQrCode(base, instanceName, instToken, globalKey, instanceId);
-      if (r.qrcode?.base64 || r.qrcode?.code) {
+      const r = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instToken } });
+      const qrcode = r.ok ? normalizeQrPayload(r.data) : { base64: null, code: null };
+      if (qrcode.base64 || qrcode.code) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',
           details: `instance: ${instanceName}`,
         });
-        return Response.json({ success: true, qrcode: r.qrcode, state: 'connecting' });
+        return Response.json({ success: true, qrcode, state: 'connecting' });
       }
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'get_qrcode', status: 'falha',
-        details: `instance: ${instanceName} — QR indisponível: ${JSON.stringify(r.response.data).slice(0, 300)}`,
+        details: `instance: ${instanceName} — QR indisponível: ${JSON.stringify(r.data).slice(0, 300)}`,
       });
       return Response.json({
         success: false,
         error: 'QR code indisponível. Clique em "Reconectar" para gerar um novo.',
-        details: r.response.data,
-      }, { status: r.response.status || 404 });
+        details: r.data,
+      }, { status: r.status || 404 });
     }
 
     // ── logout_instance ──────────────────────────────────────────────────────
-    // DELETE /instance/logout  (token da instância)  → desconecta o WhatsApp (mantém instância)
+    // DELETE /instance/logout  (apikey: TOKEN DA INSTÂNCIA)
     if (action === 'logout_instance') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      const instToken = extractToken(found, globalKey);
+      const instToken = extractToken(found, adminToken);
 
-      const r = await evoFetch(`${base}/instance/logout`, {
-        method: 'DELETE',
-        headers: { apikey: instToken },
-      });
+      const r = await evoFetch(`${base}/instance/logout`, { method: 'DELETE', headers: { apikey: instToken } });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'logout_instance', status: 'falha',
@@ -496,32 +356,20 @@ Deno.serve(async (req) => {
     }
 
     // ── delete_instance ──────────────────────────────────────────────────────
-    // DELETE /instance/delete/{id}  (global key; usa o id interno da instância)
+    // DELETE /instance/delete/:instanceId  (apikey: adminToken)
     if (action === 'delete_instance') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
       const instanceId = String(found.id ?? nestedInstance(found).id ?? '');
-      const instToken = extractToken(found, globalKey);
-      const deleteTargets = instanceId
-        ? [
-            { url: `${base}/instance/delete/${encodeURIComponent(instanceId)}`, key: globalKey },
-            { url: `${base}/instance/delete`, key: instToken },
-          ]
-        : [{ url: `${base}/instance/delete`, key: instToken }];
+      if (!instanceId) return Response.json({ success: false, error: 'ID da instância não encontrado' }, { status: 404 });
 
-      let r = await evoFetch(deleteTargets[0].url, {
+      const r = await evoFetch(`${base}/instance/delete/${encodeURIComponent(instanceId)}`, {
         method: 'DELETE',
-        headers: { apikey: deleteTargets[0].key },
+        headers: { apikey: adminToken },
       });
-      if (!r.ok && deleteTargets[1]) {
-        r = await evoFetch(deleteTargets[1].url, {
-          method: 'DELETE',
-          headers: { apikey: deleteTargets[1].key },
-        });
-      }
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'delete_instance', status: 'falha',
@@ -537,21 +385,21 @@ Deno.serve(async (req) => {
     }
 
     // ── send_message ─────────────────────────────────────────────────────────
-    // POST /send/text   body: { number, text }   header: apikey: instanceToken
+    // POST /send/text  (apikey: TOKEN DA INSTÂNCIA)  body: { number, text, delay }
     if (action === 'send_message') {
       const instanceName = body.instance || defaultInst;
       const { phone, message } = body;
       if (!phone || !message) return Response.json({ error: 'phone e message são obrigatórios' }, { status: 400 });
 
-      // Descobre o token da instância (necessário para autenticar o envio)
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      if (!inst) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(inst, adminToken);
 
       const number = phone.replace(/\D/g, '');
       const r = await evoFetch(`${base}/send/text`, {
         method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number, text: message }),
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, text: message, delay: 500 }),
       });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
@@ -567,277 +415,135 @@ Deno.serve(async (req) => {
     }
 
     // ── get_instance_info ────────────────────────────────────────────────────
-    // Retorna detalhes de uma instância específica
     if (action === 'get_instance_info') {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
-      const inst = await findInstance(base, globalKey, instanceName);
+      const inst = await findInstance(base, adminToken, instanceName);
       if (!inst) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      return Response.json({
-        success: true,
-        instance: normalizeInstance(inst),
-      });
-    }
-
-    // ── get_messages ─────────────────────────────────────────────────────────
-    // Busca histórico de mensagens de um número no Evolution Go.
-    // Tenta: POST /chat/fetchMessages  →  GET /chat/messages/{jid}  →  []
-    if (action === 'get_messages') {
-      const instanceName = body.instance || defaultInst;
-      const phone = String(body.phone || '').replace(/\D/g, '');
-      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
-
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
-      const jid = `${phone}@s.whatsapp.net`;
-      const limit = Number(body.limit ?? 50);
-
-      // Tenta 1: POST /chat/fetchMessages (Evolution Go)
-      let r = await evoFetch(`${base}/chat/fetchMessages`, {
-        method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
-        body: JSON.stringify({ jid, count: limit }),
-      });
-      // Tenta 2: POST /chat/findMessages (Evolution API JS compat)
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat/findMessages`, {
-          method: 'POST',
-          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
-        });
-      }
-      // Tenta 3: GET /message/{jid}
-      if (!r.ok) {
-        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-
-      if (!r.ok) {
-        return Response.json({ success: true, messages: [], note: 'Histórico não disponível via API; mensagens chegam por webhook' });
-      }
-
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.messages ?? raw.data ?? raw);
-
-      const messages = list.map((item: unknown) => {
-        const rec = asRecord(item);
-        // Formato Evolution Go (webhook-like): rec.Info + rec.Message
-        if (rec.Info) {
-          const info = asRecord(rec.Info);
-          const msgBody = asRecord(rec.Message);
-          const fromMe = Boolean(info.IsFromMe);
-          const mediaType = String(info.MediaType || '').toLowerCase();
-          const textContent = String(
-            msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
-            asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
-          );
-          const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
-          return {
-            content: textContent || (mediaType ? `[${mediaType}]` : '[mensagem]'),
-            direction: fromMe ? 'out' : 'in',
-            type: mediaType || 'text',
-            timestamp,
-            sender_name: fromMe ? null : String(info.PushName || phone),
-            media_base64: typeof msgBody.base64 === 'string' ? msgBody.base64 : null,
-            media_url: typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : null,
-          };
-        }
-        // Formato Evolution API JS legado: rec.key + rec.message + rec.messageTimestamp
-        const key = asRecord(rec.key);
-        const fromMe = Boolean(key.fromMe);
-        const msgBody = asRecord(rec.message);
-        const textContent = String(
-          msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
-          asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
-        );
-        const timestamp = rec.messageTimestamp
-          ? new Date(Number(rec.messageTimestamp) * 1000).toISOString()
-          : new Date().toISOString();
-        const mediaType = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
-        const simpletype = mediaType.replace('Message', '') || 'text';
-        return {
-          content: textContent || (simpletype !== 'text' ? `[${simpletype}]` : '[mensagem]'),
-          direction: fromMe ? 'out' : 'in',
-          type: simpletype,
-          timestamp,
-          sender_name: fromMe ? null : String(rec.pushName ?? phone),
-          media_base64: null,
-          media_url: null,
-        };
-      });
-
-      return Response.json({ success: true, messages });
+      return Response.json({ success: true, instance: normalizeInstance(inst) });
     }
 
     // ── sync_history ──────────────────────────────────────────────────────────
-    // Busca histórico do Evolution Go e salva as mensagens na entidade Message do Base44.
-    // Evita duplicatas verificando timestamps existentes.
+    // A Evolution Go NÃO tem um endpoint de "listar mensagens" direto. O único mecanismo real é:
+    //   POST /chat/history-sync  { messageInfo: { Chat, ID, IsFromMe, IsGroup, Timestamp }, count }
+    // Isso exige uma mensagem de REFERÊNCIA já conhecida (Chat/ID/Timestamp) para pedir o que veio ANTES dela,
+    // e a resposta chega de forma assíncrona via webhook (evento HistorySync) — não nesta chamada.
     if (action === 'sync_history') {
       const instanceName = body.instance || defaultInst;
       const phone = String(body.phone || '').replace(/\D/g, '');
       const conversationId = String(body.conversation_id || '');
       if (!phone || !conversationId) return Response.json({ error: 'phone e conversation_id são obrigatórios' }, { status: 400 });
 
-      // Busca mensagens via get_messages (reusa a lógica acima via chamada interna simulada)
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+      const inst = await findInstance(base, adminToken, instanceName);
+      if (!inst) {
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'evolutionApi', action: 'sync_history', status: 'falha',
+          details: JSON.stringify({ phone, instance: instanceName, error: 'Instância não encontrada' }).slice(0, 2000),
+        });
+        return Response.json({ success: false, created: 0, error: 'Instância não encontrada' });
+      }
+      const instToken = extractToken(inst, adminToken);
       const jid = `${phone}@s.whatsapp.net`;
-      const limit = Number(body.limit ?? 100);
-      const attempts: Array<{ endpoint: string; status: number; error: unknown }> = [];
+      const limit = Number(body.limit ?? 50);
 
-      let r = await evoFetch(`${base}/chat/fetchMessages`, {
+      // Busca a mensagem mais antiga já salva localmente para essa conversa, para usar como referência.
+      const existing = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId }, 'timestamp', 1);
+      const oldest = existing[0];
+
+      if (!oldest || !oldest.wa_message_id) {
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'evolutionApi', action: 'sync_history', status: 'falha',
+          details: JSON.stringify({
+            phone, instance: instanceName,
+            reason: 'Sem mensagem de referência (wa_message_id) para acionar /chat/history-sync. Ainda não chegou nenhuma mensagem via webhook nesta conversa.',
+          }).slice(0, 2000),
+        });
+        return Response.json({
+          success: true, created: 0,
+          note: 'Ainda não há histórico local para esta conversa. As mensagens chegam pelo webhook em tempo real; envie ou receba uma mensagem para iniciar o histórico.',
+        });
+      }
+
+      const r = await evoFetch(`${base}/chat/history-sync`, {
         method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
-        body: JSON.stringify({ jid, count: limit }),
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageInfo: {
+            Chat: oldest.chat_jid || jid,
+            ID: oldest.wa_message_id,
+            IsFromMe: oldest.direction === 'out',
+            IsGroup: !!oldest.is_group,
+            Timestamp: oldest.timestamp,
+          },
+          count: limit,
+        }),
       });
-      attempts.push({ endpoint: 'POST /chat/fetchMessages', status: r.status, error: r.ok ? null : r.data });
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat/findMessages`, {
-          method: 'POST',
-          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
-        });
-        attempts.push({ endpoint: 'POST /chat/findMessages', status: r.status, error: r.ok ? null : r.data });
-      }
-      if (!r.ok) {
-        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-        attempts.push({ endpoint: `GET /message/${jid}`, status: r.status, error: r.ok ? null : r.data });
-      }
 
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'sync_history', status: 'falha',
-          details: JSON.stringify({ phone, instance: instanceName, attempts }).slice(0, 2000),
+          details: JSON.stringify({ phone, instance: instanceName, endpoint: 'POST /chat/history-sync', status: r.status, error: r.data }).slice(0, 2000),
         });
-        return Response.json({ success: true, created: 0, note: 'Histórico não disponível via API; mensagens chegam por webhook', attempts });
-      }
-
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.messages ?? raw.data ?? raw);
-
-      // Verifica timestamps já existentes para evitar duplicatas
-      const existing = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId });
-      const existingTs = new Set((existing as AnyRecord[]).map((m: AnyRecord) => String(m.timestamp)));
-
-      let created = 0;
-      for (const item of list) {
-        const rec = asRecord(item as unknown);
-        let fromMe = false, textContent = '', mediaType = '', timestamp = '', pushName = '', mediaBase64 = '', mediaUrl = '';
-
-        if (rec.Info) {
-          const info = asRecord(rec.Info);
-          const msgBody = asRecord(rec.Message);
-          fromMe = Boolean(info.IsFromMe);
-          mediaType = String(info.MediaType || '').toLowerCase();
-          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
-          timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : '';
-          pushName = String(info.PushName || phone);
-          mediaBase64 = typeof msgBody.base64 === 'string' ? msgBody.base64 : '';
-          mediaUrl = typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : '';
-        } else {
-          const key = asRecord(rec.key);
-          const msgBody = asRecord(rec.message);
-          fromMe = Boolean(key.fromMe);
-          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
-          timestamp = rec.messageTimestamp ? new Date(Number(rec.messageTimestamp) * 1000).toISOString() : '';
-          pushName = String(rec.pushName ?? phone);
-          const mt = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
-          mediaType = mt.replace('Message', '');
-        }
-
-        if (!timestamp || existingTs.has(timestamp)) continue;
-        existingTs.add(timestamp);
-
-        const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
-        const msgType = mediaType || 'text';
-
-        await b44.asServiceRole.entities.Message.create({
-          conversation_id: conversationId,
-          content,
-          direction: fromMe ? 'out' : 'in',
-          type: msgType,
-          status: 'received',
-          timestamp,
-          sender_name: fromMe ? null : pushName,
-          ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
-          ...(mediaUrl ? { media_url: mediaUrl } : {}),
-        });
-        created++;
+        return Response.json({ success: false, created: 0, error: 'Falha ao solicitar histórico', details: r.data });
       }
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
-        details: JSON.stringify({ phone, instance: instanceName, created, found: list.length, attempts }).slice(0, 2000),
+        details: JSON.stringify({ phone, instance: instanceName, requested: true, referenceId: oldest.wa_message_id }).slice(0, 2000),
       });
-      return Response.json({ success: true, created });
+      // Importante: as mensagens antigas chegam depois, via webhook (evento HistorySync) — não nesta resposta.
+      return Response.json({
+        success: true, created: 0, requested: true,
+        note: 'Histórico solicitado à Evolution Go; as mensagens antigas chegarão em instantes via webhook.',
+      });
     }
 
     // ── get_chats ─────────────────────────────────────────────────────────────
-    // Lista todas as conversas ativas do WhatsApp (Evolution Go)
+    // A Evolution Go não expõe "listar conversas" — usamos os contatos (GET /user/contacts) como base.
     if (action === 'get_chats') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+      const inst = await findInstance(base, adminToken, instanceName);
+      if (!inst) return Response.json({ success: false, error: 'Instância não encontrada', chats: [] });
+      const instToken = extractToken(inst, adminToken);
 
-      // Tenta os endpoints mais comuns de listagem de chats no Evolution Go
-      let r = await evoFetch(`${base}/chat/all`, {
-        headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-      });
-      if (!r.ok) {
-        r = await evoFetch(`${base}/user/chats`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-
+      const r = await evoFetch(`${base}/user/contacts`, { headers: { apikey: instToken } });
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'get_chats', status: 'falha',
           details: `status ${r.status}: ${JSON.stringify(r.data).slice(0, 300)}`,
         });
-        return Response.json({ success: false, error: 'Não foi possível listar chats', chats: [] });
+        return Response.json({ success: false, error: 'Não foi possível listar contatos', chats: [] });
       }
 
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.chats ?? raw.data ?? raw);
+      const rawContacts = asRecord(r.data).data ?? r.data;
+      const entries = Array.isArray(rawContacts) ? rawContacts : Object.entries(asRecord(rawContacts)).map(([jid, info]) => ({ jid, ...asRecord(info) }));
 
-      const chats = list.map((item: unknown) => {
-        const rec = asRecord(item);
-        const jid = String(rec.JID ?? rec.jid ?? rec.id ?? '');
-        const phone = jid.split('@')[0];
-        const isGroup = jid.includes('@g.us');
-        const name = String(rec.Name ?? rec.name ?? rec.PushName ?? rec.pushName ?? phone);
-        const lastMsg = rec.LastMessage ?? rec.lastMessage ?? rec.last_message;
-        const lastMsgTime = rec.LastMessageTime ?? rec.lastMessageTime ?? rec.last_message_time;
-        return { jid, phone, name, isGroup, last_message: lastMsg, last_message_time: lastMsgTime };
-      }).filter((c: { isGroup: boolean }) => !c.isGroup);
+      const chats = entries
+        .map((item: unknown) => {
+          const rec = asRecord(item);
+          const jid = String(rec.jid ?? rec.JID ?? rec.Jid ?? rec.id ?? '');
+          const phone = jid.split('@')[0];
+          const name = String(rec.FullName ?? rec.PushName ?? rec.BusinessName ?? rec.name ?? phone);
+          return { jid, phone, name, isGroup: jid.includes('@g.us'), last_message: null, last_message_time: null };
+        })
+        .filter((c) => c.jid.includes('@s.whatsapp.net'));
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'get_chats', status: 'sucesso',
-        details: `chats: ${chats.length}`,
+        details: `contatos: ${chats.length}`,
       });
       return Response.json({ success: true, chats });
     }
 
     // ── get_contacts ─────────────────────────────────────────────────────────
+    // GET /user/contacts  (apikey: TOKEN DA INSTÂNCIA)
     if (action === 'get_contacts') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      if (!inst) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(inst, adminToken);
 
-      const r = await evoFetch(`${base}/user/contacts`, {
-        headers: { apikey: instanceToken },
-      });
+      const r = await evoFetch(`${base}/user/contacts`, { headers: { apikey: instToken } });
       if (!r.ok) {
         const friendly = r.status === 401
           ? 'A instância do WhatsApp está desconectada. Reconecte escaneando o QR code.'
