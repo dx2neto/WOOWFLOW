@@ -56,11 +56,16 @@ function instanceNameOf(inst: AnyRecord): string {
 }
 
 // Busca todas as instâncias (endpoint admin) e retorna a instância pelo nome.
+// Se o nome informado não bater com nenhuma instância mas existir só uma instância cadastrada, usa essa (evita
+// falhas quando o nome padrão/salvo no navegador ficou desatualizado em relação ao nome real na Evolution Go).
 async function findInstance(base: string, adminToken: string, name: string) {
   const r = await evoFetch(`${base}/instance/all`, { headers: { apikey: adminToken } });
   if (!r.ok) return null;
-  const list = payloadList(r.data);
-  return list.find((i: unknown) => instanceNameOf(asRecord(i)) === name) as AnyRecord | undefined;
+  const list = payloadList(r.data).map(asRecord);
+  const match = list.find((i) => instanceNameOf(i) === name);
+  if (match) return match;
+  if (list.length === 1) return list[0];
+  return undefined;
 }
 
 // Extrai o TOKEN DA INSTÂNCIA (usado como apikey em todas as rotas por-instância: /send, /user, /chat, /message, /group, /instance/status, /instance/qr, /instance/connect, etc.)
@@ -158,7 +163,7 @@ Deno.serve(async (req) => {
 
     const base        = BASE(Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud');
     // Na Evolution Go, este é o "adminToken": autentica endpoints administrativos (/instance/create, /instance/all, /instance/info, /instance/logs, /instance/delete).
-    const adminToken   = Deno.env.get('EVOLUTION_API_KEY') || Deno.env.get('GLOBAL_API_KEY') || '';
+    const adminToken   = Deno.env.get('EVOLUTION_API_KEY') || '';
     const defaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
 
     if (!adminToken) {
@@ -212,7 +217,7 @@ Deno.serve(async (req) => {
       }
 
       // Conecta a instância recém-criada para gerar o QR code (auth com o token da própria instância).
-      const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
+      const appWebhookUrl = webhookUrl || '';
       const connectBody: Record<string, unknown> = { subscribe: ['ALL'] };
       if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
 
@@ -252,7 +257,7 @@ Deno.serve(async (req) => {
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
       const instToken = extractToken(found, adminToken);
 
-      const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
+      const appWebhookUrl = webhookUrl || '';
       const connectBody: Record<string, unknown> = { subscribe: ['ALL'] };
       if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
 
