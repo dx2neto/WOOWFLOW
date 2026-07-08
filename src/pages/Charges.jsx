@@ -5,6 +5,7 @@ import { ixcApi } from "@/functions/ixcApi";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
 import { exportToCsv } from "@/lib/exportCsv";
+import BillingRulesManager from "@/components/charges/BillingRulesManager";
 
 const today = new Date();
 
@@ -117,6 +118,8 @@ export default function Charges() {
         <StatCard title="Recebido" value={`R$ ${totalPaid.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} icon={CheckCircle} color="accent" />
         <StatCard title="Faturas em Aberto" value={charges.filter((c) => c.status !== "paga").length} icon={Send} color="primary" />
       </div>
+
+      <BillingRulesManager />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>

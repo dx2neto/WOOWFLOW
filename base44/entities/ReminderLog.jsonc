@@ -20,13 +20,7 @@
     },
     "rule": {
       "type": "string",
-      "enum": [
-        "antes_vencimento_2d",
-        "apos_vencimento_3d",
-        "atraso_5d",
-        "renovacao_contrato"
-      ],
-      "default": "atraso_5d"
+      "description": "Nome da regra de cobran\u00e7a que gerou este lembrete"
     },
     "status": {
       "type": "string",

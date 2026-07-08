@@ -1,7 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Régua de cobrança: envia avisos via WhatsApp 2 dias antes do vencimento
-// e 3 dias após o vencimento, usando as datas de vencimento do IXC.
+// Régua de cobrança configurável: lê as regras ativas em BillingRule e envia
+// lembretes via WhatsApp de acordo com o offset de dias em relação ao vencimento.
+
+function fillTemplate(template, inv) {
+  return template
+    .replace(/{customer_name}/g, inv.customer_name || '')
+    .replace(/{value}/g, (inv.value || 0).toFixed(2))
+    .replace(/{due_date}/g, inv.due_date || '');
+}
 
 Deno.serve(async (req) => {
   try {
@@ -19,19 +26,10 @@ Deno.serve(async (req) => {
     const faturasData = await faturasRes.json();
     const registros = faturasData?.result?.registros || [];
 
+    const rules = await base44.asServiceRole.entities.BillingRule.filter({ active: true });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const rules = {
-      antes_vencimento_2d: {
-        matches: (daysDiff) => daysDiff === -2,
-        message: (inv) => `Olá ${inv.customer_name}, sua fatura no valor de R$ ${inv.value?.toFixed(2)} vence em ${inv.due_date}. Evite atrasos, pague em dia!`,
-      },
-      apos_vencimento_3d: {
-        matches: (daysDiff) => daysDiff === 3,
-        message: (inv) => `Olá ${inv.customer_name}, sua fatura no valor de R$ ${inv.value?.toFixed(2)}, vencida em ${inv.due_date}, está em atraso há 3 dias. Regularize para evitar bloqueio do serviço.`,
-      },
-    };
 
     const alreadySent = await base44.asServiceRole.entities.ReminderLog.filter({});
     const sentKeys = new Set(alreadySent.map((l) => `${l.rule}:${l.invoice_id}`));
@@ -45,12 +43,12 @@ Deno.serve(async (req) => {
       due.setHours(0, 0, 0, 0);
       const daysDiff = Math.round((due - today) / (1000 * 60 * 60 * 24));
 
-      for (const [ruleName, rule] of Object.entries(rules)) {
-        if (!rule.matches(daysDiff)) continue;
-        const key = `${ruleName}:${inv.id}`;
+      for (const rule of rules) {
+        if (daysDiff !== rule.days_offset) continue;
+        const key = `${rule.name}:${inv.id}`;
         if (sentKeys.has(key)) continue;
 
-        const message = rule.message(inv);
+        const message = fillTemplate(rule.message_template, inv);
         const sendRes = await fetch(origin + '/functions/evolutionApi', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
@@ -64,12 +62,12 @@ Deno.serve(async (req) => {
           phone: inv.phone,
           value: inv.value,
           due_date: inv.due_date,
-          rule: ruleName,
+          rule: rule.name,
           status: sendRes.ok && sendData.success ? 'enviado' : 'falha',
         });
 
         if (sendRes.ok && sendData.success) sentCount++;
-        else errors.push({ invoice_id: inv.id, rule: ruleName, error: sendData.error });
+        else errors.push({ invoice_id: inv.id, rule: rule.name, error: sendData.error });
       }
     }
 
