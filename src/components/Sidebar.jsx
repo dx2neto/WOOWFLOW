@@ -6,7 +6,7 @@ import {
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
   FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
-  Shield
+  Shield, History
 } from "lucide-react";
 
 const menuGroups = [
@@ -58,6 +58,7 @@ const menuGroups = [
       { label: "Feriados e Horários",  path: "/holidays",     icon: CalendarDays },
       { label: "Logs de Auditoria",    path: "/audit-logs",   icon: ScrollText },
       { label: "Logs do Sistema",      path: "/system-logs",  icon: AlertTriangle },
+      { label: "Logs Sync WhatsApp",   path: "/evolution-sync-logs", icon: History },
       { label: "Configurações",        path: "/settings",     icon: Settings },
     ],
   },

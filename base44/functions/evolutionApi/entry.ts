@@ -686,27 +686,35 @@ Deno.serve(async (req) => {
       const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
       const jid = `${phone}@s.whatsapp.net`;
       const limit = Number(body.limit ?? 100);
+      const attempts: Array<{ endpoint: string; status: number; error: unknown }> = [];
 
       let r = await evoFetch(`${base}/chat/fetchMessages`, {
         method: 'POST',
         headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
         body: JSON.stringify({ jid, count: limit }),
       });
+      attempts.push({ endpoint: 'POST /chat/fetchMessages', status: r.status, error: r.ok ? null : r.data });
       if (!r.ok) {
         r = await evoFetch(`${base}/chat/findMessages`, {
           method: 'POST',
           headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
         });
+        attempts.push({ endpoint: 'POST /chat/findMessages', status: r.status, error: r.ok ? null : r.data });
       }
       if (!r.ok) {
         r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
           headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
         });
+        attempts.push({ endpoint: `GET /message/${jid}`, status: r.status, error: r.ok ? null : r.data });
       }
 
       if (!r.ok) {
-        return Response.json({ success: true, created: 0, note: 'Histórico não disponível via API; mensagens chegam por webhook' });
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'evolutionApi', action: 'sync_history', status: 'falha',
+          details: JSON.stringify({ phone, instance: instanceName, attempts }).slice(0, 2000),
+        });
+        return Response.json({ success: true, created: 0, note: 'Histórico não disponível via API; mensagens chegam por webhook', attempts });
       }
 
       const raw = asRecord(r.data);
@@ -764,7 +772,7 @@ Deno.serve(async (req) => {
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
-        details: `phone: ${phone}, created: ${created}`,
+        details: JSON.stringify({ phone, instance: instanceName, created, found: list.length, attempts }).slice(0, 2000),
       });
       return Response.json({ success: true, created });
     }

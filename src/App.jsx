@@ -34,6 +34,7 @@ import TagsQueues from '@/pages/TagsQueues';
 import Holidays from '@/pages/Holidays';
 import AuditLogs from '@/pages/AuditLogs';
 import SystemLogs from '@/pages/SystemLogs';
+import EvolutionSyncLogs from '@/pages/EvolutionSyncLogs';
 import Telephony from '@/pages/Telephony';
 import LaraLogs from '@/pages/LaraLogs';
 import LaraDashboard from '@/pages/LaraDashboard';
@@ -99,6 +100,7 @@ const AuthenticatedApp = () => {
           <Route path="/holidays" element={<Holidays />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/system-logs" element={<SystemLogs />} />
+          <Route path="/evolution-sync-logs" element={<EvolutionSyncLogs />} />
           <Route path="/telephony" element={<Telephony />} />
           <Route path="/lara-logs" element={<LaraLogs />} />
           <Route path="/lara-dashboard" element={<LaraDashboard />} />
