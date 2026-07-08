@@ -158,6 +158,46 @@ export default function Inbox() {
   }, [selectedId]);
 
   useEffect(() => {
+    if (selected?.channel === "whatsapp" && selected?.phone) {
+      syncWhatsAppHistory(selected);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  const syncWhatsAppHistory = async (conversation) => {
+    try {
+      const response = await evolutionApi({
+        action: "get_messages",
+        phone: conversation.phone,
+        instance: conversation.instance || selectedInstance,
+      });
+      const realMessages = response?.data?.messages || [];
+      if (realMessages.length === 0) return;
+
+      const existing = await base44.entities.Message.filter({ conversation_id: conversation.id });
+      const existingKeys = new Set(existing.map((m) => `${m.direction}-${m.content}-${m.timestamp}`));
+      const toCreate = realMessages
+        .filter((m) => !existingKeys.has(`${m.direction}-${m.content}-${m.timestamp}`))
+        .map((m) => ({
+          conversation_id: conversation.id,
+          content: m.content,
+          direction: m.direction,
+          type: "text",
+          status: "received",
+          timestamp: m.timestamp,
+          sender_name: m.sender_name || undefined,
+        }));
+
+      if (toCreate.length > 0) {
+        const created = await base44.entities.Message.bulkCreate(toCreate);
+        setMessages((prev) => [...prev, ...created].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
+      }
+    } catch {
+      // Falha silenciosa: mantém as mensagens já salvas localmente
+    }
+  };
+
+  useEffect(() => {
     if (!selectedId) return;
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       if (event.data.conversation_id !== selectedId) return;
