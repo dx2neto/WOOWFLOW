@@ -7,9 +7,12 @@ const channelConfig = {
   facebook: { label: "Messenger", color: "bg-blue-100 text-blue-700" },
   telegram: { label: "Telegram", color: "bg-sky-100 text-sky-700" },
   webchat: { label: "WebChat", color: "bg-purple-100 text-purple-700" },
+  chat_interno: { label: "Chat Interno", color: "bg-amber-100 text-amber-700" },
+  chat_externo: { label: "Chat Externo", color: "bg-purple-100 text-purple-700" },
   email: { label: "E-mail", color: "bg-orange-100 text-orange-700" },
   sms: { label: "SMS", color: "bg-gray-100 text-gray-700" },
   telefone: { label: "Telefone", color: "bg-indigo-100 text-indigo-700" },
+  pabx: { label: "PABX / URA", color: "bg-indigo-100 text-indigo-700" },
   manual: { label: "Manual", color: "bg-stone-100 text-stone-700" },
 };
 

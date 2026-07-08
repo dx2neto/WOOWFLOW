@@ -16,9 +16,12 @@
         "facebook",
         "telegram",
         "webchat",
+        "chat_interno",
+        "chat_externo",
         "email",
         "sms",
         "telefone",
+        "pabx",
         "manual"
       ],
       "default": "whatsapp"

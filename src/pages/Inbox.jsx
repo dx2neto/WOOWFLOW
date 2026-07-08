@@ -34,7 +34,6 @@ import {
   Sparkles,
   Star,
   Tag,
-  Users,
   Zap,
 } from "lucide-react";
 
@@ -385,7 +384,14 @@ export default function Inbox() {
         toast({ title: "Consulta IXC concluída", description: `${total} registro(s) encontrado(s).` });
       }
       if (service === "validacadastro") {
-        toast({ title: "Informe o CPF/CNPJ no cadastro do cliente para consultar o Serasa." });
+        const cpfCnpj = selected.cpf_cnpj || window.prompt("CPF/CNPJ para consulta Serasa");
+        if (!cpfCnpj) return;
+        const response = await serasaApi({ cpfCnpj });
+        if (response?.data?.error) {
+          toast({ title: "Consulta Serasa não concluída", description: response.data.error, variant: "destructive" });
+          return;
+        }
+        toast({ title: "Consulta Serasa concluída" });
       }
       if (service === "zapsign") {
         const response = await zapsignApi({ action: "dashboard" });
