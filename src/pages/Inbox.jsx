@@ -191,10 +191,46 @@ export default function Inbox() {
     try {
       const data = await base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp");
       setMessages(data);
+      // Se não há mensagens locais e é conversa WhatsApp → busca histórico do Evolution Go
+      if (data.length === 0) {
+        const conv = conversations.find((c) => c.id === conversationId);
+        if (conv?.channel === "whatsapp" && conv?.phone) {
+          syncEvolutionHistory(conv, false).then(async (count) => {
+            if (count > 0) {
+              const updated = await base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp");
+              setMessages(updated);
+            }
+          }).catch(() => {});
+        }
+      }
     } catch {
       setMessages([]);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  // Busca histórico completo de mensagens do Evolution Go e salva no Base44
+  const syncEvolutionHistory = async (conv, showToast = true) => {
+    if (!conv?.phone) return 0;
+    const instance = selectedInstance || conv.instance;
+    try {
+      const response = await evolutionApi({
+        action: "sync_history",
+        phone: conv.phone,
+        conversation_id: conv.id,
+        instance,
+        limit: 100,
+      });
+      const count = response?.data?.created ?? 0;
+      if (showToast) {
+        if (count > 0) toast({ title: `${count} mensagem(s) sincronizada(s) do WhatsApp` });
+        else toast({ title: "Histórico já sincronizado ou sem mensagens anteriores" });
+      }
+      return count;
+    } catch {
+      if (showToast) toast({ title: "Erro ao sincronizar histórico", variant: "destructive" });
+      return 0;
     }
   };
 
@@ -323,31 +359,51 @@ export default function Inbox() {
     if (!selectedInstance || loadingConversations) return;
     setLoadingConversations(true);
     try {
-      const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
-      if (response?.data?.error) {
-        toast({ title: "Falha ao carregar conversas", description: response.data.error, variant: "destructive" });
-        return;
+      // Tenta primeiro buscar chats reais (com última mensagem)
+      let entries = [];
+      const chatsResp = await evolutionApi({ action: "get_chats", instance: selectedInstance });
+      if (chatsResp?.data?.success && Array.isArray(chatsResp?.data?.chats) && chatsResp.data.chats.length > 0) {
+        entries = chatsResp.data.chats.map((chat) => ({
+          jid: chat.jid,
+          phone: chat.phone,
+          name: chat.name,
+          last_message: chat.last_message,
+          last_message_time: chat.last_message_time,
+        }));
+      } else {
+        // Fallback: usa lista de contatos
+        const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
+        if (response?.data?.error) {
+          toast({ title: "Falha ao carregar conversas", description: response.data.error, variant: "destructive" });
+          return;
+        }
+        const rawContacts = response?.data?.contacts || {};
+        const rawEntries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
+        entries = rawEntries.map((entry) => ({
+          jid: entry.jid || entry.JID || entry.id || "",
+          phone: (entry.jid || entry.JID || entry.id || "").split("@")[0],
+          name: entry.FullName || entry.PushName || entry.BusinessName || entry.name,
+          last_message: null,
+          last_message_time: null,
+        }));
       }
 
-      const rawContacts = response?.data?.contacts || {};
-      const entries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
       const existingPhones = new Set(conversations.map((c) => c.phone));
       const toCreate = [];
 
       for (const entry of entries) {
-        const jid = entry.jid || entry.JID || entry.id || "";
-        if (!jid || jid.includes("@g.us")) continue;
-        const phone = jid.split("@")[0];
+        const phone = entry.phone || (entry.jid || "").split("@")[0];
         if (!phone || existingPhones.has(phone)) continue;
         existingPhones.add(phone);
         toCreate.push({
-          customer_name: entry.FullName || entry.PushName || entry.BusinessName || entry.name || phone,
+          customer_name: entry.name || phone,
           phone,
           channel: "whatsapp",
           instance: selectedInstance,
           status: "novo",
           sector: "Atendimento",
-          last_message_time: new Date().toISOString(),
+          last_message: entry.last_message || null,
+          last_message_time: entry.last_message_time || new Date().toISOString(),
         });
       }
 
@@ -358,7 +414,7 @@ export default function Inbox() {
 
       const created = await base44.entities.Conversation.bulkCreate(toCreate);
       setConversations((prev) => [...created, ...prev]);
-      toast({ title: `${created.length} conversa(s) carregada(s)` });
+      toast({ title: `${created.length} conversa(s) importada(s) do WhatsApp` });
     } catch {
       toast({ title: "Erro ao carregar conversas", variant: "destructive" });
     } finally {
@@ -624,6 +680,21 @@ export default function Inbox() {
                     {selected.phone || "Sem telefone"} · Protocolo {selected.protocol || "sem protocolo"}
                   </p>
                 </div>
+                {selected.channel === "whatsapp" && (
+                  <button
+                    className="rounded-lg p-2 hover:bg-muted"
+                    title="Buscar histórico do WhatsApp"
+                    onClick={async () => {
+                      const count = await syncEvolutionHistory(selected, true);
+                      if (count > 0) {
+                        const updated = await base44.entities.Message.filter({ conversation_id: selected.id }, "timestamp");
+                        setMessages(updated);
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                )}
                 <button className="rounded-lg p-2 hover:bg-muted" title="Ligar"><Phone className="h-5 w-5 text-muted-foreground" /></button>
                 <button className="rounded-lg p-2 hover:bg-muted" title="Mais ações"><MoreHorizontal className="h-5 w-5 text-muted-foreground" /></button>
               </div>
@@ -642,26 +713,69 @@ export default function Inbox() {
                       Nenhuma mensagem nesta conversa
                     </div>
                   ) : (
-                    messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.direction === "out" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 shadow-sm ${
-                          msg.direction === "out" ? "bg-primary text-primary-foreground" : "border border-border bg-card"
-                        }`}>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
-                          <div className="mt-1 flex items-center justify-end gap-1">
-                            {msg.sender_name && (
-                              <span className={`text-xs ${msg.direction === "out" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                                {msg.sender_name}
-                              </span>
+                    messages.map((msg) => {
+                      const isOut = msg.direction === "out";
+                      const msgType = msg.type || "text";
+                      const isImage = msgType === "image" || (msg.media_base64 && msgType !== "audio" && msgType !== "video" && msgType !== "document");
+                      const isAudio = msgType === "audio";
+                      const isVideo = msgType === "video";
+                      const isDocument = msgType === "document";
+                      const hasMedia = isImage || isAudio || isVideo || isDocument;
+                      const bubbleClass = `max-w-[78%] rounded-2xl px-4 py-2.5 shadow-sm ${isOut ? "bg-primary text-primary-foreground" : "border border-border bg-card"}`;
+                      const metaClass = `text-xs ${isOut ? "text-primary-foreground/70" : "text-muted-foreground"}`;
+                      return (
+                        <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                          <div className={bubbleClass}>
+                            {/* Image */}
+                            {isImage && msg.media_base64 ? (
+                              <img
+                                src={`data:image/jpeg;base64,${msg.media_base64}`}
+                                alt="imagem"
+                                className="mb-1 max-h-60 max-w-full rounded-xl object-cover"
+                              />
+                            ) : isImage ? (
+                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                <ImageIcon className="h-5 w-5 shrink-0" />
+                                <span className="text-sm">Imagem</span>
+                              </div>
+                            ) : null}
+                            {/* Audio */}
+                            {isAudio && (
+                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                <Mic className="h-5 w-5 shrink-0" />
+                                <span className="text-sm">Áudio</span>
+                              </div>
                             )}
-                            <span className={`text-xs ${msg.direction === "out" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                              {formatTime(msg.timestamp)}
-                            </span>
-                            {msg.direction === "out" && <CheckCircle className="h-3.5 w-3.5 text-primary-foreground/70" />}
+                            {/* Video */}
+                            {isVideo && (
+                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                <Video className="h-5 w-5 shrink-0" />
+                                <span className="text-sm">Vídeo</span>
+                              </div>
+                            )}
+                            {/* Document */}
+                            {isDocument && (
+                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                <Paperclip className="h-5 w-5 shrink-0" />
+                                <span className="text-sm">Documento</span>
+                              </div>
+                            )}
+                            {/* Text content (caption or message) */}
+                            {msg.content && !["[image]","[video]","[audio]","[document]","[mídia]","[mensagem]"].includes(msg.content) && (
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+                            )}
+                            {!hasMedia && !msg.content && (
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed italic opacity-60">[mensagem sem conteúdo]</p>
+                            )}
+                            <div className="mt-1 flex items-center justify-end gap-1">
+                              {msg.sender_name && <span className={metaClass}>{msg.sender_name}</span>}
+                              <span className={metaClass}>{formatTime(msg.timestamp)}</span>
+                              {isOut && <CheckCircle className="h-3.5 w-3.5 text-primary-foreground/70" />}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

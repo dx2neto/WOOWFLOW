@@ -579,6 +579,248 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── get_messages ─────────────────────────────────────────────────────────
+    // Busca histórico de mensagens de um número no Evolution Go.
+    // Tenta: POST /chat/fetchMessages  →  GET /chat/messages/{jid}  →  []
+    if (action === 'get_messages') {
+      const instanceName = body.instance || defaultInst;
+      const phone = String(body.phone || '').replace(/\D/g, '');
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+      const jid = `${phone}@s.whatsapp.net`;
+      const limit = Number(body.limit ?? 50);
+
+      // Tenta 1: POST /chat/fetchMessages (Evolution Go)
+      let r = await evoFetch(`${base}/chat/fetchMessages`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
+        body: JSON.stringify({ jid, count: limit }),
+      });
+      // Tenta 2: POST /chat/findMessages (Evolution API JS compat)
+      if (!r.ok) {
+        r = await evoFetch(`${base}/chat/findMessages`, {
+          method: 'POST',
+          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
+        });
+      }
+      // Tenta 3: GET /message/{jid}
+      if (!r.ok) {
+        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
+          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+        });
+      }
+
+      if (!r.ok) {
+        return Response.json({ success: true, messages: [], note: 'Histórico não disponível via API; mensagens chegam por webhook' });
+      }
+
+      const raw = asRecord(r.data);
+      const list = payloadList(raw.messages ?? raw.data ?? raw);
+
+      const messages = list.map((item: unknown) => {
+        const rec = asRecord(item);
+        // Formato Evolution Go (webhook-like): rec.Info + rec.Message
+        if (rec.Info) {
+          const info = asRecord(rec.Info);
+          const msgBody = asRecord(rec.Message);
+          const fromMe = Boolean(info.IsFromMe);
+          const mediaType = String(info.MediaType || '').toLowerCase();
+          const textContent = String(
+            msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
+            asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
+          );
+          const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
+          return {
+            content: textContent || (mediaType ? `[${mediaType}]` : '[mensagem]'),
+            direction: fromMe ? 'out' : 'in',
+            type: mediaType || 'text',
+            timestamp,
+            sender_name: fromMe ? null : String(info.PushName || phone),
+            media_base64: typeof msgBody.base64 === 'string' ? msgBody.base64 : null,
+            media_url: typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : null,
+          };
+        }
+        // Formato Evolution API JS legado: rec.key + rec.message + rec.messageTimestamp
+        const key = asRecord(rec.key);
+        const fromMe = Boolean(key.fromMe);
+        const msgBody = asRecord(rec.message);
+        const textContent = String(
+          msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
+          asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
+        );
+        const timestamp = rec.messageTimestamp
+          ? new Date(Number(rec.messageTimestamp) * 1000).toISOString()
+          : new Date().toISOString();
+        const mediaType = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
+        const simpletype = mediaType.replace('Message', '') || 'text';
+        return {
+          content: textContent || (simpletype !== 'text' ? `[${simpletype}]` : '[mensagem]'),
+          direction: fromMe ? 'out' : 'in',
+          type: simpletype,
+          timestamp,
+          sender_name: fromMe ? null : String(rec.pushName ?? phone),
+          media_base64: null,
+          media_url: null,
+        };
+      });
+
+      return Response.json({ success: true, messages });
+    }
+
+    // ── sync_history ──────────────────────────────────────────────────────────
+    // Busca histórico do Evolution Go e salva as mensagens na entidade Message do Base44.
+    // Evita duplicatas verificando timestamps existentes.
+    if (action === 'sync_history') {
+      const instanceName = body.instance || defaultInst;
+      const phone = String(body.phone || '').replace(/\D/g, '');
+      const conversationId = String(body.conversation_id || '');
+      if (!phone || !conversationId) return Response.json({ error: 'phone e conversation_id são obrigatórios' }, { status: 400 });
+
+      // Busca mensagens via get_messages (reusa a lógica acima via chamada interna simulada)
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+      const jid = `${phone}@s.whatsapp.net`;
+      const limit = Number(body.limit ?? 100);
+
+      let r = await evoFetch(`${base}/chat/fetchMessages`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
+        body: JSON.stringify({ jid, count: limit }),
+      });
+      if (!r.ok) {
+        r = await evoFetch(`${base}/chat/findMessages`, {
+          method: 'POST',
+          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
+        });
+      }
+      if (!r.ok) {
+        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
+          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+        });
+      }
+
+      if (!r.ok) {
+        return Response.json({ success: true, created: 0, note: 'Histórico não disponível via API; mensagens chegam por webhook' });
+      }
+
+      const raw = asRecord(r.data);
+      const list = payloadList(raw.messages ?? raw.data ?? raw);
+
+      // Verifica timestamps já existentes para evitar duplicatas
+      const existing = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId });
+      const existingTs = new Set((existing as AnyRecord[]).map((m: AnyRecord) => String(m.timestamp)));
+
+      let created = 0;
+      for (const item of list) {
+        const rec = asRecord(item as unknown);
+        let fromMe = false, textContent = '', mediaType = '', timestamp = '', pushName = '', mediaBase64 = '', mediaUrl = '';
+
+        if (rec.Info) {
+          const info = asRecord(rec.Info);
+          const msgBody = asRecord(rec.Message);
+          fromMe = Boolean(info.IsFromMe);
+          mediaType = String(info.MediaType || '').toLowerCase();
+          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
+          timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : '';
+          pushName = String(info.PushName || phone);
+          mediaBase64 = typeof msgBody.base64 === 'string' ? msgBody.base64 : '';
+          mediaUrl = typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : '';
+        } else {
+          const key = asRecord(rec.key);
+          const msgBody = asRecord(rec.message);
+          fromMe = Boolean(key.fromMe);
+          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
+          timestamp = rec.messageTimestamp ? new Date(Number(rec.messageTimestamp) * 1000).toISOString() : '';
+          pushName = String(rec.pushName ?? phone);
+          const mt = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
+          mediaType = mt.replace('Message', '');
+        }
+
+        if (!timestamp || existingTs.has(timestamp)) continue;
+        existingTs.add(timestamp);
+
+        const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
+        const msgType = mediaType || 'text';
+
+        await b44.asServiceRole.entities.Message.create({
+          conversation_id: conversationId,
+          content,
+          direction: fromMe ? 'out' : 'in',
+          type: msgType,
+          status: 'received',
+          timestamp,
+          sender_name: fromMe ? null : pushName,
+          ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
+          ...(mediaUrl ? { media_url: mediaUrl } : {}),
+        });
+        created++;
+      }
+
+      await b44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
+        details: `phone: ${phone}, created: ${created}`,
+      });
+      return Response.json({ success: true, created });
+    }
+
+    // ── get_chats ─────────────────────────────────────────────────────────────
+    // Lista todas as conversas ativas do WhatsApp (Evolution Go)
+    if (action === 'get_chats') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+
+      // Tenta os endpoints mais comuns de listagem de chats no Evolution Go
+      let r = await evoFetch(`${base}/chat/all`, {
+        headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+      });
+      if (!r.ok) {
+        r = await evoFetch(`${base}/user/chats`, {
+          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+        });
+      }
+      if (!r.ok) {
+        r = await evoFetch(`${base}/chat`, {
+          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+        });
+      }
+
+      if (!r.ok) {
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'evolutionApi', action: 'get_chats', status: 'falha',
+          details: `status ${r.status}: ${JSON.stringify(r.data).slice(0, 300)}`,
+        });
+        return Response.json({ success: false, error: 'Não foi possível listar chats', chats: [] });
+      }
+
+      const raw = asRecord(r.data);
+      const list = payloadList(raw.chats ?? raw.data ?? raw);
+
+      const chats = list.map((item: unknown) => {
+        const rec = asRecord(item);
+        const jid = String(rec.JID ?? rec.jid ?? rec.id ?? '');
+        const phone = jid.split('@')[0];
+        const isGroup = jid.includes('@g.us');
+        const name = String(rec.Name ?? rec.name ?? rec.PushName ?? rec.pushName ?? phone);
+        const lastMsg = rec.LastMessage ?? rec.lastMessage ?? rec.last_message;
+        const lastMsgTime = rec.LastMessageTime ?? rec.lastMessageTime ?? rec.last_message_time;
+        return { jid, phone, name, isGroup, last_message: lastMsg, last_message_time: lastMsgTime };
+      }).filter((c: { isGroup: boolean }) => !c.isGroup);
+
+      await b44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionApi', action: 'get_chats', status: 'sucesso',
+        details: `chats: ${chats.length}`,
+      });
+      return Response.json({ success: true, chats });
+    }
+
     // ── get_contacts ─────────────────────────────────────────────────────────
     if (action === 'get_contacts') {
       const instanceName = body.instance || defaultInst;
