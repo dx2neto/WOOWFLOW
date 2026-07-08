@@ -191,10 +191,42 @@ function normalizeQrPayload(payload: unknown) {
   return { base64: null as string | null, code };
 }
 
-async function fetchQrCode(base: string, instanceToken: string) {
-  const r = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instanceToken } });
-  if (!r.ok) return { response: r, qrcode: null as { base64: string | null; code: string | null } | null };
-  return { response: r, qrcode: normalizeQrPayload(r.data) };
+/**
+ * Busca QR code tentando múltiplos endpoints/autenticações da Evolution Go.
+ * Prioridade: GET /instance/{name}/qrcode → GET /instance/qr (legado)
+ */
+async function fetchQrCode(
+  base: string,
+  instanceName: string,
+  instanceToken: string,
+  globalKey: string,
+  instanceId: string,
+) {
+  type QrResult = { base64: string | null; code: string | null };
+  const fallback = { response: { ok: false, status: 404, data: {} }, qrcode: null as QrResult | null };
+
+  // Tentativa 1: GET /instance/{name}/qrcode com globalKey (padrão Evolution Go)
+  const r1 = await evoFetch(`${base}/instance/${encodeURIComponent(instanceName)}/qrcode`, {
+    headers: {
+      apikey: globalKey,
+      ...(instanceId ? { instanceId } : {}),
+    },
+  });
+  if (r1.ok) return { response: r1, qrcode: normalizeQrPayload(r1.data) };
+
+  // Tentativa 2: GET /instance/qr com instanceToken (comportamento anterior)
+  const r2 = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instanceToken } });
+  if (r2.ok) return { response: r2, qrcode: normalizeQrPayload(r2.data) };
+
+  // Tentativa 3: GET /instance/qr com globalKey + instanceId header
+  if (instanceId) {
+    const r3 = await evoFetch(`${base}/instance/qr`, {
+      headers: { apikey: globalKey, instanceId },
+    });
+    if (r3.ok) return { response: r3, qrcode: normalizeQrPayload(r3.data) };
+  }
+
+  return fallback;
 }
 
 function normalizeInstance(raw: unknown) {
@@ -255,18 +287,17 @@ Deno.serve(async (req) => {
     }
 
     // ── create_instance ──────────────────────────────────────────────────────
-    // POST /instance/create   body: { name }
-    // Após criar, gera QR code chamando connect.
+    // POST /instance/create  body: { name, instanceName } — Evolution Go aceita ambos
+    // Após criar, dispara connect para registrar webhook e obter QR.
     if (action === 'create_instance') {
-      const { instanceName } = body;
+      const { instanceName, webhookUrl } = body;
       if (!instanceName?.trim()) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
       const name = String(instanceName).trim();
 
-      // Cria instância — Evolution Go aceita { name } (token é gerenciado internamente)
       const r = await evoFetch(`${base}/instance/create`, {
         method: 'POST',
         headers: { apikey: globalKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, instanceName: name }),
       });
 
       if (!r.ok) {
@@ -277,24 +308,35 @@ Deno.serve(async (req) => {
         return Response.json({ success: false, error: 'Falha ao criar instância', details: r.data }, { status: r.status || 502 });
       }
 
-      const created = asRecord(r.data);
+      const created     = asRecord(r.data);
       const createdData = asRecord(created.data);
-      let inst = await findInstance(base, globalKey, name);
+      let inst          = await findInstance(base, globalKey, name);
       const tokenSource = inst ?? (Object.keys(createdData).length ? createdData : created);
-      const newToken = extractToken(tokenSource, globalKey);
+      const newToken    = extractToken(tokenSource, globalKey);
+      const newId       = String((inst ?? asRecord(createdData)).id ?? '');
 
       let qrcode = normalizeQrPayload(r.data);
 
-      if (!qrcode.base64 && newToken) {
+      // Dispara connect para registrar webhook e pegar QR
+      if (!qrcode.base64) {
+        const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
+        const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
+        if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
+
         const connect = await evoFetch(`${base}/instance/connect`, {
           method: 'POST',
-          headers: { apikey: newToken, 'Content-Type': 'application/json' },
+          headers: {
+            apikey: globalKey,
+            'Content-Type': 'application/json',
+            ...(newId ? { instanceId: newId } : {}),
+          },
+          body: JSON.stringify(connectBody),
         });
         if (connect.ok) qrcode = normalizeQrPayload(connect.data);
       }
 
-      if (!qrcode.base64 && newToken) {
-        const qrResult = await fetchQrCode(base, newToken);
+      if (!qrcode.base64) {
+        const qrResult = await fetchQrCode(base, name, newToken, globalKey, newId);
         if (qrResult.qrcode) qrcode = qrResult.qrcode;
       }
 
@@ -313,20 +355,41 @@ Deno.serve(async (req) => {
     }
 
     // ── connect_instance ─────────────────────────────────────────────────────
-    // POST /instance/connect  (autenticado com o TOKEN da instância) → regenera QR
-    // No Evolution Go a instância é identificada pelo token no header, não pela URL.
+    // POST /instance/connect  header: apikey=globalKey + instanceId=<uuid>
+    // body: { webhookUrl, subscribe: ["ALL"], immediate: true }
     if (action === 'connect_instance') {
-      const { instanceName } = body;
+      const { instanceName, webhookUrl } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found      = await findInstance(base, globalKey, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      const instToken = extractToken(found, globalKey);
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? '');
+      const instToken  = extractToken(found, globalKey);
 
-      const r = await evoFetch(`${base}/instance/connect`, {
+      const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
+      const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
+      if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
+
+      // Tenta com global key + instanceId header (padrão Evolution Go)
+      let r = await evoFetch(`${base}/instance/connect`, {
         method: 'POST',
-        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        headers: {
+          apikey: globalKey,
+          'Content-Type': 'application/json',
+          ...(instanceId ? { instanceId } : {}),
+        },
+        body: JSON.stringify(connectBody),
       });
+
+      // Fallback: token da instância como apikey
+      if (!r.ok && instToken !== globalKey) {
+        r = await evoFetch(`${base}/instance/connect`, {
+          method: 'POST',
+          headers: { apikey: instToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify(connectBody),
+        });
+      }
+
       if (!r.ok) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'connect_instance', status: 'falha',
@@ -337,7 +400,7 @@ Deno.serve(async (req) => {
 
       let qrcode = normalizeQrPayload(r.data);
       if (!qrcode.base64) {
-        const qrResult = await fetchQrCode(base, instToken);
+        const qrResult = await fetchQrCode(base, instanceName, instToken, globalKey, instanceId);
         if (qrResult.qrcode) qrcode = qrResult.qrcode;
       }
 
@@ -383,7 +446,8 @@ Deno.serve(async (req) => {
       }
 
       // Busca o QR code.
-      const r = await fetchQrCode(base, instToken);
+      const instanceId = String(inst.id ?? nestedInstance(inst).id ?? '');
+      const r = await fetchQrCode(base, instanceName, instToken, globalKey, instanceId);
       if (r.qrcode?.base64 || r.qrcode?.code) {
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'evolutionApi', action: 'get_qrcode', status: 'sucesso',

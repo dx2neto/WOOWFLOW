@@ -1,77 +1,186 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Recebe eventos em tempo real da Evolution API (mensagens do WhatsApp) e
-// sincroniza Conversation/Message. Configure na Evolution API o webhook URL:
-// https://<seu-app>/functions/evolutionWebhook?key=<EVOLUTION_API_KEY>
-// evento: messages.upsert
+// Recebe eventos em tempo real da Evolution Go e sincroniza Conversation/Message.
+// Configure o webhook na Evolution Go:
+//   POST /instance/connect  body: { webhookUrl: "https://<app>/functions/evolutionWebhook?key=<EVOLUTION_API_KEY>", subscribe: ["ALL"] }
+//
+// Formato Evolution Go (diferente da Evolution API JS):
+//   { event: "Message", instanceId: "<uuid>", instanceToken: "<token>", data: { Info: {...}, Message: {...} } }
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   try {
-    const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+    // ── autenticação via query string ─────────────────────────────────────────
+    const apiKey      = Deno.env.get('EVOLUTION_API_KEY') || Deno.env.get('GLOBAL_API_KEY') || '';
     const providedKey = new URL(req.url).searchParams.get('key');
-    if (!apiKey || providedKey !== apiKey) {
+    if (apiKey && providedKey !== apiKey) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const event = body.event;
-    const instanceName = body.instance || '';
-    const items = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
+    const body        = await req.json().catch(() => ({}));
+    const event       = String(body.event || '');
+    const instanceId  = String(body.instanceId  || body.instance || '');
+    const instanceTok = String(body.instanceToken || '');
 
-    if (event !== 'messages.upsert' || items.length === 0) {
-      return Response.json({ success: true, ignored: true });
-    }
+    // ── Message ───────────────────────────────────────────────────────────────
+    // Formato Evolution Go: body.data é um objeto com Info e Message (não array)
+    if (event === 'Message') {
+      const data    = body.data || {};
+      const info    = data.Info  || {};
+      const msgBody = data.Message || {};
 
-    for (const item of items) {
-      const remoteJid = item?.key?.remoteJid || '';
-      if (!remoteJid || remoteJid.endsWith('@g.us')) continue; // ignora grupos
-      const phone = remoteJid.split('@')[0];
-      const fromMe = !!item?.key?.fromMe;
-      const pushName = item?.pushName || phone;
+      const chat     = String(info.Chat || '');
+      const isGroup  = !!info.IsGroup || chat.endsWith('@g.us');
+      if (!chat || isGroup) {
+        return Response.json({ success: true, ignored: true, reason: 'group or empty' });
+      }
 
-      const msg = item.message || item.Message || {};
-      const content = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || '[mídia]';
-      const timestamp = item.messageTimestamp
-        ? new Date(Number(item.messageTimestamp) * 1000).toISOString()
+      const phone     = chat.replace(/@.*$/, '');
+      const fromMe    = !!info.IsFromMe;
+      const pushName  = String(info.PushName || phone);
+      const mediaType = String(info.MediaType || '').toLowerCase(); // image | video | audio | document | ''
+
+      // extrai conteúdo de texto
+      const textContent = String(
+        msgBody.conversation                              ??
+        msgBody.extendedTextMessage?.text                ??
+        msgBody.imageMessage?.caption                    ??
+        msgBody.videoMessage?.caption                    ??
+        msgBody.documentMessage?.title                   ??
+        msgBody.documentMessage?.fileName                ??
+        ''
+      );
+
+      // tipo da mensagem: text | image | video | audio | document
+      const msgType = mediaType || (textContent ? 'text' : 'text');
+      const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
+
+      // timestamp em ISO 8601 (Evolution Go já envia ISO, não Unix)
+      const timestamp = info.Timestamp
+        ? new Date(info.Timestamp).toISOString()
         : new Date().toISOString();
 
-      const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
-      let conversation = existing[0];
+      // mídia em base64 (quando WEBHOOK_FILES=true)
+      const mediaBase64: string | null =
+        (typeof msgBody.base64 === 'string' && msgBody.base64) ? msgBody.base64 : null;
+      const mediaUrl: string | null =
+        (typeof msgBody.mediaUrl === 'string' && msgBody.mediaUrl) ? msgBody.mediaUrl : null;
+
+      // ── Conversation ───────────────────────────────────────────────────────
+      const existing     = await base44.asServiceRole.entities.Conversation.filter({ phone });
+      let conversation   = existing[0];
 
       if (!conversation) {
         conversation = await base44.asServiceRole.entities.Conversation.create({
-          customer_name: pushName,
+          customer_name:     pushName,
           phone,
-          channel: 'whatsapp',
-          instance: instanceName,
-          status: 'novo',
-          last_message: content,
+          channel:           'whatsapp',
+          instance:          instanceId,
+          status:            'novo',
+          last_message:      content,
           last_message_time: timestamp,
-          unread: !fromMe,
+          unread:            !fromMe,
         });
       } else {
         await base44.asServiceRole.entities.Conversation.update(conversation.id, {
-          instance: instanceName || conversation.instance,
-          last_message: content,
+          instance:          instanceId || conversation.instance,
+          last_message:      content,
           last_message_time: timestamp,
-          unread: !fromMe ? true : conversation.unread,
+          unread:            !fromMe ? true : conversation.unread,
         });
       }
 
+      // ── Message ────────────────────────────────────────────────────────────
       await base44.asServiceRole.entities.Message.create({
         conversation_id: conversation.id,
         content,
-        direction: fromMe ? 'out' : 'in',
-        type: 'text',
-        status: 'received',
+        direction:       fromMe ? 'out' : 'in',
+        type:            msgType,
+        status:          'received',
         timestamp,
+        ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
+        ...(mediaUrl    ? { media_url:    mediaUrl    } : {}),
       });
+
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionWebhook',
+        action:      'Message',
+        status:      'sucesso',
+        details:     `${phone} — ${msgType}${fromMe ? ' (enviado)' : ''}`,
+      });
+
+      return Response.json({ success: true, processed: 1 });
     }
 
-    return Response.json({ success: true, processed: items.length });
+    // ── SendMessage ───────────────────────────────────────────────────────────
+    // Registra mensagens enviadas pela própria instância (fromMe=true)
+    if (event === 'SendMessage') {
+      const data    = body.data || {};
+      const info    = data.Info  || {};
+      const msgBody = data.Message || {};
+
+      const chat    = String(info.Chat || '');
+      const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
+      if (!chat || isGroup) return Response.json({ success: true, ignored: true });
+
+      const phone   = chat.replace(/@.*$/, '');
+      const content = String(
+        msgBody.conversation ?? msgBody.extendedTextMessage?.text ?? '[mídia]'
+      );
+      const timestamp = info.Timestamp ? new Date(info.Timestamp).toISOString() : new Date().toISOString();
+
+      const existing   = await base44.asServiceRole.entities.Conversation.filter({ phone });
+      const convo      = existing[0];
+      if (convo) {
+        await base44.asServiceRole.entities.Conversation.update(convo.id, {
+          last_message:      content,
+          last_message_time: timestamp,
+        });
+        await base44.asServiceRole.entities.Message.create({
+          conversation_id: convo.id,
+          content,
+          direction:       'out',
+          type:            'text',
+          status:          'sent',
+          timestamp,
+        });
+      }
+
+      return Response.json({ success: true, processed: 1 });
+    }
+
+    // ── Receipt (leitura/entrega) ─────────────────────────────────────────────
+    if (event === 'Receipt') {
+      // state pode ser "Read" | "ReadSelf" | "Delivered"
+      // Ignora por ora — pode ser usado para atualizar status de mensagem no futuro
+      return Response.json({ success: true, ignored: true, reason: 'receipt handled later' });
+    }
+
+    // ── Connected / LoggedOut ─────────────────────────────────────────────────
+    if (event === 'Connected' || event === 'LoggedOut' || event === 'PairSuccess') {
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionWebhook',
+        action:      event,
+        status:      'sucesso',
+        details:     `instanceId: ${instanceId}`,
+      }).catch(() => {});
+      return Response.json({ success: true, event });
+    }
+
+    // ── QRCode ────────────────────────────────────────────────────────────────
+    if (event === 'QRCode') {
+      // Apenas loga — o QR é exibido via evolutionApi.get_qrcode no frontend
+      return Response.json({ success: true, ignored: true, reason: 'qr handled by frontend polling' });
+    }
+
+    // ── outros eventos ────────────────────────────────────────────────────────
+    return Response.json({ success: true, ignored: true, event });
+
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'evolutionWebhook', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await base44.asServiceRole.entities.ErrorLog.create({
+      function_name:  'evolutionWebhook',
+      error_message:  (error as Error).message,
+    }).catch(() => {});
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });
