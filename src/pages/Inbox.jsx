@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
+import ContractTemplatePicker from "@/components/inbox/ContractTemplatePicker";
 import WhatsAppSearchResults from "@/components/inbox/WhatsAppSearchResults";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
@@ -833,6 +834,7 @@ export default function Inbox() {
                   ["dados", "Dados"],
                   ["acordo", "Acordo"],
                   ["modelos", "Modelos"],
+                  ["contratos", "Contratos"],
                 ].map(([key, label]) => (
                   <button
                     key={key}
@@ -846,6 +848,8 @@ export default function Inbox() {
 
               {rightTab === "modelos" ? (
                 <QuickReplyPanel onSend={sendMessageContent} sending={sending} />
+              ) : rightTab === "contratos" ? (
+                <ContractTemplatePicker conversation={selected} />
               ) : rightTab === "acordo" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
                   <AgreementCheckPanel conversation={selected} instance={selectedInstance} />
