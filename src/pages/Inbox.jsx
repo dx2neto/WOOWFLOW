@@ -274,13 +274,13 @@ export default function Inbox() {
     const satisfactionValues = conversations.map((c) => Number(c.satisfaction_score)).filter(Boolean);
     const satisfaction = satisfactionValues.length
       ? (satisfactionValues.reduce((sum, value) => sum + value, 0) / satisfactionValues.length).toFixed(1)
-      : "4.8";
+      : "—";
     return [
-      { label: "Total conversas", value: conversations.length, detail: "+12% vs ontem", icon: MessageCircle },
-      { label: "Em atendimento", value: active, detail: "+8% vs ontem", icon: Headphones },
-      { label: "Aguardando fila", value: waiting, detail: "priorizar agora", icon: Clock3 },
-      { label: "Resolvidas", value: resolved, detail: "primeiro contato", icon: CheckCircle },
-      { label: "Satisfação", value: satisfaction, detail: "NPS médio", icon: Star },
+      { label: "Total conversas", value: conversations.length, detail: "", icon: MessageCircle },
+      { label: "Em atendimento", value: active, detail: "", icon: Headphones },
+      { label: "Aguardando fila", value: waiting, detail: "", icon: Clock3 },
+      { label: "Resolvidas", value: resolved, detail: "", icon: CheckCircle },
+      { label: "Satisfação", value: satisfaction, detail: "", icon: Star },
     ];
   }, [conversations]);
 
@@ -822,11 +822,15 @@ export default function Inbox() {
                   <div className="mt-4 rounded-lg border border-border bg-background p-4">
                     <p className="mb-3 text-xs font-bold uppercase text-muted-foreground">Tags</p>
                     <div className="flex flex-wrap gap-2">
-                      {(selected.tags?.length ? selected.tags : ["Cliente", "Em negociação"]).map((tag) => (
-                        <span key={tag} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-semibold">
-                          <Tag className="h-3 w-3" /> {tag}
-                        </span>
-                      ))}
+                      {selected.tags?.length ? (
+                        selected.tags.map((tag) => (
+                          <span key={tag} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-semibold">
+                            <Tag className="h-3 w-3" /> {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Nenhuma tag</span>
+                      )}
                     </div>
                   </div>
 
@@ -855,7 +859,7 @@ export default function Inbox() {
                 <Icon className="h-4 w-4 text-primary" />
               </div>
               <p className="mt-1 text-2xl font-black">{metric.value}</p>
-              <p className="text-xs text-emerald-600">{metric.detail}</p>
+              {metric.detail && <p className="text-xs text-emerald-600">{metric.detail}</p>}
             </div>
           );
         })}
