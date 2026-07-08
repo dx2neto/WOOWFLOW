@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Verifica diariamente os contratos próximos ao vencimento no IXC e envia
-// uma mensagem personalizada via WhatsApp (Evolution API) lembrando o cliente da renovação.
+// Verifica diariamente os contratos próximos ao vencimento no IXC, gera um documento
+// de renovação no ZapSign para cada cliente e envia o link via WhatsApp (Evolution API).
 
 Deno.serve(async (req) => {
   try {
@@ -10,10 +10,22 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const origin = new URL(req.url).origin;
+    const authHeader = req.headers.get('Authorization') || '';
+
+    // Busca o template de renovação configurado em Assinaturas (document_type = renovacao)
+    const templates = await base44.asServiceRole.entities.ContractTemplate.filter({ document_type: 'renovacao', active: true });
+    const renewalTemplate = templates?.[0];
+
+    if (!renewalTemplate) {
+      return Response.json({
+        success: false,
+        error: 'Nenhum modelo de contrato de renovação configurado. Cadastre um modelo com tipo "Renovação" e um zapsign_template_id em Assinaturas.',
+      }, { status: 400 });
+    }
 
     const contratosRes = await fetch(origin + '/functions/ixcApi', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
       body: JSON.stringify({ action: 'contratos' }),
     });
     const contratosRawText = await contratosRes.text();
@@ -26,7 +38,7 @@ Deno.serve(async (req) => {
     const DAYS_AHEAD = 7;
 
     const proximos = registros.filter((c) => {
-      if (!c.renewal_date || !c.phone) return false;
+      if (!c.renewal_date || !c.phone || !c.client_id) return false;
       const renewal = new Date(c.renewal_date);
       renewal.setHours(0, 0, 0, 0);
       const daysDiff = Math.round((renewal - today) / (1000 * 60 * 60 * 24));
@@ -42,16 +54,22 @@ Deno.serve(async (req) => {
     for (const c of proximos) {
       if (sentIds.has(c.id)) continue;
 
-      const message = `Olá ${c.customer_name}, seu contrato${c.plan_name ? ` do plano ${c.plan_name}` : ''} vence em ${new Date(c.renewal_date).toLocaleDateString('pt-BR')}. Para continuar aproveitando seus serviços sem interrupção, entre em contato conosco para renovar!`;
-
-      const sendRes = await fetch(origin + '/functions/evolutionApi', {
+      const zapRes = await fetch(origin + '/functions/zapsignApi', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
-        body: JSON.stringify({ action: 'send_message', phone: c.phone, message }),
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({
+          action: 'create_from_ixc',
+          ixcCustomerId: c.client_id,
+          ixcContractId: c.id,
+          templateId: renewalTemplate.id,
+          sendWhatsApp: true,
+        }),
       });
-      const sendRawText = await sendRes.text();
-      let sendData;
-      try { sendData = JSON.parse(sendRawText); } catch { sendData = { error: sendRawText }; }
+      const zapRawText = await zapRes.text();
+      let zapData;
+      try { zapData = JSON.parse(zapRawText); } catch { zapData = { error: zapRawText }; }
+
+      const success = Boolean(zapData?.success);
 
       await base44.asServiceRole.entities.ReminderLog.create({
         invoice_id: c.id,
@@ -59,14 +77,14 @@ Deno.serve(async (req) => {
         phone: c.phone,
         due_date: c.renewal_date,
         rule: 'renovacao_contrato',
-        status: sendData?.success ? 'enviado' : 'falha',
+        status: success ? 'enviado' : 'falha',
       });
 
-      if (sendData?.success) sentCount++;
-      else errors.push({ contract_id: c.id, error: sendData?.error });
+      if (success) sentCount++;
+      else errors.push({ contract_id: c.id, error: zapData?.error });
     }
 
-    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: 'sendContractRenewalReminders', status: errors.length ? 'falha' : 'sucesso', details: `enviados: ${sentCount}, proximos: ${proximos.length}` });
+    await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'zapsignApi', action: 'sendContractRenewalReminders', status: errors.length ? 'falha' : 'sucesso', details: `enviados: ${sentCount}, proximos: ${proximos.length}` });
     return Response.json({ success: true, sent: sentCount, total_upcoming: proximos.length, errors });
   } catch (error) {
     const base44 = createClientFromRequest(req);
