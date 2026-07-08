@@ -1,14 +1,26 @@
-import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
+// ==========================================================================
+// Adaptador de compatibilidade: expõe a interface `base44` usada por toda a
+// aplicação, porém 100% backed pelo Supabase. Isso permite migrar as telas
+// gradualmente sem quebrar as que ainda importam `{ base44 }`.
+//
+// Telas novas/reescritas devem importar diretamente de:
+//   - '@/lib/supabaseClient'  (cliente supabase)
+//   - '@/api/supabaseData'    (entities, auth, functions)
+// ==========================================================================
+import {
+  entities,
+  auth,
+  functions,
+  connectors,
+  agents,
+} from '@/api/supabaseData'
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
+export const base44 = {
+  entities,
+  auth,
+  functions,
+  connectors,
+  agents,
+}
 
-//Create a client with authentication required
-export const base44 = createClient({
-  appId,
-  token,
-  functionsVersion,
-  serverUrl: '',
-  requiresAuth: false,
-  appBaseUrl
-});
+export default base44

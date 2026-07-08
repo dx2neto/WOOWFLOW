@@ -15,5 +15,8 @@ export default defineConfig({
       visualEditAgent: true
     }),
     react(),
-  ]
+  ],
+  // Permite que variáveis NEXT_PUBLIC_* (fornecidas pela integração Supabase)
+  // sejam expostas ao client via import.meta.env, além do padrão VITE_.
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
 });
