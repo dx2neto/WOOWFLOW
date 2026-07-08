@@ -100,25 +100,25 @@ function AgreementPanel() {
         <StatCard
           title="Acordos Ativos"
           value={data.active ?? "—"}
-          icon={<CheckCircle className="w-5 h-5 text-green-500" />}
+          icon={CheckCircle}
           color="accent"
         />
         <StatCard
           title="Acordos Vencidos"
           value={data.overdue ?? "—"}
-          icon={<Clock className="w-5 h-5 text-amber-500" />}
+          icon={Clock}
           color="warning"
         />
         <StatCard
           title="Acordos Quebrados"
           value={data.broken ?? "—"}
-          icon={<XCircle className="w-5 h-5 text-red-500" />}
+          icon={XCircle}
           color="danger"
         />
         <StatCard
           title="Acordos Quitados"
           value={data.paid ?? "—"}
-          icon={<Shield className="w-5 h-5 text-blue-500" />}
+          icon={Shield}
           color="primary"
         />
       </div>
