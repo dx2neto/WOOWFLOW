@@ -24,10 +24,21 @@ function StateBadge({ state }) {
   );
 }
 
+function normalizeQrImage(value) {
+  if (!value || typeof value !== "string") return null;
+  return value.startsWith("data:") ? value : `data:image/png;base64,${value}`;
+}
+
+function qrPayloadFromResponse(data) {
+  if (typeof data?.qrcode === "string") return { base64: data.qrcode, code: null };
+  return data?.qrcode || data?.qrCode || null;
+}
+
 // ── QR Code panel (inline por instância) ─────────────────────────────────────
-function QrPanel({ instanceName, onConnected }) {
+function QrPanel({ instanceName, initialQr, onConnected }) {
   const { toast } = useToast();
-  const [qrcode, setQrcode]     = useState(null);
+  const [qrcode, setQrcode]     = useState(() => normalizeQrImage(initialQr?.base64 || initialQr));
+  const [pairingCode, setPairingCode] = useState(initialQr?.code || null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [connecting, setConnecting] = useState(false);
