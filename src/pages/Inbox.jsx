@@ -214,7 +214,7 @@ export default function Inbox() {
   // Busca histórico completo de mensagens do Evolution Go e salva no Base44
   const syncEvolutionHistory = async (conv, showToast = true) => {
     if (!conv?.phone) return 0;
-    const instance = selectedInstance || conv.instance;
+    const instance = selectedInstance;
     try {
       const response = await evolutionApi({
         action: "sync_history",
@@ -433,7 +433,7 @@ export default function Inbox() {
     setSending(true);
     try {
       if (selected.channel === "whatsapp") {
-        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance || selected.instance });
+        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
         if (response?.data?.error) {
           toast({ title: "Falha ao enviar mensagem", description: response.data.error, variant: "destructive" });
           return;
