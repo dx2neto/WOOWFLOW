@@ -10,6 +10,7 @@ import {
   CheckCircle, AlertTriangle, Clock
 } from "lucide-react";
 import CustomerTimeline from "@/components/customers/CustomerTimeline";
+import CustomerConversationsHistory from "@/components/customers/CustomerConversationsHistory";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 
 const STATUS_CONTRATO = {
@@ -40,6 +41,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
 
 const TABS = [
   { key: "timeline",  label: "Linha do Tempo" },
+  { key: "conversas", label: "Histórico de Conversas" },
   { key: "contratos", label: "Contratos" },
   { key: "financeiro",label: "Financeiro" },
   { key: "os",        label: "Ordens de Serviço" },
@@ -194,6 +196,13 @@ export default function CustomerProfile() {
       {tab === "timeline" && (
         <Card title="Linha do Tempo" className="p-5">
           <CustomerTimeline phone={customer.phone} clientId={customer.id} />
+        </Card>
+      )}
+
+      {/* ── Histórico de Conversas (todos os canais) ───────── */}
+      {tab === "conversas" && (
+        <Card title="Histórico de Conversas — Todos os Canais" className="overflow-hidden">
+          <CustomerConversationsHistory phone={customer.phone} email={customer.email} />
         </Card>
       )}
 
