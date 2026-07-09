@@ -398,6 +398,241 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, message: 'Conexão com IXCSoft estabelecida com sucesso', response_ms: ms, total_clientes: data.total || '?' });
     }
 
+    // ── ALIASES DE BUSCA DE CLIENTE (nomes solicitados) ─────────────────────────
+    if (action === 'search_customer' || action === 'search_customer_by_document') {
+      const q = String(search || cpfCnpj || '').replace(/\D/g, '');
+      if (!q) return Response.json({ success: false, error: 'search/cpfCnpj é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.cnpj_cpf', query: q, oper: '=', page: '1', rp: '20', sortname: 'cliente.id', sortorder: 'desc' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar cliente', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'search_customer_by_phone') {
+      const q = String(search || '').replace(/\D/g, '');
+      if (!q) return Response.json({ success: false, error: 'search é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.telefone_celular', query: q, oper: 'L', page: '1', rp: '20', sortname: 'cliente.id', sortorder: 'desc' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar cliente por telefone', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'search_customer_by_name') {
+      const q = String(search || '');
+      if (!q) return Response.json({ success: false, error: 'search é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.razao', query: q, oper: 'L', page: '1', rp: '20', sortname: 'cliente.id', sortorder: 'desc' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar cliente por nome', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'get_customer') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.id', query: String(clientId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar cliente', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    if (action === 'create_customer') {
+      if (!bodyData) return Response.json({ success: false, error: 'Dados do cliente são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite('cliente', bodyData, 'POST');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao criar cliente', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'create_customer', status: 'sucesso' });
+      return Response.json({ success: true, data, message: 'Cliente criado com sucesso' });
+    }
+
+    if (action === 'update_customer') {
+      if (!clientId || !bodyData) return Response.json({ success: false, error: 'clientId e dados são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite(`cliente/${clientId}`, bodyData, 'PUT');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao atualizar cliente', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'update_customer', status: 'sucesso', details: `cliente ${clientId}` });
+      return Response.json({ success: true, data, message: 'Cliente atualizado com sucesso' });
+    }
+
+    // ── ALIASES DE CONTRATOS ─────────────────────────────────────────────────────
+    if (action === 'search_contracts' || action === 'get_customer_contracts') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id_cliente', query: String(clientId), oper: '=', page: '1', rp: '50' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar contratos', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'get_contract') {
+      if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id', query: String(contratoId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar contrato', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    // ── ALIASES DE PPPOE / RADIUS ─────────────────────────────────────────────────
+    if (action === 'search_pppoe' || action === 'get_contract_pppoe') {
+      const baseBody: Record<string, string> = { qtype: 'radusuarios.id', query: '1', oper: '>=', page: '1', rp: '50' };
+      if (contratoId) { baseBody.qtype = 'radusuarios.id_contrato'; baseBody.query = String(contratoId); baseBody.oper = '='; }
+      else if (clientId) { baseBody.qtype = 'radusuarios.id_cliente'; baseBody.query = String(clientId); baseBody.oper = '='; }
+      const { res, data } = await ixcPost('radusuarios', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar PPPoE', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'get_pppoe') {
+      const { res, data } = await ixcPost('radusuarios', { qtype: 'radusuarios.id', query: String(bodyData?.id || ''), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar PPPoE', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    // ── ALIASES DE FINANCEIRO ─────────────────────────────────────────────────────
+    if (action === 'get_customer_invoices') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_cliente', query: String(clientId), oper: '=', page: '1', rp: '100', sortname: 'fn_areceber.data_vencimento', sortorder: 'desc' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar faturas', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'get_open_invoices') {
+      const baseBody: Record<string, string> = { qtype: 'fn_areceber.status', query: 'A', oper: '=', page: '1', rp: '100', sortname: 'fn_areceber.data_vencimento', sortorder: 'asc' };
+      if (clientId) { baseBody.qtype = 'fn_areceber.id_cliente'; baseBody.query = String(clientId); baseBody.oper = '='; }
+      const { res, data } = await ixcPost('fn_areceber', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar faturas em aberto', details: data }, { status: res.status });
+      const abertas = clientId ? (data.registros || []).filter((r: any) => r.status === 'A') : (data.registros || []);
+      return Response.json({ success: true, data: abertas, message: 'OK' });
+    }
+
+    if (action === 'get_overdue_invoices') {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const baseBody: Record<string, string> = { qtype: 'fn_areceber.data_vencimento', query: hoje, oper: '<', page: '1', rp: '200', sortname: 'fn_areceber.data_vencimento', sortorder: 'asc' };
+      if (clientId) { baseBody.qtype = 'fn_areceber.id_cliente'; baseBody.query = String(clientId); baseBody.oper = '='; }
+      const { res, data } = await ixcPost('fn_areceber', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar faturas vencidas', details: data }, { status: res.status });
+      const vencidas = (data.registros || []).filter((r: any) => r.status === 'A');
+      return Response.json({ success: true, data: vencidas, message: 'OK' });
+    }
+
+    if (action === 'get_invoice') {
+      const invoiceId = bodyData?.id || search;
+      if (!invoiceId) return Response.json({ success: false, error: 'id da fatura é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id', query: String(invoiceId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar fatura', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    if (action === 'get_second_copy' || action === 'get_boleto' || action === 'get_pix' || action === 'get_payment_link') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_cliente', query: String(clientId), oper: '=', sortname: 'fn_areceber.data_vencimento', sortorder: 'desc', page: '1', rp: '10' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar fatura para segunda via', details: data }, { status: res.status });
+      const abertos = (data.registros || []).filter((r: any) => r.status === 'A');
+      const faturas = abertos.map((r: any) => ({
+        id: r.id, due_date: r.data_vencimento, value: parseFloat(r.valor_aberto || r.valor || '0'),
+        boleto: r.boleto || '', linha_digitavel: r.linha_digitavel || '', pix_code: r.pix_qrcode || r.pix || '',
+      }));
+      return Response.json({ success: true, data: faturas, message: `${faturas.length} fatura(s) em aberto` });
+    }
+
+    // ── ALIASES DE TICKETS / PROTOCOLOS (atendimento) ───────────────────────────
+    if (action === 'search_tickets' || action === 'search_protocols') {
+      const pg = Number(page) || 1; const lim = Number(limit) || 60;
+      const baseBody: Record<string, string> = { qtype: 'atendimento.id', query: '1', oper: '>=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: String(pg), rp: String(lim) };
+      if (status) { baseBody.qtype = 'atendimento.status'; baseBody.query = status; baseBody.oper = '='; }
+      const { res, data } = await ixcPost('atendimento', baseBody);
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar tickets/protocolos', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'get_ticket' || action === 'get_protocol') {
+      if (!osId) return Response.json({ success: false, error: 'osId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('atendimento', { qtype: 'atendimento.id', query: String(osId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar ticket/protocolo', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    if (action === 'open_ticket' || action === 'open_protocol') {
+      if (!bodyData) return Response.json({ success: false, error: 'Dados são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite('atendimento', bodyData, 'POST');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao abrir ticket/protocolo', details: data }, { status: res.status });
+      return Response.json({ success: true, data, message: 'Aberto com sucesso' });
+    }
+
+    if (action === 'update_ticket' || action === 'update_protocol') {
+      if (!osId || !bodyData) return Response.json({ success: false, error: 'osId e dados são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite(`atendimento/${osId}`, bodyData, 'PUT');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao atualizar ticket/protocolo', details: data }, { status: res.status });
+      return Response.json({ success: true, data, message: 'Atualizado com sucesso' });
+    }
+
+    if (action === 'close_ticket' || action === 'close_protocol') {
+      if (!osId) return Response.json({ success: false, error: 'osId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcWrite(`atendimento/${osId}`, { ...(bodyData || {}), status: 'F' }, 'PUT');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao fechar ticket/protocolo', details: data }, { status: res.status });
+      return Response.json({ success: true, data, message: 'Fechado com sucesso' });
+    }
+
+    if (action === 'get_customer_tickets') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('atendimento', { qtype: 'atendimento.id_cliente', query: String(clientId), oper: '=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: '1', rp: '50' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar tickets do cliente', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    // ── ALIASES DE PLANOS ────────────────────────────────────────────────────────
+    if (action === 'get_plans' || action === 'search_plans') {
+      const baseBody: Record<string, string> = { qtype: 'plano.id', query: '1', oper: '>=', sortname: 'plano.nome', sortorder: 'asc' };
+      if (search) { baseBody.qtype = 'plano.nome'; baseBody.query = search; baseBody.oper = 'L'; }
+      const { ok, registros } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/plano', baseBody, 500);
+      if (!ok) return Response.json({ success: false, error: 'Falha ao buscar planos' }, { status: 500 });
+      return Response.json({ success: true, data: registros, message: 'OK' });
+    }
+
+    if (action === 'get_plan') {
+      const planId = bodyData?.id || search;
+      if (!planId) return Response.json({ success: false, error: 'id do plano é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('plano', { qtype: 'plano.id', query: String(planId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar plano', details: data }, { status: res.status });
+      return Response.json({ success: true, data: (data.registros || [])[0] || null, message: 'OK' });
+    }
+
+    // ── ALIASES DE ENDEREÇO / RISCO ──────────────────────────────────────────────
+    if (action === 'search_address_history' || action === 'search_contracts_by_address' || action === 'search_last_customer_by_address') {
+      const endereco = String(search || bodyData?.endereco || '');
+      if (!endereco) return Response.json({ success: false, error: 'search (endereço) é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.endereco', query: endereco, oper: 'L', sortname: 'cliente_contrato.data_ativacao', sortorder: 'desc', page: '1', rp: '20' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar histórico de endereço', details: data }, { status: res.status });
+      const registros = data.registros || [];
+      if (action === 'search_last_customer_by_address') {
+        return Response.json({ success: true, data: registros[0] || null, message: registros.length ? 'OK' : 'Nenhum contrato encontrado para este endereço' });
+      }
+      return Response.json({ success: true, data: registros, message: 'OK' });
+    }
+
+    if (action === 'search_invoices_by_contract') {
+      if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_contrato', query: String(contratoId), oper: '=', sortname: 'fn_areceber.data_vencimento', sortorder: 'desc', page: '1', rp: '100' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar faturas do contrato', details: data }, { status: res.status });
+      return Response.json({ success: true, data: data.registros || [], message: 'OK' });
+    }
+
+    if (action === 'check_customer_is_active') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.id', query: String(clientId), oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao verificar cliente', details: data }, { status: res.status });
+      const cliente = (data.registros || [])[0];
+      return Response.json({ success: true, data: { is_active: cliente?.ativo === 'S' }, message: 'OK' });
+    }
+
+    if (action === 'check_customer_was_customer') {
+      const q = String(search || cpfCnpj || '').replace(/\D/g, '');
+      if (!q) return Response.json({ success: false, error: 'search/cpfCnpj é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.cnpj_cpf', query: q, oper: '=', page: '1', rp: '1' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao verificar histórico do cliente', details: data }, { status: res.status });
+      const cliente = (data.registros || [])[0];
+      return Response.json({ success: true, data: { was_customer: !!cliente, is_active_now: cliente?.ativo === 'S' }, message: 'OK' });
+    }
+
+    if (action === 'check_financial_risk') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const { res, data } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_cliente', query: String(clientId), oper: '=', sortname: 'fn_areceber.data_vencimento', sortorder: 'desc', page: '1', rp: '100' });
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao verificar risco financeiro', details: data }, { status: res.status });
+      const hoje = new Date().setHours(0, 0, 0, 0);
+      const vencidas = (data.registros || []).filter((r: any) => r.status === 'A' && r.data_vencimento && new Date(r.data_vencimento).getTime() < hoje);
+      const risk = vencidas.length === 0 ? 'baixo' : vencidas.length <= 2 ? 'medio' : 'alto';
+      return Response.json({ success: true, data: { risk, overdue_count: vencidas.length }, message: 'OK' });
+    }
+
     // ── CONTRATO POR ID ────────────────────────────────────────────────────────
     if (action === 'contrato_por_id') {
       if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });

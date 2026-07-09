@@ -97,6 +97,19 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { action } = body;
 
+    // ── get_check ──────────────────────────────────────────────────────────
+    // GET /checks/{check_id}/ — consulta status de verificação (assinatura eletrônica avançada)
+    if (action === 'get_check') {
+      if (!zapToken) {
+        return Response.json({ success: false, error: { code: 'ZAPSIGN_NOT_CONFIGURED', message: 'ZAPSIGN_API_TOKEN não configurado.' } }, { status: 500 });
+      }
+      const { checkId } = body;
+      if (!checkId) return Response.json({ error: 'checkId é obrigatório' }, { status: 400 });
+      const r = await zapFetch(zapToken, `/checks/${checkId}/`);
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao consultar check no ZapSign', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, data: r.data });
+    }
+
     // ── dashboard ──────────────────────────────────────────────────────────
     if (action === 'dashboard') {
       const all = await b44.asServiceRole.entities.SignatureRequest.list('-created_date', 1000);
@@ -108,7 +121,7 @@ Deno.serve(async (req) => {
     }
 
     // ── list_docs ──────────────────────────────────────────────────────────
-    if (action === 'list_docs') {
+    if (action === 'list_docs' || action === 'list_documents') {
       const { status, search, limit = 100 } = body;
       let docs = await b44.asServiceRole.entities.SignatureRequest.list('-created_date', limit);
       if (status && status !== 'all') docs = docs.filter((d: { status: string }) => d.status === status);
@@ -125,7 +138,7 @@ Deno.serve(async (req) => {
     }
 
     // ── get_doc ────────────────────────────────────────────────────────────
-    if (action === 'get_doc') {
+    if (action === 'get_doc' || action === 'get_document' || action === 'check_signature') {
       const { id } = body;
       if (!id) return Response.json({ error: 'id obrigatório' }, { status: 400 });
       const doc = await b44.asServiceRole.entities.SignatureRequest.get(id);
@@ -230,7 +243,7 @@ Deno.serve(async (req) => {
     }
 
     // ── create_from_ixc ────────────────────────────────────────────────────
-    if (action === 'create_from_ixc') {
+    if (action === 'create_from_ixc' || (action === 'create_document' && body.ixcCustomerId)) {
       if (!zapToken) {
         return Response.json({
           success: false,
@@ -425,7 +438,7 @@ Deno.serve(async (req) => {
 
     // ── create_manual ──────────────────────────────────────────────────────
     // Cria documento ZapSign sem IXC (dados informados manualmente)
-    if (action === 'create_manual') {
+    if (action === 'create_manual' || action === 'create_document') {
       if (!zapToken) {
         return Response.json({
           success: false,
@@ -542,7 +555,7 @@ Deno.serve(async (req) => {
     }
 
     // ── resend ─────────────────────────────────────────────────────────────
-    if (action === 'resend') {
+    if (action === 'resend' || action === 'send_document') {
       const { id, whatsAppInstance = evoInst } = body;
       if (!id) return Response.json({ error: 'id obrigatório' }, { status: 400 });
 
@@ -584,7 +597,7 @@ Deno.serve(async (req) => {
     }
 
     // ── cancel ─────────────────────────────────────────────────────────────
-    if (action === 'cancel') {
+    if (action === 'cancel' || action === 'cancel_document') {
       const { id } = body;
       if (!id) return Response.json({ error: 'id obrigatório' }, { status: 400 });
       const doc = await b44.asServiceRole.entities.SignatureRequest.get(id);
