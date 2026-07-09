@@ -5,6 +5,7 @@ import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
 import ContractTemplatePicker from "@/components/inbox/ContractTemplatePicker";
+import CustomerHistoryPanel from "@/components/inbox/CustomerHistoryPanel";
 import WhatsAppSearchResults from "@/components/inbox/WhatsAppSearchResults";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
@@ -1106,6 +1107,7 @@ export default function Inbox() {
               <div className="flex border-b border-border">
                 {[
                   ["dados", "Dados"],
+                  ["historico", "Histórico"],
                   ["acordo", "Acordo"],
                   ["modelos", "Modelos"],
                   ["contratos", "Contratos"],
@@ -1122,6 +1124,8 @@ export default function Inbox() {
 
               {rightTab === "modelos" ? (
                 <QuickReplyPanel onSend={sendMessageContent} sending={sending} />
+              ) : rightTab === "historico" ? (
+                <CustomerHistoryPanel conversation={selected} onSelect={setSelectedId} />
               ) : rightTab === "contratos" ? (
                 <ContractTemplatePicker conversation={selected} />
               ) : rightTab === "acordo" ? (

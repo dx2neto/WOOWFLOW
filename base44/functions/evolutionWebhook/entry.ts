@@ -168,6 +168,30 @@ Deno.serve(async (req) => {
         ...(media.mediaUrl    ? { media_url: media.mediaUrl } : {}),
       });
 
+      // ── Auto-tag via IA (apenas mensagens recebidas com texto) ─────────────
+      if (!fromMe && textContent) {
+        try {
+          const tagList = await base44.asServiceRole.entities.Tag.list();
+          if (tagList.length > 0) {
+            const tagNames = tagList.map((t: AnyRecord) => String(t.name));
+            const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              prompt: `Mensagem do cliente: "${textContent}"\n\nEtiquetas disponíveis: ${tagNames.join(', ')}\n\nEscolha até 3 etiquetas da lista acima que sejam relevantes para esta mensagem. Se nenhuma for relevante, retorne uma lista vazia. Responda apenas com nomes exatamente como estão na lista.`,
+              response_json_schema: { type: 'object', properties: { tags: { type: 'array', items: { type: 'string' } } } },
+            }) as AnyRecord;
+            const suggestedTags = (Array.isArray(aiResult.tags) ? aiResult.tags as string[] : []).filter((t) => tagNames.includes(t));
+            if (suggestedTags.length > 0) {
+              const currentTags = Array.isArray(conversation.tags) ? conversation.tags as string[] : [];
+              const mergedTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+              if (mergedTags.length !== currentTags.length) {
+                await base44.asServiceRole.entities.Conversation.update(conversation.id, { tags: mergedTags });
+              }
+            }
+          }
+        } catch (_e) {
+          // não bloqueia o fluxo principal em caso de falha na IA
+        }
+      }
+
       await base44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionWebhook',
         action:      event || 'Message',
