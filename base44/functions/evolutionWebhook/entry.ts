@@ -112,6 +112,73 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, processed: 1 });
     }
 
+    // ── HistorySync ───────────────────────────────────────────────────────────
+    // Dispara quando o WhatsApp envia histórico após /chat/history-sync.
+    // Requer HISTORY_SYNC no subscribe do connect.
+    if (event === 'HistorySync') {
+      const data = body.data || {};
+      const rawList: unknown[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.Messages) ? data.Messages
+        : Array.isArray(data.messages) ? data.messages
+        : [];
+
+      let saved = 0;
+      for (const item of rawList) {
+        const msg = (item || {}) as Record<string, unknown>;
+        const info = (msg.Info || {}) as Record<string, unknown>;
+        const msgBody = (msg.Message || {}) as Record<string, unknown>;
+
+        const chat = String(info.Chat || '');
+        const isGroup = !!(info.IsGroup) || chat.endsWith('@g.us');
+        if (!chat || isGroup) continue;
+
+        const phone = chat.replace(/@.*$/, '');
+        const fromMe = Boolean(info.IsFromMe);
+        const pushName = String(info.PushName || phone);
+        const mediaType = String(info.MediaType || '').toLowerCase();
+        const textContent = String(
+          msgBody.conversation ??
+          (msgBody.extendedTextMessage as Record<string,unknown>)?.text ??
+          (msgBody.imageMessage as Record<string,unknown>)?.caption ??
+          (msgBody.videoMessage as Record<string,unknown>)?.caption ?? ''
+        );
+        const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
+        const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
+
+        // Busca ou cria Conversation
+        const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
+        let conversation = existing[0];
+        if (!conversation) {
+          conversation = await base44.asServiceRole.entities.Conversation.create({
+            customer_name: pushName, phone, channel: 'whatsapp', instance: instanceId,
+            status: 'novo', last_message: content, last_message_time: timestamp, unread: !fromMe,
+          });
+        }
+
+        // Evita duplicata por timestamp
+        const existingMsgs = await base44.asServiceRole.entities.Message.filter(
+          { conversation_id: conversation.id, timestamp }
+        );
+        if (existingMsgs.length > 0) continue;
+
+        await base44.asServiceRole.entities.Message.create({
+          conversation_id: conversation.id, content,
+          direction: fromMe ? 'out' : 'in',
+          type: mediaType || 'text', status: 'received', timestamp,
+          sender_name: fromMe ? null : pushName,
+        });
+        saved++;
+      }
+
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionWebhook', action: 'HistorySync', status: 'sucesso',
+        details: `saved: ${saved} / total: ${rawList.length}`,
+      }).catch(() => {});
+
+      return Response.json({ success: true, processed: saved });
+    }
+
     // ── SendMessage ───────────────────────────────────────────────────────────
     // Registra mensagens enviadas pela própria instância (fromMe=true)
     if (event === 'SendMessage') {

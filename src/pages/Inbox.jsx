@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
@@ -110,6 +111,7 @@ function statusLabel(status) {
 }
 
 export default function Inbox() {
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -151,10 +153,11 @@ export default function Inbox() {
     return unsubscribe;
   }, []);
 
+  // Abre conversa via query param ?conversation=ID (React Router-aware)
   useEffect(() => {
-    const conversationId = new URLSearchParams(window.location.search).get("conversation");
+    const conversationId = searchParams.get("conversation");
     if (conversationId && conversations.some((c) => c.id === conversationId)) setSelectedId(conversationId);
-  }, [conversations]);
+  }, [conversations, searchParams]);
 
   useEffect(() => {
     if (selectedId) loadMessages(selectedId);
@@ -191,16 +194,12 @@ export default function Inbox() {
     try {
       const data = await base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp");
       setMessages(data);
-      // Se não há mensagens locais e é conversa WhatsApp → busca histórico do Evolution Go
+      // Se não há mensagens locais e é conversa WhatsApp → solicita histórico ao Evolution Go
+      // As mensagens chegam de forma assíncrona via webhook HistorySync e são adicionadas pela subscription
       if (data.length === 0) {
         const conv = conversations.find((c) => c.id === conversationId);
         if (conv?.channel === "whatsapp" && conv?.phone) {
-          syncEvolutionHistory(conv, false).then(async (count) => {
-            if (count > 0) {
-              const updated = await base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp");
-              setMessages(updated);
-            }
-          }).catch(() => {});
+          syncEvolutionHistory(conv, false).catch(() => {});
         }
       }
     } catch {
@@ -210,9 +209,10 @@ export default function Inbox() {
     }
   };
 
-  // Busca histórico completo de mensagens do Evolution Go e salva no Base44
-  const syncEvolutionHistory = async (conv, showToast = true) => {
-    if (!conv?.phone) return 0;
+  // Solicita histórico ao Evolution Go via POST /chat/history-sync
+  // As mensagens chegam assincronamente via webhook HistorySync → subscription as adiciona ao estado
+  const syncEvolutionHistory = useCallback(async (conv, showToast = true) => {
+    if (!conv?.phone) return;
     const instance = selectedInstance || conv.instance;
     try {
       const response = await evolutionApi({
@@ -222,27 +222,35 @@ export default function Inbox() {
         instance,
         limit: 100,
       });
-      const count = response?.data?.created ?? 0;
+      const data = response?.data || {};
       if (showToast) {
-        if (count > 0) toast({ title: `${count} mensagem(s) sincronizada(s) do WhatsApp` });
-        else toast({ title: "Histórico já sincronizado ou sem mensagens anteriores" });
+        if (data.sync_requested) {
+          toast({ title: "Histórico solicitado ao WhatsApp", description: "Mensagens chegarão em instantes via webhook." });
+        } else if (data.local_count > 0) {
+          toast({ title: `${data.local_count} mensagem(s) já disponível(is) localmente` });
+        } else {
+          toast({ title: "Instância desconectada ou sem histórico disponível", variant: "destructive" });
+        }
       }
-      return count;
     } catch {
-      if (showToast) toast({ title: "Erro ao sincronizar histórico", variant: "destructive" });
-      return 0;
+      if (showToast) toast({ title: "Erro ao solicitar histórico", variant: "destructive" });
     }
-  };
+  }, [selectedInstance, toast]);
 
   const loadInstances = async () => {
     try {
-      const response = await evolutionApi({ action: "get_instances" });
+      const response = await evolutionApi({ action: "list_instances" });
       const list = response?.data?.instances || [];
       setInstances(list);
-      if (!selectedInstance && list.length > 0) {
-        const first = list[0].name || list[0].instance?.instanceName || "";
-        setSelectedInstance(first);
-        localStorage.setItem("evolution_instance", first);
+      if (list.length > 0) {
+        // Seleciona instância conectada de preferência
+        const connected = list.find((i) => ["connected", "open"].includes(i.state));
+        const preferred = connected || list[0];
+        const name = preferred.name || "";
+        if (!selectedInstance && name) {
+          setSelectedInstance(name);
+          localStorage.setItem("evolution_instance", name);
+        }
       }
     } catch {
       setInstances([]);
@@ -493,7 +501,11 @@ export default function Inbox() {
     setActionLoading(service);
     try {
       if (service === "evolution_api") {
-        await handleLoadWhatsAppConversations();
+        if (selected?.channel === "whatsapp" && selected?.phone) {
+          await syncEvolutionHistory(selected, true);
+        } else {
+          await handleLoadWhatsAppConversations();
+        }
       }
       if (service === "ixc_provedor") {
         const response = await ixcApi({ action: "clientes", search: selected.phone || selected.customer_name, limit: 5 });
@@ -537,18 +549,36 @@ export default function Inbox() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            {instances.length > 0 && (
-              <select
-                title="Instância usada para responder no WhatsApp"
-                value={selectedInstance}
-                onChange={(e) => handleInstanceChange(e.target.value)}
-                className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary"
+            {instances.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <select
+                  title="Instância Evolution Go usada para enviar/receber no WhatsApp"
+                  value={selectedInstance}
+                  onChange={(e) => handleInstanceChange(e.target.value)}
+                  className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {instances.map((inst) => {
+                    const name = inst.name || "";
+                    const isConnected = ["connected", "open"].includes(inst.state);
+                    return <option key={name} value={name}>{isConnected ? "🟢" : "🔴"} {name}</option>;
+                  })}
+                </select>
+                <button
+                  onClick={loadInstances}
+                  className="rounded-lg border border-border p-2 hover:bg-muted"
+                  title="Recarregar instâncias"
+                >
+                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={loadInstances}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted"
+                title="Carregar instâncias Evolution Go"
               >
-                {instances.map((inst) => {
-                  const name = inst.name || inst.instance?.instanceName || "";
-                  return <option key={name} value={name}>{name}</option>;
-                })}
-              </select>
+                <RefreshCw className="h-4 w-4" /> Carregar instâncias
+              </button>
             )}
             <button
               onClick={handleLoadWhatsAppConversations}
@@ -684,13 +714,7 @@ export default function Inbox() {
                   <button
                     className="rounded-lg p-2 hover:bg-muted"
                     title="Buscar histórico do WhatsApp"
-                    onClick={async () => {
-                      const count = await syncEvolutionHistory(selected, true);
-                      if (count > 0) {
-                        const updated = await base44.entities.Message.filter({ conversation_id: selected.id }, "timestamp");
-                        setMessages(updated);
-                      }
-                    }}
+                    onClick={() => syncEvolutionHistory(selected, true)}
                   >
                     <RefreshCw className="h-5 w-5 text-muted-foreground" />
                   </button>
@@ -874,7 +898,16 @@ export default function Inbox() {
                     <div className="space-y-2">
                       {integrations.map((item) => {
                         const Icon = item.icon;
-                        const configStatus = configs[item.service]?.status || (item.service === "evolution_api" ? "connected" : "disconnected");
+                        let configStatus = configs[item.service]?.status || "disconnected";
+                        // Estado real da instância Evolution Go
+                        if (item.service === "evolution_api") {
+                          const inst = instances.find((i) => i.name === selectedInstance) || instances[0];
+                          const state = inst?.state || "disconnected";
+                          configStatus = ["connected", "open"].includes(state) ? "connected" : state === "connecting" ? "pending" : instances.length > 0 ? "error" : "disconnected";
+                        }
+                        const actionDesc = item.service === "evolution_api" && selected?.channel === "whatsapp"
+                          ? "Buscar histórico desta conversa"
+                          : item.actionLabel;
                         return (
                           <button
                             key={item.service}
@@ -885,7 +918,7 @@ export default function Inbox() {
                             <Icon className="h-5 w-5 text-primary" />
                             <span className="min-w-0 flex-1">
                               <span className="block text-sm font-bold">{item.label}</span>
-                              <span className="block truncate text-xs text-muted-foreground">{item.actionLabel}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{actionDesc}</span>
                             </span>
                             <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusTone[configStatus] || statusTone.disconnected}`}>
                               {actionLoading === item.service ? "..." : statusLabel(configStatus)}

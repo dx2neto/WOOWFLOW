@@ -205,25 +205,16 @@ async function fetchQrCode(
   type QrResult = { base64: string | null; code: string | null };
   const fallback = { response: { ok: false, status: 404, data: {} }, qrcode: null as QrResult | null };
 
-  // Tentativa 1: GET /instance/{name}/qrcode com globalKey (padrão Evolution Go)
-  const r1 = await evoFetch(`${base}/instance/${encodeURIComponent(instanceName)}/qrcode`, {
-    headers: {
-      apikey: globalKey,
-      ...(instanceId ? { instanceId } : {}),
-    },
-  });
+  // GET /instance/qr  (Postman: auth = instance token)
+  const r1 = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instanceToken } });
   if (r1.ok) return { response: r1, qrcode: normalizeQrPayload(r1.data) };
 
-  // Tentativa 2: GET /instance/qr com instanceToken (comportamento anterior)
-  const r2 = await evoFetch(`${base}/instance/qr`, { headers: { apikey: instanceToken } });
-  if (r2.ok) return { response: r2, qrcode: normalizeQrPayload(r2.data) };
-
-  // Tentativa 3: GET /instance/qr com globalKey + instanceId header
+  // Fallback: globalKey + instanceId header
   if (instanceId) {
-    const r3 = await evoFetch(`${base}/instance/qr`, {
+    const r2 = await evoFetch(`${base}/instance/qr`, {
       headers: { apikey: globalKey, instanceId },
     });
-    if (r3.ok) return { response: r3, qrcode: normalizeQrPayload(r3.data) };
+    if (r2.ok) return { response: r2, qrcode: normalizeQrPayload(r2.data) };
   }
 
   return fallback;
@@ -317,19 +308,18 @@ Deno.serve(async (req) => {
 
       let qrcode = normalizeQrPayload(r.data);
 
-      // Dispara connect para registrar webhook e pegar QR
+      // Dispara connect para registrar webhook + HISTORY_SYNC e obter QR
       if (!qrcode.base64) {
         const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
-        const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
-        if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
+        const connectBody: Record<string, unknown> = {
+          subscribe: ['MESSAGE', 'READ_RECEIPT', 'HISTORY_SYNC', 'CONNECTION', 'QRCODE', 'CONTACT'],
+          webhookUrl: appWebhookUrl || undefined,
+        };
 
+        // Usa token da instância recém-criada (Postman pattern)
         const connect = await evoFetch(`${base}/instance/connect`, {
           method: 'POST',
-          headers: {
-            apikey: globalKey,
-            'Content-Type': 'application/json',
-            ...(newId ? { instanceId: newId } : {}),
-          },
+          headers: { apikey: newToken, 'Content-Type': 'application/json' },
           body: JSON.stringify(connectBody),
         });
         if (connect.ok) qrcode = normalizeQrPayload(connect.data);
@@ -367,25 +357,28 @@ Deno.serve(async (req) => {
       const instToken  = extractToken(found, globalKey);
 
       const appWebhookUrl = webhookUrl || Deno.env.get('WOOWFLOW_WEBHOOK_URL') || '';
-      const connectBody: Record<string, unknown> = { immediate: true, subscribe: ['ALL'] };
-      if (appWebhookUrl) connectBody.webhookUrl = appWebhookUrl;
+      // HISTORY_SYNC garante que o histórico de mensagens chegue via webhook
+      const connectBody: Record<string, unknown> = {
+        subscribe: ['MESSAGE', 'READ_RECEIPT', 'HISTORY_SYNC', 'CONNECTION', 'QRCODE', 'CONTACT'],
+        webhookUrl: appWebhookUrl || undefined,
+      };
 
-      // Tenta com global key + instanceId header (padrão Evolution Go)
+      // Postman: connect usa token da própria instância como apikey
       let r = await evoFetch(`${base}/instance/connect`, {
         method: 'POST',
-        headers: {
-          apikey: globalKey,
-          'Content-Type': 'application/json',
-          ...(instanceId ? { instanceId } : {}),
-        },
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
         body: JSON.stringify(connectBody),
       });
 
-      // Fallback: token da instância como apikey
-      if (!r.ok && instToken !== globalKey) {
+      // Fallback: globalKey com instanceId header
+      if (!r.ok) {
         r = await evoFetch(`${base}/instance/connect`, {
           method: 'POST',
-          headers: { apikey: instToken, 'Content-Type': 'application/json' },
+          headers: {
+            apikey: globalKey,
+            'Content-Type': 'application/json',
+            ...(instanceId ? { instanceId } : {}),
+          },
           body: JSON.stringify(connectBody),
         });
       }
@@ -580,244 +573,98 @@ Deno.serve(async (req) => {
     }
 
     // ── get_messages ─────────────────────────────────────────────────────────
-    // Busca histórico de mensagens de um número no Evolution Go.
-    // Tenta: POST /chat/fetchMessages  →  GET /chat/messages/{jid}  →  []
+    // Evolution GO NÃO tem endpoint REST de leitura de mensagens.
+    // O histórico chega via webhook HistorySync (subscribe: HISTORY_SYNC).
+    // Esta action retorna as mensagens já salvas no Base44.
     if (action === 'get_messages') {
-      const instanceName = body.instance || defaultInst;
-      const phone = String(body.phone || '').replace(/\D/g, '');
-      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
-
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
-      const jid = `${phone}@s.whatsapp.net`;
-      const limit = Number(body.limit ?? 50);
-
-      // Tenta 1: POST /chat/fetchMessages (Evolution Go)
-      let r = await evoFetch(`${base}/chat/fetchMessages`, {
-        method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
-        body: JSON.stringify({ jid, count: limit }),
-      });
-      // Tenta 2: POST /chat/findMessages (Evolution API JS compat)
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat/findMessages`, {
-          method: 'POST',
-          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
-        });
-      }
-      // Tenta 3: GET /message/{jid}
-      if (!r.ok) {
-        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-
-      if (!r.ok) {
-        return Response.json({ success: true, messages: [], note: 'Histórico não disponível via API; mensagens chegam por webhook' });
-      }
-
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.messages ?? raw.data ?? raw);
-
-      const messages = list.map((item: unknown) => {
-        const rec = asRecord(item);
-        // Formato Evolution Go (webhook-like): rec.Info + rec.Message
-        if (rec.Info) {
-          const info = asRecord(rec.Info);
-          const msgBody = asRecord(rec.Message);
-          const fromMe = Boolean(info.IsFromMe);
-          const mediaType = String(info.MediaType || '').toLowerCase();
-          const textContent = String(
-            msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
-            asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
-          );
-          const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
-          return {
-            content: textContent || (mediaType ? `[${mediaType}]` : '[mensagem]'),
-            direction: fromMe ? 'out' : 'in',
-            type: mediaType || 'text',
-            timestamp,
-            sender_name: fromMe ? null : String(info.PushName || phone),
-            media_base64: typeof msgBody.base64 === 'string' ? msgBody.base64 : null,
-            media_url: typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : null,
-          };
-        }
-        // Formato Evolution API JS legado: rec.key + rec.message + rec.messageTimestamp
-        const key = asRecord(rec.key);
-        const fromMe = Boolean(key.fromMe);
-        const msgBody = asRecord(rec.message);
-        const textContent = String(
-          msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ??
-          asRecord(msgBody.imageMessage).caption ?? asRecord(msgBody.videoMessage).caption ?? ''
-        );
-        const timestamp = rec.messageTimestamp
-          ? new Date(Number(rec.messageTimestamp) * 1000).toISOString()
-          : new Date().toISOString();
-        const mediaType = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
-        const simpletype = mediaType.replace('Message', '') || 'text';
-        return {
-          content: textContent || (simpletype !== 'text' ? `[${simpletype}]` : '[mensagem]'),
-          direction: fromMe ? 'out' : 'in',
-          type: simpletype,
-          timestamp,
-          sender_name: fromMe ? null : String(rec.pushName ?? phone),
-          media_base64: null,
-          media_url: null,
-        };
-      });
-
+      const conversationId = String(body.conversation_id || '');
+      if (!conversationId) return Response.json({ error: 'conversation_id é obrigatório' }, { status: 400 });
+      const messages = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId });
       return Response.json({ success: true, messages });
     }
 
     // ── sync_history ──────────────────────────────────────────────────────────
-    // Busca histórico do Evolution Go e salva as mensagens na entidade Message do Base44.
-    // Evita duplicatas verificando timestamps existentes.
+    // Dispara POST /chat/history-sync para solicitar histórico ao WhatsApp.
+    // As mensagens chegam de forma ASSÍNCRONA via webhook HistorySync — não há resposta imediata.
+    // Ref Postman: POST /chat/history-sync
+    //   body: { messageInfo: { Chat, ID, IsFromMe, IsGroup, Timestamp }, count }
     if (action === 'sync_history') {
       const instanceName = body.instance || defaultInst;
       const phone = String(body.phone || '').replace(/\D/g, '');
       const conversationId = String(body.conversation_id || '');
-      if (!phone || !conversationId) return Response.json({ error: 'phone e conversation_id são obrigatórios' }, { status: 400 });
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
-      // Busca mensagens via get_messages (reusa a lógica acima via chamada interna simulada)
       const inst = await findInstance(base, globalKey, instanceName);
       const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
+
       const jid = `${phone}@s.whatsapp.net`;
-      const limit = Number(body.limit ?? 100);
+      const count = Number(body.limit ?? 50);
 
-      let r = await evoFetch(`${base}/chat/fetchMessages`, {
+      // Dispara o pedido de sync ao WhatsApp — resposta vem no webhook HistorySync
+      const r = await evoFetch(`${base}/chat/history-sync`, {
         method: 'POST',
-        headers: { apikey: instanceToken, 'Content-Type': 'application/json', ...(instanceId ? { instanceId } : {}) },
-        body: JSON.stringify({ jid, count: limit }),
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageInfo: {
+            Chat: jid,
+            ID: '0',
+            IsFromMe: false,
+            IsGroup: false,
+            Timestamp: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 dias atrás
+          },
+          count,
+        }),
       });
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat/findMessages`, {
-          method: 'POST',
-          headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit }),
-        });
-      }
-      if (!r.ok) {
-        r = await evoFetch(`${base}/message/${encodeURIComponent(jid)}?limit=${limit}`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-
-      if (!r.ok) {
-        return Response.json({ success: true, created: 0, note: 'Histórico não disponível via API; mensagens chegam por webhook' });
-      }
-
-      const raw = asRecord(r.data);
-      const list = payloadList(raw.messages ?? raw.data ?? raw);
-
-      // Verifica timestamps já existentes para evitar duplicatas
-      const existing = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId });
-      const existingTs = new Set((existing as AnyRecord[]).map((m: AnyRecord) => String(m.timestamp)));
-
-      let created = 0;
-      for (const item of list) {
-        const rec = asRecord(item as unknown);
-        let fromMe = false, textContent = '', mediaType = '', timestamp = '', pushName = '', mediaBase64 = '', mediaUrl = '';
-
-        if (rec.Info) {
-          const info = asRecord(rec.Info);
-          const msgBody = asRecord(rec.Message);
-          fromMe = Boolean(info.IsFromMe);
-          mediaType = String(info.MediaType || '').toLowerCase();
-          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
-          timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : '';
-          pushName = String(info.PushName || phone);
-          mediaBase64 = typeof msgBody.base64 === 'string' ? msgBody.base64 : '';
-          mediaUrl = typeof msgBody.mediaUrl === 'string' ? msgBody.mediaUrl : '';
-        } else {
-          const key = asRecord(rec.key);
-          const msgBody = asRecord(rec.message);
-          fromMe = Boolean(key.fromMe);
-          textContent = String(msgBody.conversation ?? asRecord(msgBody.extendedTextMessage).text ?? asRecord(msgBody.imageMessage).caption ?? '');
-          timestamp = rec.messageTimestamp ? new Date(Number(rec.messageTimestamp) * 1000).toISOString() : '';
-          pushName = String(rec.pushName ?? phone);
-          const mt = Object.keys(msgBody).find((k) => k.endsWith('Message') && k !== 'extendedTextMessage') ?? '';
-          mediaType = mt.replace('Message', '');
-        }
-
-        if (!timestamp || existingTs.has(timestamp)) continue;
-        existingTs.add(timestamp);
-
-        const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
-        const msgType = mediaType || 'text';
-
-        await b44.asServiceRole.entities.Message.create({
-          conversation_id: conversationId,
-          content,
-          direction: fromMe ? 'out' : 'in',
-          type: msgType,
-          status: 'received',
-          timestamp,
-          sender_name: fromMe ? null : pushName,
-          ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
-          ...(mediaUrl ? { media_url: mediaUrl } : {}),
-        });
-        created++;
-      }
 
       await b44.asServiceRole.entities.IntegrationLog.create({
-        integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
-        details: `phone: ${phone}, created: ${created}`,
+        integration: 'evolutionApi', action: 'sync_history', status: r.ok ? 'sucesso' : 'falha',
+        details: `phone: ${phone}, status: ${r.status}${conversationId ? `, conv: ${conversationId}` : ''}`,
       });
-      return Response.json({ success: true, created });
+
+      // Conta mensagens já salvas localmente
+      const existing = conversationId
+        ? await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId })
+        : [];
+
+      return Response.json({
+        success: true,
+        created: 0,
+        local_count: (existing as AnyRecord[]).length,
+        sync_requested: r.ok,
+        note: r.ok
+          ? 'Histórico solicitado ao WhatsApp. Mensagens chegarão via webhook HistorySync em instantes.'
+          : 'Falha ao solicitar sync. Verifique se a instância está conectada e com HISTORY_SYNC subscrito.',
+      });
     }
 
     // ── get_chats ─────────────────────────────────────────────────────────────
-    // Lista todas as conversas ativas do WhatsApp (Evolution Go)
+    // Evolution GO não tem endpoint de listar chats. Usa /user/contacts como proxy.
+    // Ref Postman: GET /user/contacts
     if (action === 'get_chats') {
       const instanceName = body.instance || defaultInst;
       const inst = await findInstance(base, globalKey, instanceName);
       const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
-      const instanceId = inst ? String(asRecord(inst).id ?? asRecord(nestedInstance(inst as AnyRecord)).id ?? '') : '';
 
-      // Tenta os endpoints mais comuns de listagem de chats no Evolution Go
-      let r = await evoFetch(`${base}/chat/all`, {
-        headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
+      const r = await evoFetch(`${base}/user/contacts`, {
+        headers: { apikey: instanceToken },
       });
-      if (!r.ok) {
-        r = await evoFetch(`${base}/user/chats`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
-      if (!r.ok) {
-        r = await evoFetch(`${base}/chat`, {
-          headers: { apikey: instanceToken, ...(instanceId ? { instanceId } : {}) },
-        });
-      }
 
       if (!r.ok) {
-        await b44.asServiceRole.entities.IntegrationLog.create({
-          integration: 'evolutionApi', action: 'get_chats', status: 'falha',
-          details: `status ${r.status}: ${JSON.stringify(r.data).slice(0, 300)}`,
-        });
-        return Response.json({ success: false, error: 'Não foi possível listar chats', chats: [] });
+        return Response.json({ success: false, error: 'Não foi possível listar contatos', chats: [] });
       }
 
       const raw = asRecord(r.data);
-      const list = payloadList(raw.chats ?? raw.data ?? raw);
+      const list = payloadList(raw.data ?? raw);
 
       const chats = list.map((item: unknown) => {
         const rec = asRecord(item);
         const jid = String(rec.JID ?? rec.jid ?? rec.id ?? '');
         const phone = jid.split('@')[0];
         const isGroup = jid.includes('@g.us');
-        const name = String(rec.Name ?? rec.name ?? rec.PushName ?? rec.pushName ?? phone);
-        const lastMsg = rec.LastMessage ?? rec.lastMessage ?? rec.last_message;
-        const lastMsgTime = rec.LastMessageTime ?? rec.lastMessageTime ?? rec.last_message_time;
-        return { jid, phone, name, isGroup, last_message: lastMsg, last_message_time: lastMsgTime };
-      }).filter((c: { isGroup: boolean }) => !c.isGroup);
+        const name = String(rec.FullName ?? rec.Name ?? rec.PushName ?? rec.BusinessName ?? phone);
+        return { jid, phone, name, isGroup };
+      }).filter((c: { isGroup: boolean; phone: string }) => !c.isGroup && c.phone);
 
-      await b44.asServiceRole.entities.IntegrationLog.create({
-        integration: 'evolutionApi', action: 'get_chats', status: 'sucesso',
-        details: `chats: ${chats.length}`,
-      });
       return Response.json({ success: true, chats });
     }
 
@@ -844,6 +691,358 @@ Deno.serve(async (req) => {
         integration: 'evolutionApi', action: 'get_contacts', status: 'sucesso',
       });
       return Response.json({ success: true, contacts: (r.data as Record<string, unknown>)?.data ?? r.data });
+    }
+
+    // ── send_media ────────────────────────────────────────────────────────────
+    // POST /send/media  — envia imagem, vídeo, áudio ou documento
+    // body: { number, url, type, caption?, filename?, delay? }
+    // O campo "url" aceita URL HTTP(S) OU base64 sem prefixo data:
+    if (action === 'send_media') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, url, type: mediaType, caption, filename, delay } = body;
+      if (!phone || !url) return Response.json({ error: 'phone e url são obrigatórios' }, { status: 400 });
+
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const number = String(phone).replace(/\D/g, '');
+
+      const r = await evoFetch(`${base}/send/media`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, url, type: mediaType || 'image', caption, filename, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar mídia', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_link ─────────────────────────────────────────────────────────────
+    // POST /send/link  — envia link (com preview)
+    if (action === 'send_link') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, text, delay } = body;
+      if (!phone || !text) return Response.json({ error: 'phone e text são obrigatórios' }, { status: 400 });
+
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const number = String(phone).replace(/\D/g, '');
+
+      const r = await evoFetch(`${base}/send/link`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, text, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar link', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_location ─────────────────────────────────────────────────────────
+    // POST /send/location
+    if (action === 'send_location') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, name: locName, address, latitude, longitude, delay } = body;
+      if (!phone || latitude == null || longitude == null) return Response.json({ error: 'phone, latitude e longitude são obrigatórios' }, { status: 400 });
+
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const number = String(phone).replace(/\D/g, '');
+
+      const r = await evoFetch(`${base}/send/location`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, name: locName, address, latitude, longitude, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar localização', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── check_user ────────────────────────────────────────────────────────────
+    // POST /user/check  — verifica se número(s) estão no WhatsApp
+    // body: { phone } ou { phones: ["5511..."] }
+    if (action === 'check_user') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+
+      const phones: string[] = Array.isArray(body.phones)
+        ? body.phones
+        : body.phone ? [String(body.phone)] : [];
+      if (!phones.length) return Response.json({ error: 'phone ou phones é obrigatório' }, { status: 400 });
+
+      const numbers = phones.map((p) => p.replace(/\D/g, ''));
+      const r = await evoFetch(`${base}/user/check`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: numbers }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao verificar usuário', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_user_info ─────────────────────────────────────────────────────────
+    // POST /user/info  — retorna informações de perfil de um ou mais números
+    if (action === 'get_user_info') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+
+      const phones: string[] = Array.isArray(body.phones)
+        ? body.phones
+        : body.phone ? [String(body.phone)] : [];
+      if (!phones.length) return Response.json({ error: 'phone ou phones é obrigatório' }, { status: 400 });
+
+      const numbers = phones.map((p) => p.replace(/\D/g, ''));
+      const r = await evoFetch(`${base}/user/info`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: numbers }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao obter info do usuário', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_avatar ────────────────────────────────────────────────────────────
+    // POST /user/avatar  — retorna URL do avatar do contato
+    if (action === 'get_avatar') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const phone = String(body.phone || '').replace(/\D/g, '');
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const r = await evoFetch(`${base}/user/avatar`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: phone, preview: body.preview ?? false }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao obter avatar', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── mark_read ─────────────────────────────────────────────────────────────
+    // POST /message/markread  — marca mensagens como lidas
+    // body: { phone, ids: ["msgId1", "msgId2"] }
+    if (action === 'mark_read') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const phone = String(body.phone || '').replace(/\D/g, '');
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const ids: string[] = Array.isArray(body.ids) ? body.ids : body.id ? [String(body.id)] : [];
+      const r = await evoFetch(`${base}/message/markread`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: phone, id: ids }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao marcar como lida', details: r.data }, { status: r.status || 502 });
+
+      // Atualiza flag de não lido na conversa local
+      if (body.conversation_id) {
+        await b44.asServiceRole.entities.Conversation.update(String(body.conversation_id), { unread: false }).catch(() => {});
+      }
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── react_message ─────────────────────────────────────────────────────────
+    // POST /message/react  — envia reação (emoji) a uma mensagem
+    // body: { phone, messageId, reaction }
+    if (action === 'react_message') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { phone, messageId, reaction } = body;
+      if (!phone || !messageId || !reaction) return Response.json({ error: 'phone, messageId e reaction são obrigatórios' }, { status: 400 });
+
+      const r = await evoFetch(`${base}/message/react`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), id: messageId, reaction }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao reagir à mensagem', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── delete_message ────────────────────────────────────────────────────────
+    // POST /message/delete
+    // body: { chat, messageId }
+    if (action === 'delete_message') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { chat, messageId } = body;
+      if (!chat || !messageId) return Response.json({ error: 'chat e messageId são obrigatórios' }, { status: 400 });
+
+      const jid = String(chat).includes('@') ? chat : `${String(chat).replace(/\D/g, '')}@s.whatsapp.net`;
+      const r = await evoFetch(`${base}/message/delete`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat: jid, messageId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao apagar mensagem', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── edit_message ──────────────────────────────────────────────────────────
+    // POST /message/edit
+    // body: { chat, messageId, message }
+    if (action === 'edit_message') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { chat, messageId, message: newText } = body;
+      if (!chat || !messageId || !newText) return Response.json({ error: 'chat, messageId e message são obrigatórios' }, { status: 400 });
+
+      const jid = String(chat).includes('@') ? chat : `${String(chat).replace(/\D/g, '')}@s.whatsapp.net`;
+      const r = await evoFetch(`${base}/message/edit`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat: jid, messageId, message: newText }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao editar mensagem', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── presence ──────────────────────────────────────────────────────────────
+    // POST /message/presence  — envia estado de digitação/gravação
+    // body: { phone, state: "composing"|"paused", isAudio? }
+    if (action === 'presence') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { phone, state: presState, isAudio } = body;
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const r = await evoFetch(`${base}/message/presence`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), state: presState || 'composing', isAudio: !!isAudio }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar presença', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── pin_chat / unpin_chat ─────────────────────────────────────────────────
+    // POST /chat/pin  |  POST /chat/unpin
+    if (action === 'pin_chat' || action === 'unpin_chat') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { phone } = body;
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const jid = `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`;
+      const endpoint = action === 'pin_chat' ? 'pin' : 'unpin';
+      const r = await evoFetch(`${base}/chat/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat: jid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao ${endpoint} chat`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── archive_chat / unarchive_chat ─────────────────────────────────────────
+    // POST /chat/archive  |  POST /chat/unarchive
+    if (action === 'archive_chat' || action === 'unarchive_chat') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { phone } = body;
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const jid = `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`;
+      const endpoint = action === 'archive_chat' ? 'archive' : 'unarchive';
+      const r = await evoFetch(`${base}/chat/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat: jid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao ${endpoint} chat`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── mute_chat / unmute_chat ───────────────────────────────────────────────
+    // POST /chat/mute  |  POST /chat/unmute
+    if (action === 'mute_chat' || action === 'unmute_chat') {
+      const instanceName = body.instance || defaultInst;
+      const inst = await findInstance(base, globalKey, instanceName);
+      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const { phone } = body;
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+
+      const jid = `${String(phone).replace(/\D/g, '')}@s.whatsapp.net`;
+      const endpoint = action === 'mute_chat' ? 'mute' : 'unmute';
+      const r = await evoFetch(`${base}/chat/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instanceToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat: jid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao ${endpoint} chat`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── reconnect_instance ────────────────────────────────────────────────────
+    // POST /instance/reconnect  — reconecta instância sem apagar sessão
+    if (action === 'reconnect_instance') {
+      const { instanceName } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(found, globalKey);
+
+      const r = await evoFetch(`${base}/instance/reconnect`, {
+        method: 'POST',
+        headers: { apikey: instToken },
+      });
+      await b44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionApi', action: 'reconnect_instance', status: r.ok ? 'sucesso' : 'falha',
+        details: `instance: ${instanceName}`,
+      }).catch(() => {});
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao reconectar', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── pair_instance ─────────────────────────────────────────────────────────
+    // POST /instance/pair  — gera código de pareamento (alternativa ao QR)
+    // body: { instanceName, phone }
+    if (action === 'pair_instance') {
+      const { instanceName, phone } = body;
+      if (!instanceName || !phone) return Response.json({ error: 'instanceName e phone são obrigatórios' }, { status: 400 });
+
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(found, globalKey);
+
+      const r = await evoFetch(`${base}/instance/pair`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: String(phone) }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao gerar código de pareamento', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_instance_logs ─────────────────────────────────────────────────────
+    // GET /instance/logs/:instanceId  — logs da instância
+    if (action === 'get_instance_logs') {
+      const { instanceName, startDate, endDate, level, limit } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+
+      const found = await findInstance(base, globalKey, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
+
+      const params = new URLSearchParams();
+      if (startDate) params.set('start_date', startDate);
+      if (endDate)   params.set('end_date', endDate);
+      if (level)     params.set('level', level);
+      if (limit)     params.set('limit', String(limit));
+
+      const url = `${base}/instance/logs/${encodeURIComponent(instanceId)}?${params}`;
+      const r = await evoFetch(url, { headers: { apikey: globalKey } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar logs', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, logs: r.data });
     }
 
     return Response.json({ error: `Action inválida: ${action}` }, { status: 400 });
