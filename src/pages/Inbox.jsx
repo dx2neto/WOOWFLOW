@@ -212,7 +212,7 @@ export default function Inbox() {
 
   const syncEvolutionHistory = useCallback(async (conv, showToast = true) => {
     if (!conv?.phone) return;
-    const instance = selectedInstance || conv.instance;
+    const instance = selectedInstance;
     try {
       const response = await evolutionApi({
         action: "sync_history",
@@ -294,13 +294,14 @@ export default function Inbox() {
     const term = query.trim().toLowerCase();
     return conversations.filter((conv) => {
       const matchesChannel = channel === "all" || conv.channel === channel;
+      const matchesInstance = conv.channel !== "whatsapp" || !selectedInstance || conv.instance === selectedInstance;
       const matchesStatus = status === "all" || conv.status === status;
       const matchesQuery = !term || [conv.customer_name, conv.phone, conv.protocol, conv.last_message, conv.city]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
-      return matchesChannel && matchesStatus && matchesQuery;
+      return matchesChannel && matchesInstance && matchesStatus && matchesQuery;
     });
-  }, [channel, conversations, query, status]);
+  }, [channel, conversations, query, status, selectedInstance]);
 
   useEffect(() => {
     const term = query.trim().toLowerCase();
