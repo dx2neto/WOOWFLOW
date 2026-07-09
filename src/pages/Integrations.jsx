@@ -199,11 +199,14 @@ function formatSyncDate(value) {
   });
 }
 
+const categoryOrder = ["Todos", "Operação", "Atendimento", "Redes sociais", "Aquisição", "Vendas", "Receita", "Contratos", "IA"];
+
 export default function Integrations() {
   const [configs, setConfigs] = useState({});
   const [busyService, setBusyService] = useState(null);
   const [showInstanceManager, setShowInstanceManager] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("Todos");
 
   useEffect(() => {
     loadConfigs();
@@ -229,6 +232,23 @@ export default function Integrations() {
     ...integration,
     config: getConfig(integration.service),
   })), [configs]);
+
+  const stats = useMemo(() => {
+    const connected = cards.filter((c) => c.config?.status === "connected").length;
+    const pending = cards.filter((c) => !c.config || c.config.status === "pending").length;
+    const error = cards.filter((c) => c.config?.status === "error").length;
+    return { total: cards.length, connected, pending, error };
+  }, [cards]);
+
+  const visibleCards = useMemo(
+    () => activeCategory === "Todos" ? cards : cards.filter((c) => c.category === activeCategory),
+    [cards, activeCategory]
+  );
+
+  const categories = useMemo(() => {
+    const present = new Set(cards.map((c) => c.category));
+    return categoryOrder.filter((cat) => cat === "Todos" || present.has(cat));
+  }, [cards]);
 
   const persistConfig = async (integration, patch = {}) => {
     const existing = getConfig(integration.service);
@@ -370,13 +390,45 @@ export default function Integrations() {
         </div>
       </section>
 
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Integrações</p>
+          <p className="mt-1 text-2xl font-black">{stats.total}</p>
+        </div>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-xs font-semibold uppercase text-emerald-700">Conectadas</p>
+          <p className="mt-1 text-2xl font-black text-emerald-700">{stats.connected}</p>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold uppercase text-amber-700">Pendentes</p>
+          <p className="mt-1 text-2xl font-black text-amber-700">{stats.pending}</p>
+        </div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-xs font-semibold uppercase text-red-700">Com erro</p>
+          <p className="mt-1 text-2xl font-black text-red-700">{stats.error}</p>
+        </div>
+      </div>
+
       <div className="mb-5">
         <h3 className="font-heading text-2xl font-bold">Integrações possíveis</h3>
         <p className="text-sm text-muted-foreground">Conecte os canais em rotas seguras de backend e acompanhe o status em uma única tela.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                activeCategory === cat ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((integration) => {
+        {visibleCards.map((integration) => {
           const Icon = integration.icon;
           const config = integration.config;
           const status = config?.status || "disconnected";
