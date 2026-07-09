@@ -544,33 +544,29 @@ Deno.serve(async (req) => {
       const existing = await b44.asServiceRole.entities.Message.filter({ conversation_id: conversationId }, 'timestamp', 1);
       const oldest = existing[0];
 
-      if (!oldest || !oldest.wa_message_id) {
-        await b44.asServiceRole.entities.IntegrationLog.create({
-          integration: 'evolutionApi', action: 'sync_history', status: 'falha',
-          details: JSON.stringify({
-            phone, instance: instanceName,
-            reason: 'Sem mensagem de referência (wa_message_id) para acionar /chat/history-sync. Ainda não chegou nenhuma mensagem via webhook nesta conversa.',
-          }).slice(0, 2000),
-        });
-        return Response.json({
-          success: true, created: 0,
-          note: 'Ainda não há histórico local para esta conversa. As mensagens chegam pelo webhook em tempo real; envie ou receba uma mensagem para iniciar o histórico.',
-        });
-      }
-
-      const r = await evoFetch(`${base}/chat/history-sync`, {
-        method: 'POST',
-        headers: { apikey: instToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messageInfo: {
+      // Referência para o /chat/history-sync: usa a mensagem local mais antiga quando existir;
+      // caso contrário (primeira sincronização, sem mensagens locais ainda) usa o momento atual
+      // como referência, para pedir as últimas mensagens da conversa antes de agora.
+      const referenceInfo = oldest?.wa_message_id
+        ? {
             Chat: oldest.chat_jid || jid,
             ID: oldest.wa_message_id,
             IsFromMe: oldest.direction === 'out',
             IsGroup: !!oldest.is_group,
             Timestamp: oldest.timestamp,
-          },
-          count: limit,
-        }),
+          }
+        : {
+            Chat: jid,
+            ID: `SYNC_${Date.now()}`,
+            IsFromMe: false,
+            IsGroup: false,
+            Timestamp: new Date().toISOString(),
+          };
+
+      const r = await evoFetch(`${base}/chat/history-sync`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageInfo: referenceInfo, count: limit }),
       });
 
       if (!r.ok) {
@@ -583,7 +579,7 @@ Deno.serve(async (req) => {
 
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
-        details: JSON.stringify({ phone, instance: instanceName, requested: true, referenceId: oldest.wa_message_id }).slice(0, 2000),
+        details: JSON.stringify({ phone, instance: instanceName, requested: true, referenceId: referenceInfo.ID }).slice(0, 2000),
       });
       // Importante: as mensagens antigas chegam depois, via webhook (evento HistorySync) — não nesta resposta.
       return Response.json({
