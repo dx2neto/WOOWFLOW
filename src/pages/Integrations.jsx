@@ -21,7 +21,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { evolutionApi } from "@/functions/evolutionApi";
-import { erpApi } from "@/functions/erpApi";
+import { ixcApi } from "@/functions/ixcApi";
 import { metaApi } from "@/functions/metaApi";
 import { tiktokApi } from "@/functions/tiktokApi";
 import { emailApi } from "@/functions/emailApi";
@@ -35,7 +35,7 @@ import InstanceManagerModal from "@/components/integrations/InstanceManagerModal
 import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal";
 
 const integrationActions = {
-  erp_provider: erpApi,
+  erp_provider: ixcApi,
   evolution_go: evolutionApi,
   facebook_messenger: metaApi,
   instagram_direct: metaApi,
@@ -63,8 +63,8 @@ const integrations = [
     service: "erp_provider",
     display_name: "ERP do provedor",
     category: "Operação",
-    provider: "IXC, SGP, HubSoft ou API",
-    description: "Clientes, contratos, financeiro, OS e base operacional do provedor.",
+    provider: "IXCSoft",
+    description: "Clientes, contratos, financeiro, OS e base operacional do provedor (IXCSoft unificado).",
     icon: Database,
     color: "from-blue-600 to-cyan-600",
     fields: ["Clientes", "Contratos", "Financeiro", "OS"],
@@ -256,6 +256,9 @@ export default function Integrations() {
     const fn = integrationActions[integration.service] || omnichannelApi;
     if (integration.service === "evolution_go") {
       return fn({ action: action === "sync" ? "list_instances" : "test_connection" });
+    }
+    if (integration.service === "erp_provider") {
+      return fn({ action: action === "sync" ? "clientes" : "test_connection" });
     }
     return fn({
       action,
