@@ -98,6 +98,9 @@ Deno.serve(async (req) => {
         type:            msgType,
         status:          'received',
         timestamp,
+        wa_message_id:   String(info.ID || ''),
+        chat_jid:        chat,
+        is_group:        isGroup,
         ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
         ...(mediaUrl    ? { media_url:    mediaUrl    } : {}),
       });
@@ -214,6 +217,66 @@ Deno.serve(async (req) => {
       }
 
       return Response.json({ success: true, processed: 1 });
+    }
+
+    // ── HistorySync ───────────────────────────────────────────────────────────
+    // Resposta assíncrona de POST /chat/history-sync: traz mensagens antigas de uma conversa.
+    if (event === 'HistorySync') {
+      const data = body.data || {};
+      const items: Record<string, unknown>[] = Array.isArray(data) ? data : Array.isArray((data as Record<string, unknown>).messages) ? (data as Record<string, unknown>).messages as Record<string, unknown>[] : [data];
+      let processed = 0;
+
+      for (const item of items) {
+        const info    = ((item as Record<string, unknown>).Info || {}) as Record<string, unknown>;
+        const msgBody = ((item as Record<string, unknown>).Message || {}) as Record<string, unknown>;
+        const chat    = String(info.Chat || '');
+        const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
+        if (!chat || isGroup) continue;
+
+        const phone     = chat.replace(/@.*$/, '');
+        const fromMe    = !!info.IsFromMe;
+        const waId      = String(info.ID || '');
+        const mediaType = String(info.MediaType || '').toLowerCase();
+        const textContent = String(
+          msgBody.conversation ?? msgBody.extendedTextMessage?.text ??
+          msgBody.imageMessage?.caption ?? msgBody.videoMessage?.caption ?? ''
+        );
+        const timestamp = info.Timestamp ? new Date(info.Timestamp).toISOString() : new Date().toISOString();
+        if (!waId) continue;
+
+        const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
+        let conversation = existing[0];
+        if (!conversation) {
+          conversation = await base44.asServiceRole.entities.Conversation.create({
+            customer_name: String(info.PushName || phone),
+            phone, channel: 'whatsapp', instance: instanceId, status: 'novo',
+            last_message: textContent || `[${mediaType || 'mensagem'}]`, last_message_time: timestamp,
+          });
+        }
+
+        const dup = await base44.asServiceRole.entities.Message.filter({ conversation_id: conversation.id, wa_message_id: waId });
+        if (dup.length > 0) continue;
+
+        await base44.asServiceRole.entities.Message.create({
+          conversation_id: conversation.id,
+          content: textContent || (mediaType ? `[${mediaType}]` : '[mensagem]'),
+          direction: fromMe ? 'out' : 'in',
+          type: mediaType || 'text',
+          status: 'received',
+          timestamp,
+          wa_message_id: waId,
+          chat_jid: chat,
+          is_group: false,
+        });
+        processed++;
+      }
+
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
+        details: JSON.stringify({ event: 'HistorySync', processed }),
+      }).catch(() => {});
+
+      return Response.json({ success: true, processed });
     }
 
     // ── Receipt (leitura/entrega) ─────────────────────────────────────────────

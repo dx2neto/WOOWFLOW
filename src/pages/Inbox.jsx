@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
+import ContractTemplatePicker from "@/components/inbox/ContractTemplatePicker";
 import WhatsAppSearchResults from "@/components/inbox/WhatsAppSearchResults";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { ixcApi } from "@/functions/ixcApi";
@@ -209,8 +210,6 @@ export default function Inbox() {
     }
   };
 
-  // Solicita histórico ao Evolution Go via POST /chat/history-sync
-  // As mensagens chegam assincronamente via webhook HistorySync → subscription as adiciona ao estado
   const syncEvolutionHistory = useCallback(async (conv, showToast = true) => {
     if (!conv?.phone) return;
     const instance = selectedInstance || conv.instance;
@@ -318,8 +317,8 @@ export default function Inbox() {
         const existingPhones = new Set(conversations.map((c) => c.phone));
         const matches = [];
         for (const entry of entries) {
-          const jid = entry.jid || entry.JID || entry.id || "";
-          if (!jid || jid.includes("@g.us")) continue;
+          const jid = entry.jid || entry.JID || entry.Jid || entry.id || "";
+          if (!jid || !jid.includes("@s.whatsapp.net")) continue;
           const phone = jid.split("@")[0];
           if (!phone || existingPhones.has(phone)) continue;
           const name = entry.FullName || entry.PushName || entry.BusinessName || entry.name || phone;
@@ -387,20 +386,25 @@ export default function Inbox() {
         }
         const rawContacts = response?.data?.contacts || {};
         const rawEntries = Array.isArray(rawContacts) ? rawContacts : Object.entries(rawContacts).map(([jid, info]) => ({ jid, ...info }));
-        entries = rawEntries.map((entry) => ({
-          jid: entry.jid || entry.JID || entry.id || "",
-          phone: (entry.jid || entry.JID || entry.id || "").split("@")[0],
-          name: entry.FullName || entry.PushName || entry.BusinessName || entry.name,
-          last_message: null,
-          last_message_time: null,
-        }));
+        entries = rawEntries
+          .map((entry) => {
+            const jid = entry.jid || entry.JID || entry.Jid || entry.id || "";
+            return {
+              jid,
+              phone: jid.split("@")[0],
+              name: entry.FullName || entry.PushName || entry.BusinessName || entry.name,
+              last_message: null,
+              last_message_time: null,
+            };
+          })
+          .filter((entry) => entry.jid.includes("@s.whatsapp.net"));
       }
 
       const existingPhones = new Set(conversations.map((c) => c.phone));
       const toCreate = [];
 
       for (const entry of entries) {
-        const phone = entry.phone || (entry.jid || "").split("@")[0];
+        const phone = entry.phone;
         if (!phone || existingPhones.has(phone)) continue;
         existingPhones.add(phone);
         toCreate.push({
@@ -435,7 +439,7 @@ export default function Inbox() {
     setSending(true);
     try {
       if (selected.channel === "whatsapp") {
-        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance || selected.instance });
+        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
         if (response?.data?.error) {
           toast({ title: "Falha ao enviar mensagem", description: response.data.error, variant: "destructive" });
           return;
@@ -852,6 +856,7 @@ export default function Inbox() {
                   ["dados", "Dados"],
                   ["acordo", "Acordo"],
                   ["modelos", "Modelos"],
+                  ["contratos", "Contratos"],
                 ].map(([key, label]) => (
                   <button
                     key={key}
@@ -865,6 +870,8 @@ export default function Inbox() {
 
               {rightTab === "modelos" ? (
                 <QuickReplyPanel onSend={sendMessageContent} sending={sending} />
+              ) : rightTab === "contratos" ? (
+                <ContractTemplatePicker conversation={selected} />
               ) : rightTab === "acordo" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
                   <AgreementCheckPanel conversation={selected} instance={selectedInstance} />
