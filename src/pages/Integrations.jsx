@@ -1,189 +1,207 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, Card } from "@/components/ui/app-card";
-// Note: lucide-react removed Instagram and Facebook icons; Camera/Globe used as substitutes
 import {
-  MessageCircle, Database, FileSignature, ShieldCheck, Camera,
-  Globe, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode,
-  Mail, Phone, Bot, MessageSquare, RadioTower
+  Bot,
+  BriefcaseBusiness,
+  CheckCircle,
+  CreditCard,
+  Database,
+  FileSignature,
+  Globe,
+  Mail,
+  MessageCircle,
+  Phone,
+  QrCode,
+  RadioTower,
+  RefreshCw,
+  Settings,
+  Sparkles,
+  TestTube2,
+  XCircle,
 } from "lucide-react";
 import { evolutionApi } from "@/functions/evolutionApi";
+import { erpApi } from "@/functions/erpApi";
+import { metaApi } from "@/functions/metaApi";
+import { tiktokApi } from "@/functions/tiktokApi";
+import { emailApi } from "@/functions/emailApi";
+import { telephonyApi } from "@/functions/telephonyApi";
+import { crmApi } from "@/functions/crmApi";
+import { billingApi } from "@/functions/billingApi";
+import { signatureApi } from "@/functions/signatureApi";
+import { aiOmnichannelApi } from "@/functions/aiOmnichannelApi";
 import { omnichannelApi } from "@/functions/omnichannelApi";
-import { ixcApi } from "@/functions/ixcApi";
-import { zapsignApi } from "@/functions/zapsignApi";
-import { serasaApi } from "@/functions/serasaApi";
 import InstanceManagerModal from "@/components/integrations/InstanceManagerModal";
 import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal";
-import GoogleSheetsSyncCard from "@/components/integrations/GoogleSheetsSyncCard";
 
-const testFunctions = {
-  evolution_api: evolutionApi,
-  ixc_provedor: ixcApi,
-  zapsign: zapsignApi,
-  validacadastro: serasaApi,
+const integrationActions = {
+  erp_provider: erpApi,
+  evolution_go: evolutionApi,
+  facebook_messenger: metaApi,
+  instagram_direct: metaApi,
+  tiktok: tiktokApi,
+  email: emailApi,
+  telephony_pabx: telephonyApi,
+  crm: crmApi,
+  billing: billingApi,
+  digital_signature: signatureApi,
+  ai_sales_support: aiOmnichannelApi,
 };
 
-const omnichannelServices = new Set([
-  "instagram",
-  "facebook",
-  "messenger",
-  "tiktok",
-  "email",
-  "telefone",
-  "chat_interno",
-  "chat_externo",
-  "webchat",
-  "ai_assistant",
-]);
+const configAliases = {
+  evolution_go: ["evolution_go", "evolution_api"],
+  erp_provider: ["erp_provider", "ixc_provedor"],
+  digital_signature: ["digital_signature", "zapsign"],
+  facebook_messenger: ["facebook_messenger", "facebook", "messenger"],
+  instagram_direct: ["instagram_direct", "instagram"],
+  telephony_pabx: ["telephony_pabx", "telefone"],
+  ai_sales_support: ["ai_sales_support", "ai_assistant"],
+};
 
 const integrations = [
   {
-    service: "evolution_api",
-    display_name: "Evolution Go",
-    description: "WhatsApp Business API para envio e recebimento de mensagens",
-    icon: MessageCircle,
-    color: "from-green-500 to-green-600",
-    status: "pending",
-    fields: ["URL da API", "API Key", "Nome da Instância"],
-  },
-  {
-    service: "ixc_provedor",
-    display_name: "IXC Provedor",
-    description: "ERP para provedores de internet - clientes, contratos, financeiro, OS",
+    service: "erp_provider",
+    display_name: "ERP do provedor",
+    category: "Operação",
+    provider: "IXC, SGP, HubSoft ou API",
+    description: "Clientes, contratos, financeiro, OS e base operacional do provedor.",
     icon: Database,
-    color: "from-blue-500 to-blue-600",
-    status: "disconnected",
-    fields: ["URL do IXC", "Token de API"],
+    color: "from-blue-600 to-cyan-600",
+    fields: ["Clientes", "Contratos", "Financeiro", "OS"],
+    sync: true,
   },
   {
-    service: "zapsign",
-    display_name: "ZapSign",
-    description: "Assinatura eletrônica de contratos e documentos",
-    icon: FileSignature,
-    color: "from-purple-500 to-purple-600",
-    status: "disconnected",
-    fields: ["API Token"],
-  },
-  {
-    service: "validacadastro",
-    display_name: "ValidaCadastro",
-    description: "Validação de CPF/CNPJ e dados cadastrais",
-    icon: ShieldCheck,
-    color: "from-indigo-500 to-indigo-600",
-    status: "disconnected",
-    fields: ["API Token"],
-  },
-  {
-    service: "instagram",
-    display_name: "Instagram Business",
-    description: "Recebimento de mensagens do Instagram Direct",
-    icon: Camera,
-    color: "from-pink-500 to-rose-600",
-    status: "disconnected",
-    fields: ["OAuth - Conectar conta"],
-  },
-  {
-    service: "facebook",
-    display_name: "Facebook Messenger",
-    description: "Recebimento de mensagens do Facebook Messenger pela API Meta",
-    icon: Globe,
-    color: "from-blue-600 to-blue-700",
-    status: "disconnected",
-    fields: ["META_APP_ID", "META_PAGE_ACCESS_TOKEN", "Webhook Meta"],
-  },
-  {
-    service: "messenger",
-    display_name: "Messenger",
-    description: "Canal Meta Messenger centralizado na Inbox",
+    service: "evolution_go",
+    display_name: "WhatsApp Evolution GO",
+    category: "Atendimento",
+    provider: "Evolution GO",
+    description: "Instâncias, QR Code, envio, mídia, webhook e histórico no Inbox.",
     icon: MessageCircle,
-    color: "from-cyan-500 to-blue-600",
-    status: "disconnected",
-    fields: ["META_PAGE_ACCESS_TOKEN", "META_VERIFY_TOKEN"],
+    color: "from-emerald-500 to-green-700",
+    fields: ["Instâncias", "QR Code", "Webhook", "Histórico"],
+    sync: true,
+  },
+  {
+    service: "facebook_messenger",
+    display_name: "Facebook Messenger",
+    category: "Redes sociais",
+    provider: "Meta",
+    description: "OAuth, páginas, webhook, mensagens recebidas e respostas pelo Inbox.",
+    icon: Globe,
+    color: "from-blue-700 to-sky-600",
+    fields: ["OAuth", "Página", "Webhook", "Inbox"],
+    sync: true,
+  },
+  {
+    service: "instagram_direct",
+    display_name: "Instagram Direct",
+    category: "Redes sociais",
+    provider: "Meta",
+    description: "Direct do Instagram centralizado com histórico e status da integração.",
+    icon: Globe,
+    color: "from-pink-500 to-rose-600",
+    fields: ["OAuth", "Conta business", "Webhook", "Inbox"],
+    sync: true,
   },
   {
     service: "tiktok",
     display_name: "TikTok",
-    description: "Mensagens e leads do TikTok gerenciados pelo backend",
+    category: "Aquisição",
+    provider: "TikTok",
+    description: "Leads, comentários, formulários, eventos e campanhas quando a API permitir.",
     icon: RadioTower,
-    color: "from-slate-700 to-rose-600",
-    status: "disconnected",
-    fields: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "Webhook"],
+    color: "from-slate-800 to-rose-600",
+    fields: ["Leads", "Comentários", "Formulários", "Campanhas"],
+    sync: true,
   },
   {
     service: "email",
-    display_name: "E-mail + IA",
-    description: "Caixa IMAP/SMTP com sugestão e resposta automática por IA",
+    display_name: "E-mail",
+    category: "Atendimento",
+    provider: "IMAP/SMTP, Gmail ou Outlook",
+    description: "Leitura, resposta, rascunho por IA e classificação automática.",
     icon: Mail,
     color: "from-orange-500 to-amber-600",
-    status: "disconnected",
-    fields: ["IMAP", "SMTP", "AI_PROVIDER"],
+    fields: ["IMAP", "SMTP", "Rascunho IA", "Prioridade"],
+    sync: true,
   },
   {
-    service: "telefone",
-    display_name: "Telefone / PABX",
-    description: "Atendimentos telefônicos e URA na mesma fila",
+    service: "telephony_pabx",
+    display_name: "Telefonia/PABX",
+    category: "Atendimento",
+    provider: "Asterisk, 3CX, Issabel ou API",
+    description: "Chamadas, URA, gravação, identificação do cliente e atendimento no Inbox.",
     icon: Phone,
-    color: "from-indigo-500 to-violet-600",
-    status: "disconnected",
-    fields: ["PABX_API_URL", "PABX_API_TOKEN"],
+    color: "from-indigo-600 to-violet-700",
+    fields: ["Chamadas", "URA", "Gravações", "Fila"],
+    sync: true,
   },
   {
-    service: "chat_interno",
-    display_name: "Chat interno",
-    description: "Mensagens entre usuários e equipes dentro da plataforma",
-    icon: MessageSquare,
-    color: "from-amber-500 to-yellow-600",
-    status: "pending",
-    fields: ["Usuários", "Equipes", "Histórico"],
+    service: "crm",
+    display_name: "CRM",
+    category: "Vendas",
+    provider: "WOOWFLOW CRM",
+    description: "Leads, oportunidades, funil, vendedor responsável e origem do lead.",
+    icon: BriefcaseBusiness,
+    color: "from-teal-600 to-emerald-600",
+    fields: ["Leads", "Funil", "Oportunidades", "Origem"],
+    sync: true,
   },
   {
-    service: "webchat",
-    display_name: "Chat para site",
-    description: "Widget externo para captar visitantes e abrir conversas na Inbox",
-    icon: MessageSquare,
-    color: "from-purple-500 to-fuchsia-600",
-    status: "pending",
-    fields: ["Widget", "Origem do site", "Webhook"],
+    service: "billing",
+    display_name: "Cobrança",
+    category: "Receita",
+    provider: "ERP financeiro",
+    description: "Lembretes, segunda via, Pix, negociação e régua automática.",
+    icon: CreditCard,
+    color: "from-cyan-700 to-blue-600",
+    fields: ["Pix", "2a via", "Negociação", "Régua"],
+    sync: true,
   },
   {
-    service: "chat_externo",
-    display_name: "Chat externo",
-    description: "Entrada de conversas de portais, apps e páginas externas",
-    icon: MessageSquare,
-    color: "from-violet-500 to-indigo-600",
-    status: "pending",
-    fields: ["Origem", "Identificador externo", "Webhook"],
+    service: "digital_signature",
+    display_name: "Assinatura digital",
+    category: "Contratos",
+    provider: "ZapSign ou API",
+    description: "Envio de contrato, link de assinatura, status e webhook de documento assinado.",
+    icon: FileSignature,
+    color: "from-purple-600 to-fuchsia-600",
+    fields: ["Contrato", "Status", "Link", "Webhook"],
+    sync: true,
   },
   {
-    service: "ai_assistant",
-    display_name: "IA 24h",
-    description: "Assistente para sugerir ou responder automaticamente nos canais conectados",
+    service: "ai_sales_support",
+    display_name: "IA para atendimento e vendas",
+    category: "IA",
+    provider: "Assistente omnichannel",
+    description: "Sugestões, rascunhos, resumo, sentimento, intenção e resposta assistida.",
     icon: Bot,
-    color: "from-emerald-500 to-teal-600",
-    status: "disconnected",
-    fields: ["AI_PROVIDER", "AI_API_KEY", "Resposta automática"],
-  },
-  {
-    service: "telegram",
-    display_name: "Telegram Bot",
-    description: "Bot para recebimento de mensagens do Telegram",
-    icon: Send,
-    color: "from-sky-500 to-sky-600",
-    status: "disconnected",
-    fields: ["Bot Token"],
+    color: "from-lime-600 to-emerald-700",
+    fields: ["Sugestão", "Rascunho", "Resumo", "Handoff"],
+    sync: false,
   },
 ];
 
 const statusConfig = {
-  connected: { label: "Conectado", color: "text-green-600 bg-green-50", icon: CheckCircle },
-  disconnected: { label: "Desconectado", color: "text-gray-500 bg-gray-50", icon: XCircle },
-  error: { label: "Erro", color: "text-red-600 bg-red-50", icon: XCircle },
-  pending: { label: "Pendente", color: "text-amber-600 bg-amber-50", icon: RefreshCw },
+  connected: { label: "Conectado", color: "text-green-700 bg-green-50 border-green-200", icon: CheckCircle },
+  disconnected: { label: "Desconectado", color: "text-gray-600 bg-gray-50 border-gray-200", icon: XCircle },
+  error: { label: "Erro", color: "text-red-700 bg-red-50 border-red-200", icon: XCircle },
+  pending: { label: "Pendente", color: "text-amber-700 bg-amber-50 border-amber-200", icon: RefreshCw },
 };
+
+function formatSyncDate(value) {
+  if (!value) return "Nunca sincronizado";
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function Integrations() {
   const [configs, setConfigs] = useState({});
-  const [testingService, setTestingService] = useState(null);
+  const [busyService, setBusyService] = useState(null);
   const [showInstanceManager, setShowInstanceManager] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
 
@@ -195,147 +213,267 @@ export default function Integrations() {
     try {
       const data = await base44.entities.IntegrationConfig.list();
       const map = {};
-      data.forEach((c) => { map[c.service] = c; });
+      data.forEach((config) => { map[config.service] = config; });
       setConfigs(map);
-    } catch {}
-  };
-
-  const getStatus = (service) => {
-    return configs[service]?.status || integrations.find((i) => i.service === service)?.status || "disconnected";
-  };
-
-  const handleTestConnection = async (int) => {
-    const testFn = testFunctions[int.service];
-    setTestingService(int.service);
-    try {
-      const response = testFn
-        ? await testFn(int.service === "evolution_api" ? { action: "test_connection" } : {})
-        : await omnichannelApi({ action: "test_connection", service: int.service, display_name: int.display_name });
-      const success = response?.data?.success;
-      const pending = response?.data?.status === "pending";
-      const payload = {
-        service: int.service,
-        display_name: int.display_name,
-        status: success ? "connected" : pending ? "pending" : "error",
-        error_message: success ? "" : response?.data?.error || response?.data?.details?.message || "Integração aguardando configuração.",
-        last_sync: new Date().toISOString(),
-      };
-      const existing = configs[int.service];
-      if (existing) {
-        await base44.entities.IntegrationConfig.update(existing.id, payload);
-      } else {
-        await base44.entities.IntegrationConfig.create(payload);
-      }
     } catch {
-      const existing = configs[int.service];
-      const payload = { service: int.service, display_name: int.display_name, status: "error", last_sync: new Date().toISOString() };
-      if (existing) await base44.entities.IntegrationConfig.update(existing.id, payload);
-      else await base44.entities.IntegrationConfig.create(payload);
+      setConfigs({});
+    }
+  };
+
+  const getConfig = (service) => {
+    const keys = configAliases[service] || [service];
+    return keys.map((key) => configs[key]).find(Boolean);
+  };
+
+  const cards = useMemo(() => integrations.map((integration) => ({
+    ...integration,
+    config: getConfig(integration.service),
+  })), [configs]);
+
+  const persistConfig = async (integration, patch = {}) => {
+    const existing = getConfig(integration.service);
+    const now = new Date().toISOString();
+    const payload = {
+      service: integration.service,
+      display_name: integration.display_name,
+      description: integration.description,
+      category: integration.category,
+      provider: integration.provider,
+      status: patch.status || existing?.status || "pending",
+      is_active: patch.status === "connected" || existing?.is_active || false,
+      settings: existing?.settings || {},
+      config: existing?.config || {},
+      updated_at: now,
+      created_at: existing?.created_at || now,
+      ...patch,
+    };
+    if (existing) await base44.entities.IntegrationConfig.update(existing.id, payload);
+    else await base44.entities.IntegrationConfig.create(payload);
+    await loadConfigs();
+  };
+
+  const callIntegration = async (integration, action) => {
+    const fn = integrationActions[integration.service] || omnichannelApi;
+    if (integration.service === "evolution_go") {
+      return fn({ action: action === "sync" ? "list_instances" : "test_connection" });
+    }
+    return fn({
+      action,
+      service: integration.service,
+      display_name: integration.display_name,
+      category: integration.category,
+      provider: integration.provider,
+    });
+  };
+
+  const handleConfigure = async (integration) => {
+    if (integration.service === "evolution_go") {
+      setShowInstanceManager(true);
+      return;
+    }
+    setBusyService(`${integration.service}:configure`);
+    try {
+      await omnichannelApi({
+        action: "upsert_config",
+        service: integration.service,
+        display_name: integration.display_name,
+        description: integration.description,
+        category: integration.category,
+        provider: integration.provider,
+        ai_mode: integration.service === "ai_sales_support" ? "suggestion" : undefined,
+        ai_auto_reply: false,
+      });
+      await persistConfig(integration, { status: "pending", error_message: "Configure as credenciais seguras no backend para ativar." });
     } finally {
-      setTestingService(null);
-      await loadConfigs();
+      setBusyService(null);
+    }
+  };
+
+  const handleTestConnection = async (integration) => {
+    setBusyService(`${integration.service}:test`);
+    try {
+      const response = await callIntegration(integration, "test_connection");
+      const data = response?.data || {};
+      const success = !!data.success;
+      await persistConfig(integration, {
+        status: success ? "connected" : data.status || "pending",
+        is_active: success,
+        error_message: success ? "" : data.error || (data.missing?.length ? `Faltando: ${data.missing.join(", ")}` : "Integração aguardando configuração."),
+        last_sync: new Date().toISOString(),
+      });
+    } catch (error) {
+      await persistConfig(integration, {
+        status: "error",
+        error_message: error.message || "Falha ao testar conexão.",
+        last_sync: new Date().toISOString(),
+      });
+    } finally {
+      setBusyService(null);
+    }
+  };
+
+  const handleSync = async (integration) => {
+    setBusyService(`${integration.service}:sync`);
+    try {
+      const response = await callIntegration(integration, "sync");
+      const data = response?.data || {};
+      const success = !!data.success;
+      await persistConfig(integration, {
+        status: success ? "connected" : data.status || "pending",
+        error_message: success ? "" : data.error || (data.missing?.length ? `Faltando: ${data.missing.join(", ")}` : "Sincronização aguardando configuração."),
+        last_sync: new Date().toISOString(),
+      });
+    } finally {
+      setBusyService(null);
     }
   };
 
   return (
     <PageContainer>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold font-heading">Integrações</h2>
-        <p className="text-sm text-muted-foreground">Conecte seus serviços e canais de atendimento</p>
+      <section className="mb-6 overflow-hidden rounded-lg border border-border bg-card">
+        <div className="grid gap-5 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              <Sparkles className="h-3.5 w-3.5" />
+              Integrações e IA para provedores de internet
+            </div>
+            <h2 className="font-heading text-3xl font-bold tracking-normal text-foreground">
+              Seu provedor mais rápido, inteligente e lucrativo
+            </h2>
+            <p className="mt-2 max-w-3xl text-base font-semibold text-muted-foreground">
+              Automatize atendimento, cobrança e vendas com Inteligência Artificial para provedores de internet.
+            </p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Com IA, seu provedor ganha produtividade, reduz custos operacionais, melhora o atendimento e aumenta as oportunidades de venda.
+              Automatize o que é repetitivo e deixe sua equipe focada no que realmente precisa de atenção humana.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {["ERP", "WhatsApp", "Messenger", "Instagram", "TikTok", "E-mail", "PABX", "CRM", "Cobrança", "Contratos", "IA"].map((item) => (
+                <span key={item} className="rounded-md border border-border bg-background px-3 py-2 font-medium text-muted-foreground">
+                  {item}
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={() => document.getElementById("ai_sales_support-card")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              <Bot className="h-4 w-4" />
+              Quero escalar meu provedor com IA
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="mb-5">
+        <h3 className="font-heading text-2xl font-bold">Integrações possíveis</h3>
+        <p className="text-sm text-muted-foreground">Conecte os canais em rotas seguras de backend e acompanhe o status em uma única tela.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {integrations.map((int) => {
-          const Icon = int.icon;
-          const status = getStatus(int.service);
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {cards.map((integration) => {
+          const Icon = integration.icon;
+          const config = integration.config;
+          const status = config?.status || "disconnected";
           const StatusIcon = statusConfig[status]?.icon || XCircle;
+          const isTesting = busyService === `${integration.service}:test`;
+          const isConfiguring = busyService === `${integration.service}:configure`;
+          const isSyncing = busyService === `${integration.service}:sync`;
+
           return (
-            <Card key={int.service} className="p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${int.color} flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 text-white" />
+            <div key={integration.service} id={`${integration.service}-card`}>
+            <Card className="flex min-h-[360px] flex-col p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br ${integration.color}`}>
+                  <Icon className="h-5 w-5 text-white" />
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig[status]?.color}`}>
-                  <StatusIcon className="w-3.5 h-3.5" /> {statusConfig[status]?.label}
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusConfig[status]?.color}`}>
+                  <StatusIcon className={`h-3.5 w-3.5 ${status === "pending" ? "" : ""}`} />
+                  {statusConfig[status]?.label || status}
                 </span>
               </div>
 
-              <h3 className="font-semibold mb-1">{int.display_name}</h3>
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{int.description}</p>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">{integration.category} · {integration.provider}</p>
+                <h4 className="font-heading text-lg font-bold">{integration.display_name}</h4>
+                <p className="min-h-[44px] text-sm leading-5 text-muted-foreground">{integration.description}</p>
+              </div>
 
-              <div className="space-y-1 mb-4">
-                {int.fields.map((field) => (
-                  <p key={field} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-muted-foreground" /> {field}
-                  </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {integration.fields.map((field) => (
+                  <span key={field} className="rounded-md bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                    {field}
+                  </span>
                 ))}
               </div>
 
-              <div className="flex gap-2">
-                {int.service === "evolution_api" && (
-                  <>
-                    <button
-                      onClick={() => setShowInstanceManager(true)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
-                    >
-                      <Settings className="w-4 h-4" /> Instâncias
-                    </button>
-                    <button
-                      onClick={() => setShowQrCode(true)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted"
-                    >
-                      <QrCode className="w-4 h-4" /> QR Code
-                    </button>
-                  </>
-                )}
-                {(testFunctions[int.service] || omnichannelServices.has(int.service)) ? (
-                  status === "connected" ? (
-                    <>
-                      {int.service !== "evolution_api" && (
-                        <button className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted">
-                          <Settings className="w-4 h-4" /> Configurar
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleTestConnection(int)}
-                        disabled={testingService === int.service}
-                        className="flex items-center justify-center px-3 py-2 border border-border rounded-lg hover:bg-muted disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-4 h-4 text-muted-foreground ${testingService === int.service ? "animate-spin" : ""}`} />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => handleTestConnection(int)}
-                      disabled={testingService === int.service}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {testingService === int.service ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                      {testingService === int.service ? "Testando..." : "Conectar"}
-                    </button>
-                  )
-                ) : (
-                  <button className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
-                    <Plus className="w-4 h-4" /> Conectar
-                  </button>
+              <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Última sincronização</span>
+                  <span className="font-medium text-foreground">{formatSyncDate(config?.last_sync)}</span>
+                </div>
+                {config?.error_message && (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                    {config.error_message}
+                  </p>
                 )}
               </div>
+
+              <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
+                <button
+                  onClick={() => handleConfigure(integration)}
+                  disabled={!!busyService}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50"
+                >
+                  {isConfiguring ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Settings className="h-3.5 w-3.5" />}
+                  Configurar
+                </button>
+                <button
+                  onClick={() => handleTestConnection(integration)}
+                  disabled={!!busyService}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50"
+                >
+                  {isTesting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <TestTube2 className="h-3.5 w-3.5" />}
+                  Testar
+                </button>
+                <button
+                  onClick={() => handleSync(integration)}
+                  disabled={!!busyService || !integration.sync}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isSyncing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Sincronizar
+                </button>
+              </div>
+
+              {integration.service === "evolution_go" && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setShowInstanceManager(true)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-semibold hover:bg-muted"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Instâncias
+                  </button>
+                  <button
+                    onClick={() => setShowQrCode(true)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-semibold hover:bg-muted"
+                  >
+                    <QrCode className="h-3.5 w-3.5" />
+                    QR Code
+                  </button>
+                </div>
+              )}
             </Card>
+            </div>
           );
         })}
-        <GoogleSheetsSyncCard />
       </div>
 
-      {showInstanceManager && (
-        <InstanceManagerModal onClose={() => setShowInstanceManager(false)} />
-      )}
-      {showQrCode && (
-        <EvolutionQrCodeModal onClose={() => setShowQrCode(false)} />
-      )}
+      {showInstanceManager && <InstanceManagerModal onClose={() => setShowInstanceManager(false)} />}
+      {showQrCode && <EvolutionQrCodeModal onClose={() => setShowQrCode(false)} />}
     </PageContainer>
   );
 }

@@ -3,45 +3,82 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 type AnyRecord = Record<string, unknown>;
 
 const SERVICE_ENV: Record<string, string[]> = {
+  erp_provider: ['ERP_API_URL', 'ERP_API_TOKEN'],
+  evolution_go: ['EVOLUTION_GO_BASE_URL', 'EVOLUTION_GO_ADMIN_TOKEN'],
+  facebook_messenger: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
+  instagram_direct: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   instagram: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   facebook: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   messenger: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   tiktok: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_WEBHOOK_SECRET'],
   email: ['EMAIL_IMAP_HOST', 'EMAIL_IMAP_USER', 'EMAIL_IMAP_PASSWORD', 'EMAIL_SMTP_HOST', 'EMAIL_SMTP_USER', 'EMAIL_SMTP_PASSWORD'],
   telefone: ['PABX_API_URL', 'PABX_API_TOKEN'],
+  telephony_pabx: ['PABX_API_URL', 'PABX_API_TOKEN'],
+  crm: [],
+  billing: ['ERP_API_URL', 'ERP_API_TOKEN'],
+  digital_signature: ['ZAPSIGN_API_TOKEN'],
   ai_assistant: ['AI_PROVIDER', 'AI_API_KEY'],
+  ai_sales_support: ['AI_PROVIDER', 'AI_API_KEY'],
+};
+
+const SERVICE_ALIASES: Record<string, string> = {
+  evolution_api: 'evolution_go',
+  ixc_provedor: 'erp_provider',
+  zapsign: 'digital_signature',
+  facebook: 'facebook_messenger',
+  messenger: 'facebook_messenger',
+  instagram: 'instagram_direct',
+  telefone: 'telephony_pabx',
+  ai_assistant: 'ai_sales_support',
 };
 
 const MANAGED_SERVICES = new Set([
+  'erp_provider',
+  'evolution_go',
+  'facebook_messenger',
+  'instagram_direct',
   'instagram',
   'facebook',
   'messenger',
   'tiktok',
   'email',
   'telefone',
+  'telephony_pabx',
+  'crm',
+  'billing',
+  'digital_signature',
   'chat_interno',
   'chat_externo',
   'webchat',
   'ai_assistant',
+  'ai_sales_support',
 ]);
 
+function canonicalService(service: string) {
+  return SERVICE_ALIASES[service] || service;
+}
+
 function envStatus(service: string) {
-  if (service === 'chat_interno' || service === 'chat_externo' || service === 'webchat') {
+  const canonical = canonicalService(service);
+  if (canonical === 'chat_interno' || canonical === 'chat_externo' || canonical === 'webchat' || canonical === 'crm') {
     return { ready: true, missing: [] as string[] };
   }
-  const required = SERVICE_ENV[service] || [];
+  const required = SERVICE_ENV[canonical] || [];
   const missing = required.filter((key) => !Deno.env.get(key));
   return { ready: required.length > 0 && missing.length === 0, missing };
 }
 
 async function upsertConfig(base44: ReturnType<typeof createClientFromRequest>, service: string, displayName: string, patch: AnyRecord = {}) {
   const status = envStatus(service);
+  const now = new Date().toISOString();
   const payload = {
     service,
     display_name: displayName,
     status: status.ready ? 'connected' : 'pending',
     error_message: status.ready ? '' : `Configure no ambiente Base44: ${status.missing.join(', ')}`,
-    last_sync: new Date().toISOString(),
+    is_active: status.ready,
+    last_sync: now,
+    updated_at: now,
     ...patch,
   };
   const existing = await base44.asServiceRole.entities.IntegrationConfig.filter({ service });
@@ -61,7 +98,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || 'get_status');
-    const service = String(body.service || '');
+    const service = canonicalService(String(body.service || ''));
 
     if (service && !MANAGED_SERVICES.has(service)) {
       return Response.json({ success: false, error: `Serviço não suportado: ${service}` }, { status: 400 });
@@ -92,10 +129,28 @@ Deno.serve(async (req) => {
     if (action === 'upsert_config') {
       const config = await upsertConfig(base44, service, String(body.display_name || service), {
         config: body.config && typeof body.config === 'object' ? body.config : {},
+        settings: body.settings && typeof body.settings === 'object' ? body.settings : body.config && typeof body.config === 'object' ? body.config : {},
+        description: String(body.description || ''),
+        category: String(body.category || ''),
+        provider: String(body.provider || ''),
         ai_enabled: !!body.ai_enabled,
-        ai_auto_reply: !!body.ai_auto_reply,
+        ai_auto_reply: body.ai_mode === 'auto_reply' ? !!body.ai_auto_reply : false,
       });
       return Response.json({ success: true, config });
+    }
+
+    if (action === 'sync') {
+      const status = envStatus(service);
+      await upsertConfig(base44, service, String(body.display_name || service), {
+        status: status.ready ? 'connected' : 'pending',
+      });
+      return Response.json({
+        success: status.ready,
+        service,
+        synced: status.ready,
+        missing: status.missing,
+        error: status.ready ? null : 'Sincronização aguardando credenciais seguras no backend.',
+      });
     }
 
     if (action === 'send_internal_message') {

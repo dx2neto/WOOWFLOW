@@ -6,25 +6,43 @@
       "type": "string",
       "enum": [
         "evolution_api",
+        "evolution_go",
         "ixc_provedor",
+        "erp_provider",
         "zapsign",
+        "digital_signature",
         "validacadastro",
         "instagram",
+        "instagram_direct",
         "facebook",
+        "facebook_messenger",
         "messenger",
         "tiktok",
         "telegram",
         "email",
         "telefone",
+        "telephony_pabx",
+        "crm",
+        "billing",
         "chat_interno",
         "chat_externo",
         "webchat",
         "ai_assistant",
+        "ai_sales_support",
         "google_sheets"
       ],
       "default": "evolution_api"
     },
     "display_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "provider": {
       "type": "string"
     },
     "status": {
@@ -45,6 +63,13 @@
     },
     "config": {
       "type": "object"
+    },
+    "settings": {
+      "type": "object"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": false
     },
     "provider_account_id": {
       "type": "string"
@@ -67,6 +92,14 @@
       "default": false
     },
     "last_sync": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
       "type": "string",
       "format": "date-time"
     }
