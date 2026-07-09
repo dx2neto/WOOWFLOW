@@ -7,6 +7,30 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 // Formato Evolution Go (diferente da Evolution API JS):
 //   { event: "Message", instanceId: "<uuid>", instanceToken: "<token>", data: { Info: {...}, Message: {...} } }
 
+type AnyRecord = Record<string, unknown>;
+
+function extractText(msgBody: AnyRecord): string {
+  return String(
+    msgBody.conversation ??
+    (msgBody.extendedTextMessage as AnyRecord)?.text ??
+    (msgBody.imageMessage as AnyRecord)?.caption ??
+    (msgBody.videoMessage as AnyRecord)?.caption ??
+    (msgBody.documentMessage as AnyRecord)?.title ??
+    (msgBody.documentMessage as AnyRecord)?.fileName ??
+    ''
+  );
+}
+
+function detectMsgType(info: AnyRecord, msgBody: AnyRecord): string {
+  const mediaType = String(info.MediaType || '').toLowerCase();
+  if (mediaType && ['image', 'video', 'audio', 'document', 'sticker'].includes(mediaType)) return mediaType;
+  if (msgBody.locationMessage) return 'location';
+  if (msgBody.reactionMessage) return 'reaction';
+  if (msgBody.pollCreationMessage || msgBody.pollUpdateMessage) return 'poll';
+  if (msgBody.contactMessage || msgBody.contactsArrayMessage) return 'contact';
+  return 'text';
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   try {
@@ -17,58 +41,50 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body        = await req.json().catch(() => ({}));
-    const event       = String(body.event || '');
-    const instanceId  = String(body.instanceId  || body.instance || '');
-    const instanceTok = String(body.instanceToken || '');
+    const body       = await req.json().catch(() => ({}));
+    const event      = String(body.event || '');
+    const instanceId = String(body.instanceId || body.instance || '');
 
     // ── Message ───────────────────────────────────────────────────────────────
-    // Formato Evolution Go: body.data é um objeto com Info e Message (não array)
+    // Formato Evolution Go: body.data tem Info e Message
     if (event === 'Message') {
       const data    = body.data || {};
-      const info    = data.Info  || {};
-      const msgBody = data.Message || {};
+      const info    = (data.Info || {}) as AnyRecord;
+      const msgBody = (data.Message || {}) as AnyRecord;
 
-      const chat     = String(info.Chat || '');
-      const isGroup  = !!info.IsGroup || chat.endsWith('@g.us');
+      const chat    = String(info.Chat || '');
+      const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
       if (!chat || isGroup) {
         return Response.json({ success: true, ignored: true, reason: 'group or empty' });
       }
 
-      const phone     = chat.replace(/@.*$/, '');
-      const fromMe    = !!info.IsFromMe;
-      const pushName  = String(info.PushName || phone);
-      const mediaType = String(info.MediaType || '').toLowerCase(); // image | video | audio | document | ''
-
-      // extrai conteúdo de texto
-      const textContent = String(
-        msgBody.conversation                              ??
-        msgBody.extendedTextMessage?.text                ??
-        msgBody.imageMessage?.caption                    ??
-        msgBody.videoMessage?.caption                    ??
-        msgBody.documentMessage?.title                   ??
-        msgBody.documentMessage?.fileName                ??
-        ''
-      );
-
-      // tipo da mensagem: text | image | video | audio | document
-      const msgType = mediaType || (textContent ? 'text' : 'text');
-      const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
-
-      // timestamp em ISO 8601 (Evolution Go já envia ISO, não Unix)
+      const waId    = String(info.ID || '');
+      const phone   = chat.replace(/@.*$/, '');
+      const fromMe  = !!info.IsFromMe;
+      const pushName = String(info.PushName || phone);
+      const msgType  = detectMsgType(info, msgBody);
+      const textContent = extractText(msgBody);
+      const content  = textContent || `[${msgType}]`;
       const timestamp = info.Timestamp
-        ? new Date(info.Timestamp).toISOString()
+        ? new Date(String(info.Timestamp)).toISOString()
         : new Date().toISOString();
 
-      // mídia em base64 (quando WEBHOOK_FILES=true)
       const mediaBase64: string | null =
         (typeof msgBody.base64 === 'string' && msgBody.base64) ? msgBody.base64 : null;
       const mediaUrl: string | null =
         (typeof msgBody.mediaUrl === 'string' && msgBody.mediaUrl) ? msgBody.mediaUrl : null;
 
-      // ── Conversation ───────────────────────────────────────────────────────
-      const existing     = await base44.asServiceRole.entities.Conversation.filter({ phone });
-      let conversation   = existing[0];
+      // ── Deduplication by wa_message_id ────────────────────────────────────
+      if (waId) {
+        const dup = await base44.asServiceRole.entities.Message.filter({ wa_message_id: waId });
+        if (dup.length > 0) {
+          return Response.json({ success: true, ignored: true, reason: 'duplicate wa_message_id' });
+        }
+      }
+
+      // ── Upsert Conversation ───────────────────────────────────────────────
+      const existing   = await base44.asServiceRole.entities.Conversation.filter({ phone });
+      let conversation = existing[0];
 
       if (!conversation) {
         conversation = await base44.asServiceRole.entities.Conversation.create({
@@ -90,19 +106,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ── Message ────────────────────────────────────────────────────────────
+      // ── Save Message ──────────────────────────────────────────────────────
       await base44.asServiceRole.entities.Message.create({
         conversation_id: conversation.id,
         content,
         direction:       fromMe ? 'out' : 'in',
         type:            msgType,
-        status:          'received',
+        status:          fromMe ? 'sent' : 'received',
         timestamp,
-        wa_message_id:   String(info.ID || ''),
+        wa_message_id:   waId,
         chat_jid:        chat,
-        is_group:        isGroup,
+        is_group:        false,
+        sender_name:     fromMe ? null : pushName,
         ...(mediaBase64 ? { media_base64: mediaBase64 } : {}),
-        ...(mediaUrl    ? { media_url:    mediaUrl    } : {}),
+        ...(mediaUrl    ? { media_url: mediaUrl } : {}),
       });
 
       await base44.asServiceRole.entities.IntegrationLog.create({
@@ -110,44 +127,100 @@ Deno.serve(async (req) => {
         action:      'Message',
         status:      'sucesso',
         details:     `${phone} — ${msgType}${fromMe ? ' (enviado)' : ''}`,
+      }).catch(() => {});
+
+      return Response.json({ success: true, processed: 1 });
+    }
+
+    // ── SendMessage ───────────────────────────────────────────────────────────
+    // Evento disparado quando a própria instância envia uma mensagem (por fora do sistema)
+    if (event === 'SendMessage') {
+      const data    = body.data || {};
+      const info    = (data.Info || {}) as AnyRecord;
+      const msgBody = (data.Message || {}) as AnyRecord;
+
+      const chat    = String(info.Chat || '');
+      const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
+      if (!chat || isGroup) return Response.json({ success: true, ignored: true });
+
+      const waId      = String(info.ID || '');
+      const phone     = chat.replace(/@.*$/, '');
+      const msgType   = detectMsgType(info, msgBody);
+      const content   = extractText(msgBody) || `[${msgType}]`;
+      const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
+
+      // Deduplication
+      if (waId) {
+        const dup = await base44.asServiceRole.entities.Message.filter({ wa_message_id: waId });
+        if (dup.length > 0) return Response.json({ success: true, ignored: true, reason: 'duplicate' });
+      }
+
+      const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
+      let convo      = existing[0];
+
+      if (!convo) {
+        convo = await base44.asServiceRole.entities.Conversation.create({
+          customer_name: phone, phone, channel: 'whatsapp',
+          instance: instanceId, status: 'novo',
+          last_message: content, last_message_time: timestamp, unread: false,
+        });
+      } else {
+        await base44.asServiceRole.entities.Conversation.update(convo.id, {
+          last_message: content, last_message_time: timestamp,
+        });
+      }
+
+      await base44.asServiceRole.entities.Message.create({
+        conversation_id: convo.id,
+        content,
+        direction:       'out',
+        type:            msgType,
+        status:          'sent',
+        timestamp,
+        wa_message_id:   waId,
+        chat_jid:        chat,
+        is_group:        false,
       });
 
       return Response.json({ success: true, processed: 1 });
     }
 
     // ── HistorySync ───────────────────────────────────────────────────────────
-    // Dispara quando o WhatsApp envia histórico após /chat/history-sync.
-    // Requer HISTORY_SYNC no subscribe do connect.
+    // Resposta assíncrona de POST /chat/history-sync.
+    // Requer subscribe: ["HISTORY_SYNC"] ou ["ALL"] no connect.
     if (event === 'HistorySync') {
       const data = body.data || {};
       const rawList: unknown[] = Array.isArray(data)
         ? data
-        : Array.isArray(data.Messages) ? data.Messages
-        : Array.isArray(data.messages) ? data.messages
-        : [];
+        : Array.isArray((data as AnyRecord).Messages) ? (data as AnyRecord).Messages as unknown[]
+        : Array.isArray((data as AnyRecord).messages) ? (data as AnyRecord).messages as unknown[]
+        : Array.isArray((data as AnyRecord).Conversations) ? (data as AnyRecord).Conversations as unknown[]
+        : [data];
 
       let saved = 0;
       for (const item of rawList) {
-        const msg = (item || {}) as Record<string, unknown>;
-        const info = (msg.Info || {}) as Record<string, unknown>;
-        const msgBody = (msg.Message || {}) as Record<string, unknown>;
+        const msg     = (item || {}) as AnyRecord;
+        const info    = (msg.Info || {}) as AnyRecord;
+        const msgBody = (msg.Message || {}) as AnyRecord;
 
-        const chat = String(info.Chat || '');
-        const isGroup = !!(info.IsGroup) || chat.endsWith('@g.us');
+        const chat    = String(info.Chat || '');
+        const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
         if (!chat || isGroup) continue;
 
-        const phone = chat.replace(/@.*$/, '');
-        const fromMe = Boolean(info.IsFromMe);
-        const pushName = String(info.PushName || phone);
-        const mediaType = String(info.MediaType || '').toLowerCase();
-        const textContent = String(
-          msgBody.conversation ??
-          (msgBody.extendedTextMessage as Record<string,unknown>)?.text ??
-          (msgBody.imageMessage as Record<string,unknown>)?.caption ??
-          (msgBody.videoMessage as Record<string,unknown>)?.caption ?? ''
-        );
-        const content = textContent || (mediaType ? `[${mediaType}]` : '[mensagem]');
-        const timestamp = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
+        const waId    = String(info.ID || '');
+        if (!waId) continue; // Sem ID não é possível deduplicar
+
+        // Deduplication por wa_message_id (robusto)
+        const dup = await base44.asServiceRole.entities.Message.filter({ wa_message_id: waId });
+        if (dup.length > 0) continue;
+
+        const phone      = chat.replace(/@.*$/, '');
+        const fromMe     = !!info.IsFromMe;
+        const pushName   = String(info.PushName || phone);
+        const msgType    = detectMsgType(info, msgBody);
+        const textContent = extractText(msgBody);
+        const content    = textContent || `[${msgType}]`;
+        const timestamp  = info.Timestamp ? new Date(String(info.Timestamp)).toISOString() : new Date().toISOString();
 
         // Busca ou cria Conversation
         const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
@@ -159,17 +232,17 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Evita duplicata por timestamp
-        const existingMsgs = await base44.asServiceRole.entities.Message.filter(
-          { conversation_id: conversation.id, timestamp }
-        );
-        if (existingMsgs.length > 0) continue;
-
         await base44.asServiceRole.entities.Message.create({
-          conversation_id: conversation.id, content,
-          direction: fromMe ? 'out' : 'in',
-          type: mediaType || 'text', status: 'received', timestamp,
-          sender_name: fromMe ? null : pushName,
+          conversation_id: conversation.id,
+          content,
+          direction:       fromMe ? 'out' : 'in',
+          type:            msgType,
+          status:          fromMe ? 'sent' : 'received',
+          timestamp,
+          wa_message_id:   waId,
+          chat_jid:        chat,
+          is_group:        false,
+          sender_name:     fromMe ? null : pushName,
         });
         saved++;
       }
@@ -182,112 +255,31 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, processed: saved });
     }
 
-    // ── SendMessage ───────────────────────────────────────────────────────────
-    // Registra mensagens enviadas pela própria instância (fromMe=true)
-    if (event === 'SendMessage') {
-      const data    = body.data || {};
-      const info    = data.Info  || {};
-      const msgBody = data.Message || {};
-
-      const chat    = String(info.Chat || '');
-      const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
-      if (!chat || isGroup) return Response.json({ success: true, ignored: true });
-
-      const phone   = chat.replace(/@.*$/, '');
-      const content = String(
-        msgBody.conversation ?? msgBody.extendedTextMessage?.text ?? '[mídia]'
-      );
-      const timestamp = info.Timestamp ? new Date(info.Timestamp).toISOString() : new Date().toISOString();
-
-      const existing   = await base44.asServiceRole.entities.Conversation.filter({ phone });
-      const convo      = existing[0];
-      if (convo) {
-        await base44.asServiceRole.entities.Conversation.update(convo.id, {
-          last_message:      content,
-          last_message_time: timestamp,
-        });
-        await base44.asServiceRole.entities.Message.create({
-          conversation_id: convo.id,
-          content,
-          direction:       'out',
-          type:            'text',
-          status:          'sent',
-          timestamp,
-        });
-      }
-
-      return Response.json({ success: true, processed: 1 });
-    }
-
-    // ── HistorySync ───────────────────────────────────────────────────────────
-    // Resposta assíncrona de POST /chat/history-sync: traz mensagens antigas de uma conversa.
-    if (event === 'HistorySync') {
-      const data = body.data || {};
-      const items: Record<string, unknown>[] = Array.isArray(data) ? data : Array.isArray((data as Record<string, unknown>).messages) ? (data as Record<string, unknown>).messages as Record<string, unknown>[] : [data];
-      let processed = 0;
-
-      for (const item of items) {
-        const info    = ((item as Record<string, unknown>).Info || {}) as Record<string, unknown>;
-        const msgBody = ((item as Record<string, unknown>).Message || {}) as Record<string, unknown>;
-        const chat    = String(info.Chat || '');
-        const isGroup = !!info.IsGroup || chat.endsWith('@g.us');
-        if (!chat || isGroup) continue;
-
-        const phone     = chat.replace(/@.*$/, '');
-        const fromMe    = !!info.IsFromMe;
-        const waId      = String(info.ID || '');
-        const mediaType = String(info.MediaType || '').toLowerCase();
-        const textContent = String(
-          msgBody.conversation ?? msgBody.extendedTextMessage?.text ??
-          msgBody.imageMessage?.caption ?? msgBody.videoMessage?.caption ?? ''
-        );
-        const timestamp = info.Timestamp ? new Date(info.Timestamp).toISOString() : new Date().toISOString();
-        if (!waId) continue;
-
-        const existing = await base44.asServiceRole.entities.Conversation.filter({ phone });
-        let conversation = existing[0];
-        if (!conversation) {
-          conversation = await base44.asServiceRole.entities.Conversation.create({
-            customer_name: String(info.PushName || phone),
-            phone, channel: 'whatsapp', instance: instanceId, status: 'novo',
-            last_message: textContent || `[${mediaType || 'mensagem'}]`, last_message_time: timestamp,
-          });
-        }
-
-        const dup = await base44.asServiceRole.entities.Message.filter({ conversation_id: conversation.id, wa_message_id: waId });
-        if (dup.length > 0) continue;
-
-        await base44.asServiceRole.entities.Message.create({
-          conversation_id: conversation.id,
-          content: textContent || (mediaType ? `[${mediaType}]` : '[mensagem]'),
-          direction: fromMe ? 'out' : 'in',
-          type: mediaType || 'text',
-          status: 'received',
-          timestamp,
-          wa_message_id: waId,
-          chat_jid: chat,
-          is_group: false,
-        });
-        processed++;
-      }
-
-      await base44.asServiceRole.entities.IntegrationLog.create({
-        integration: 'evolutionApi', action: 'sync_history', status: 'sucesso',
-        details: JSON.stringify({ event: 'HistorySync', processed }),
-      }).catch(() => {});
-
-      return Response.json({ success: true, processed });
-    }
-
-    // ── Receipt (leitura/entrega) ─────────────────────────────────────────────
+    // ── Receipt (entrega / leitura) ───────────────────────────────────────────
+    // state: "Delivered" | "Read" | "ReadSelf" | "Played"
     if (event === 'Receipt') {
-      // state pode ser "Read" | "ReadSelf" | "Delivered"
-      // Ignora por ora — pode ser usado para atualizar status de mensagem no futuro
-      return Response.json({ success: true, ignored: true, reason: 'receipt handled later' });
+      const data  = body.data || {};
+      const ids   = Array.isArray(data.ids) ? data.ids as string[] : data.id ? [String(data.id)] : [];
+      const state = String(data.state || data.State || '').toLowerCase();
+
+      let statusValue: string | null = null;
+      if (state.includes('read') || state.includes('played')) statusValue = 'read';
+      else if (state.includes('deliver')) statusValue = 'delivered';
+
+      if (statusValue && ids.length > 0) {
+        for (const waId of ids) {
+          const msgs = await base44.asServiceRole.entities.Message.filter({ wa_message_id: waId }).catch(() => []);
+          for (const msg of msgs) {
+            await base44.asServiceRole.entities.Message.update(msg.id, { status: statusValue }).catch(() => {});
+          }
+        }
+      }
+
+      return Response.json({ success: true, processed: ids.length });
     }
 
-    // ── Connected / LoggedOut ─────────────────────────────────────────────────
-    if (event === 'Connected' || event === 'LoggedOut' || event === 'PairSuccess') {
+    // ── Connected / LoggedOut / PairSuccess ───────────────────────────────────
+    if (event === 'Connected' || event === 'LoggedOut' || event === 'PairSuccess' || event === 'Disconnected') {
       await base44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionWebhook',
         action:      event,
@@ -299,11 +291,11 @@ Deno.serve(async (req) => {
 
     // ── QRCode ────────────────────────────────────────────────────────────────
     if (event === 'QRCode') {
-      // Apenas loga — o QR é exibido via evolutionApi.get_qrcode no frontend
+      // QR é exibido via polling no frontend (evolutionApi.get_qrcode)
       return Response.json({ success: true, ignored: true, reason: 'qr handled by frontend polling' });
     }
 
-    // ── outros eventos ────────────────────────────────────────────────────────
+    // ── Outros eventos ────────────────────────────────────────────────────────
     return Response.json({ success: true, ignored: true, event });
 
   } catch (error) {

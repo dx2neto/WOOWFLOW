@@ -24,7 +24,11 @@
         "image",
         "document",
         "video",
-        "sticker"
+        "sticker",
+        "location",
+        "reaction",
+        "poll",
+        "contact"
       ],
       "default": "text"
     },
@@ -34,12 +38,13 @@
     "status": {
       "type": "string",
       "enum": [
+        "received",
         "sent",
         "delivered",
         "read",
         "failed"
       ],
-      "default": "sent"
+      "default": "received"
     },
     "timestamp": {
       "type": "string",

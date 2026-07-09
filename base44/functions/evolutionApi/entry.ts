@@ -413,10 +413,17 @@ Deno.serve(async (req) => {
         });
         return Response.json({ success: false, error: 'Falha ao enviar mensagem', details: r.data }, { status: r.status || 502 });
       }
+      // Extrai o ID da mensagem retornado pela Evolution Go para salvar no banco
+      const rData = asRecord(r.data);
+      const waMessageId = String(
+        rData.id ?? rData.messageId ?? rData.ID ??
+        asRecord(rData.result).id ?? asRecord(rData.message).id ?? ''
+      );
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'send_message', status: 'sucesso',
+        details: waMessageId ? `wa_id: ${waMessageId}` : undefined,
       });
-      return Response.json({ success: true, result: r.data });
+      return Response.json({ success: true, result: r.data, wa_message_id: waMessageId || null });
     }
 
     // ── get_instance_info ────────────────────────────────────────────────────

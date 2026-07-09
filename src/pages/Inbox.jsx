@@ -439,12 +439,20 @@ export default function Inbox() {
     if (!content.trim() || !selected || sending) return;
     setSending(true);
     try {
+      let waMessageId = null;
+
       if (selected.channel === "whatsapp") {
-        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
-        if (response?.data?.error) {
-          toast({ title: "Falha ao enviar mensagem", description: response.data.error, variant: "destructive" });
+        if (!selectedInstance) {
+          toast({ title: "Nenhuma instância WhatsApp selecionada", description: "Selecione ou conecte uma instância para enviar mensagens.", variant: "destructive" });
           return;
         }
+        const response = await evolutionApi({ action: "send_message", phone: selected.phone, message: content, instance: selectedInstance });
+        const rData = response?.data || {};
+        if (rData.error || !rData.success) {
+          toast({ title: "Falha ao enviar mensagem", description: rData.error || "Verifique se a instância está conectada.", variant: "destructive" });
+          return;
+        }
+        waMessageId = rData.wa_message_id || null;
       }
 
       const now = new Date().toISOString();
@@ -456,6 +464,7 @@ export default function Inbox() {
         status: selected.channel === "whatsapp" ? "sent" : "delivered",
         timestamp: now,
         sender_name: "Atendente",
+        ...(waMessageId ? { wa_message_id: waMessageId } : {}),
       });
       setMessages((prev) => [...prev, newMessage]);
       await base44.entities.Conversation.update(selected.id, { last_message: content, last_message_time: now, status: "em_atendimento", unread: false });
