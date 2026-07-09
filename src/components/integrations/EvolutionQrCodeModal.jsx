@@ -132,8 +132,8 @@ export default function EvolutionQrCodeModal({ onClose }) {
   const checkConnected = useCallback(async () => {
     if (!selected) return;
     try {
-      const res = await evolutionApi({ action: "get_instance_info", instanceName: selected });
-      const s = res?.data?.instance?.state;
+      const res = await evolutionApi({ action: "get_status", instanceName: selected });
+      const s = res?.data?.state || res?.data?.instance?.state;
       if (s === "connected") {
         setState("connected");
         setQrImage(null);

@@ -91,8 +91,9 @@ function QrPanel({ instanceName, initialQr, onConnected }) {
 
   const checkStatus = useCallback(async () => {
     try {
-      const res = await evolutionApi({ action: "get_instance_info", instanceName });
-      const state = res?.data?.instance?.state;
+      // Usa a rota real GET /instance/status para refletir o estado atual da sessão
+      const res = await evolutionApi({ action: "get_status", instanceName });
+      const state = res?.data?.state || res?.data?.instance?.state;
       if (state === "connected") {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -222,6 +223,12 @@ export default function InstanceManagerModal({ onClose }) {
   }, []);
 
   useEffect(() => { loadInstances(); }, [loadInstances]);
+
+  // Atualiza o status das instâncias automaticamente em intervalo controlado
+  useEffect(() => {
+    const timer = setInterval(() => loadInstances(), 15000);
+    return () => clearInterval(timer);
+  }, [loadInstances]);
 
   const handleCreate = async () => {
     const name = newName.trim();
