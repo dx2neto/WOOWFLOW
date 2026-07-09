@@ -232,7 +232,6 @@ Deno.serve(async (req) => {
         const qrResp = await evoFetch(`${base}/instance/qr`, { headers: { apikey: newToken } });
         if (qrResp.ok) qrcode = normalizeQrPayload(qrResp.data);
       }
-      }
 
       const inst = await findInstance(base, adminToken, name);
 
@@ -586,8 +585,8 @@ Deno.serve(async (req) => {
       const { phone, url, type: mediaType, caption, filename, delay } = body;
       if (!phone || !url) return Response.json({ error: 'phone e url são obrigatórios' }, { status: 400 });
 
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const number = String(phone).replace(/\D/g, '');
 
       const r = await evoFetch(`${base}/send/media`, {
@@ -606,8 +605,8 @@ Deno.serve(async (req) => {
       const { phone, text, delay } = body;
       if (!phone || !text) return Response.json({ error: 'phone e text são obrigatórios' }, { status: 400 });
 
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const number = String(phone).replace(/\D/g, '');
 
       const r = await evoFetch(`${base}/send/link`, {
@@ -626,8 +625,8 @@ Deno.serve(async (req) => {
       const { phone, name: locName, address, latitude, longitude, delay } = body;
       if (!phone || latitude == null || longitude == null) return Response.json({ error: 'phone, latitude e longitude são obrigatórios' }, { status: 400 });
 
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const number = String(phone).replace(/\D/g, '');
 
       const r = await evoFetch(`${base}/send/location`, {
@@ -644,8 +643,8 @@ Deno.serve(async (req) => {
     // body: { phone } ou { phones: ["5511..."] }
     if (action === 'check_user') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
 
       const phones: string[] = Array.isArray(body.phones)
         ? body.phones
@@ -666,8 +665,8 @@ Deno.serve(async (req) => {
     // POST /user/info  — retorna informações de perfil de um ou mais números
     if (action === 'get_user_info') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
 
       const phones: string[] = Array.isArray(body.phones)
         ? body.phones
@@ -688,8 +687,8 @@ Deno.serve(async (req) => {
     // POST /user/avatar  — retorna URL do avatar do contato
     if (action === 'get_avatar') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const phone = String(body.phone || '').replace(/\D/g, '');
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -707,8 +706,8 @@ Deno.serve(async (req) => {
     // body: { phone, ids: ["msgId1", "msgId2"] }
     if (action === 'mark_read') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const phone = String(body.phone || '').replace(/\D/g, '');
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -732,8 +731,8 @@ Deno.serve(async (req) => {
     // body: { phone, messageId, reaction }
     if (action === 'react_message') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { phone, messageId, reaction } = body;
       if (!phone || !messageId || !reaction) return Response.json({ error: 'phone, messageId e reaction são obrigatórios' }, { status: 400 });
 
@@ -751,8 +750,8 @@ Deno.serve(async (req) => {
     // body: { chat, messageId }
     if (action === 'delete_message') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { chat, messageId } = body;
       if (!chat || !messageId) return Response.json({ error: 'chat e messageId são obrigatórios' }, { status: 400 });
 
@@ -771,8 +770,8 @@ Deno.serve(async (req) => {
     // body: { chat, messageId, message }
     if (action === 'edit_message') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { chat, messageId, message: newText } = body;
       if (!chat || !messageId || !newText) return Response.json({ error: 'chat, messageId e message são obrigatórios' }, { status: 400 });
 
@@ -791,8 +790,8 @@ Deno.serve(async (req) => {
     // body: { phone, state: "composing"|"paused", isAudio? }
     if (action === 'presence') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { phone, state: presState, isAudio } = body;
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -809,8 +808,8 @@ Deno.serve(async (req) => {
     // POST /chat/pin  |  POST /chat/unpin
     if (action === 'pin_chat' || action === 'unpin_chat') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { phone } = body;
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -829,8 +828,8 @@ Deno.serve(async (req) => {
     // POST /chat/archive  |  POST /chat/unarchive
     if (action === 'archive_chat' || action === 'unarchive_chat') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { phone } = body;
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -849,8 +848,8 @@ Deno.serve(async (req) => {
     // POST /chat/mute  |  POST /chat/unmute
     if (action === 'mute_chat' || action === 'unmute_chat') {
       const instanceName = body.instance || defaultInst;
-      const inst = await findInstance(base, globalKey, instanceName);
-      const instanceToken = inst ? extractToken(inst, globalKey) : globalKey;
+      const inst = await findInstance(base, adminToken, instanceName);
+      const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
       const { phone } = body;
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
 
@@ -871,9 +870,9 @@ Deno.serve(async (req) => {
       const { instanceName } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      const instToken = extractToken(found, globalKey);
+      const instToken = extractToken(found, adminToken);
 
       const r = await evoFetch(`${base}/instance/reconnect`, {
         method: 'POST',
@@ -894,9 +893,9 @@ Deno.serve(async (req) => {
       const { instanceName, phone } = body;
       if (!instanceName || !phone) return Response.json({ error: 'instanceName e phone são obrigatórios' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
-      const instToken = extractToken(found, globalKey);
+      const instToken = extractToken(found, adminToken);
 
       const r = await evoFetch(`${base}/instance/pair`, {
         method: 'POST',
@@ -913,7 +912,7 @@ Deno.serve(async (req) => {
       const { instanceName, startDate, endDate, level, limit } = body;
       if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
 
-      const found = await findInstance(base, globalKey, instanceName);
+      const found = await findInstance(base, adminToken, instanceName);
       if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
       const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
 
@@ -924,7 +923,7 @@ Deno.serve(async (req) => {
       if (limit)     params.set('limit', String(limit));
 
       const url = `${base}/instance/logs/${encodeURIComponent(instanceId)}?${params}`;
-      const r = await evoFetch(url, { headers: { apikey: globalKey } });
+      const r = await evoFetch(url, { headers: { apikey: adminToken } });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar logs', details: r.data }, { status: r.status || 502 });
       return Response.json({ success: true, logs: r.data });
     }

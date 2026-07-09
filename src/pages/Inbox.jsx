@@ -223,12 +223,12 @@ export default function Inbox() {
       });
       const data = response?.data || {};
       if (showToast) {
-        if (data.sync_requested) {
+        if (!data.success) {
+          toast({ title: "Erro ao solicitar histórico", description: data.error, variant: "destructive" });
+        } else if (data.requested) {
           toast({ title: "Histórico solicitado ao WhatsApp", description: "Mensagens chegarão em instantes via webhook." });
-        } else if (data.local_count > 0) {
-          toast({ title: `${data.local_count} mensagem(s) já disponível(is) localmente` });
         } else {
-          toast({ title: "Instância desconectada ou sem histórico disponível", variant: "destructive" });
+          toast({ title: data.note || "Nenhuma mensagem nova para sincronizar" });
         }
       }
     } catch {
