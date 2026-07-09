@@ -161,16 +161,35 @@ Deno.serve(async (req) => {
     const user = await b44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const base        = BASE(Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud');
-    // Na Evolution Go, este é o "adminToken": autentica endpoints administrativos (/instance/create, /instance/all, /instance/info, /instance/logs, /instance/delete).
-    const adminToken   = Deno.env.get('EVOLUTION_API_KEY') || '';
-    const defaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+    // ── Variáveis de ambiente (suporta nomes novos EVOLUTION_GO_* e antigos EVOLUTION_*) ──
+    const base        = BASE(
+      Deno.env.get('EVOLUTION_GO_BASE_URL') ||
+      Deno.env.get('EVOLUTION_API_URL') ||
+      'https://evolution-go-9b1u.srv1772067.hstgr.cloud'
+    );
+    // adminToken: autentica endpoints administrativos (/instance/create, /instance/all, /instance/info, /instance/logs, /instance/delete)
+    const adminToken  = Deno.env.get('EVOLUTION_GO_ADMIN_TOKEN') || Deno.env.get('EVOLUTION_API_KEY') || '';
+    // instanceToken: token padrão da instância (usado como apikey em /send, /user, /chat, /message, /group etc.)
+    const envInstToken = Deno.env.get('EVOLUTION_GO_INSTANCE_TOKEN') || '';
+    const defaultInst = Deno.env.get('EVOLUTION_GO_INSTANCE_ID') || Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+    const webhookUrl  = Deno.env.get('EVOLUTION_GO_WEBHOOK_URL') || '';
 
     if (!adminToken) {
       return Response.json({
         success: false,
-        error: { code: 'EVOLUTION_NOT_CONFIGURED', message: 'EVOLUTION_API_KEY não configurada nas variáveis de ambiente.' },
+        error: {
+          code: 'EVOLUTION_NOT_CONFIGURED',
+          message: 'Variável EVOLUTION_GO_ADMIN_TOKEN (ou EVOLUTION_API_KEY) não configurada. Configure no painel Base44 > Variáveis de Ambiente.',
+        },
       }, { status: 500 });
+    }
+
+    // Helper: resolve token da instância — prefere EVOLUTION_GO_INSTANCE_TOKEN, senão busca via /instance/all
+    async function resolveToken(instanceName: string): Promise<{ inst: AnyRecord | null; token: string }> {
+      if (envInstToken) return { inst: null, token: envInstToken };
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return { inst: null, token: adminToken };
+      return { inst: found, token: extractToken(found, adminToken) };
     }
 
     const body = await req.json().catch(() => ({}));
@@ -933,6 +952,605 @@ Deno.serve(async (req) => {
       const r = await evoFetch(url, { headers: { apikey: adminToken } });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar logs', details: r.data }, { status: r.status || 502 });
       return Response.json({ success: true, logs: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INSTANCE — ações adicionais
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── disconnect_instance ───────────────────────────────────────────────────
+    // POST /instance/disconnect  — desconecta sem apagar sessão (mantém QR)
+    if (action === 'disconnect_instance') {
+      const { instanceName } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/instance/disconnect`, {
+        method: 'POST',
+        headers: { apikey: instToken },
+      });
+      await b44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'evolutionApi', action: 'disconnect_instance', status: r.ok ? 'sucesso' : 'falha',
+        details: `instance: ${instanceName}`,
+      }).catch(() => {});
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao desconectar instância', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── force_reconnect ───────────────────────────────────────────────────────
+    // POST /instance/forcereconnect/:instanceId
+    if (action === 'force_reconnect') {
+      const { instanceName } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/instance/forcereconnect/${encodeURIComponent(instanceId)}`, {
+        method: 'POST',
+        headers: { apikey: instToken },
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao forçar reconexão', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_advanced_settings ─────────────────────────────────────────────────
+    // GET /instance/:instanceId/advanced-settings
+    if (action === 'get_advanced_settings') {
+      const { instanceName } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/instance/${encodeURIComponent(instanceId)}/advanced-settings`, {
+        headers: { apikey: instToken },
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar configurações', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, settings: r.data });
+    }
+
+    // ── update_advanced_settings ──────────────────────────────────────────────
+    // PUT /instance/:instanceId/advanced-settings
+    // body: { instanceName, rejectCalls, rejectCallMessage, readMessages, readStatus, alwaysOnline }
+    if (action === 'update_advanced_settings') {
+      const { instanceName, rejectCalls, rejectCallMessage, readMessages, readStatus, alwaysOnline } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/instance/${encodeURIComponent(instanceId)}/advanced-settings`, {
+        method: 'PUT',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectCalls, rejectCallMessage, readMessages, readStatus, alwaysOnline }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao atualizar configurações', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── server_health ─────────────────────────────────────────────────────────
+    // GET /server/ok
+    if (action === 'server_health') {
+      const r = await evoFetch(`${base}/server/ok`, { headers: { apikey: adminToken } });
+      return Response.json({ success: r.ok, status: r.status, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SEND MESSAGE — ações adicionais
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── send_poll ─────────────────────────────────────────────────────────────
+    // POST /send/poll
+    // body: { phone, question, options: string[], maxAnswer?, delay?, instance }
+    if (action === 'send_poll') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, question, options, maxAnswer, delay } = body;
+      if (!phone || !question || !Array.isArray(options)) return Response.json({ error: 'phone, question e options[] são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const number = String(phone).replace(/\D/g, '');
+      const r = await evoFetch(`${base}/send/poll`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, question, options, maxAnswer: maxAnswer ?? 1, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar enquete', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_sticker ──────────────────────────────────────────────────────────
+    // POST /send/sticker
+    // body: { phone, sticker (URL ou base64), delay?, instance }
+    if (action === 'send_sticker') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, sticker, delay } = body;
+      if (!phone || !sticker) return Response.json({ error: 'phone e sticker são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/send/sticker`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), sticker, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar sticker', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_contact ──────────────────────────────────────────────────────────
+    // POST /send/contact
+    // body: { phone, vcard: { fullName, organization?, phone }, delay?, instance }
+    if (action === 'send_contact') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, vcard, delay } = body;
+      if (!phone || !vcard) return Response.json({ error: 'phone e vcard são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/send/contact`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), vcard, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar contato', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_button ───────────────────────────────────────────────────────────
+    // POST /send/button
+    // body: { phone, title, description, footer?, buttons[], delay?, instance }
+    if (action === 'send_button') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, title, description, footer, buttons, delay } = body;
+      if (!phone || !title || !Array.isArray(buttons)) return Response.json({ error: 'phone, title e buttons[] são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/send/button`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), title, description, footer, buttons, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar botão', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_list ─────────────────────────────────────────────────────────────
+    // POST /send/list
+    // body: { phone, title, description, buttonText, footerText?, sections[], delay?, instance }
+    if (action === 'send_list') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, title, description, buttonText, footerText, sections, delay } = body;
+      if (!phone || !title || !Array.isArray(sections)) return Response.json({ error: 'phone, title e sections[] são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/send/list`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), title, description, buttonText, footerText, sections, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar lista', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── send_carousel ─────────────────────────────────────────────────────────
+    // POST /send/carousel
+    // body: { phone, text, cards[], delay?, instance }
+    if (action === 'send_carousel') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, text, cards, delay } = body;
+      if (!phone || !Array.isArray(cards)) return Response.json({ error: 'phone e cards[] são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/send/carousel`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), text, cards, delay: delay ?? 1000 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar carrossel', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // USER — ações adicionais
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── get_privacy ───────────────────────────────────────────────────────────
+    // GET /user/privacy
+    if (action === 'get_privacy') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/user/privacy`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar privacidade', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── block_user / unblock_user ─────────────────────────────────────────────
+    // POST /user/block  |  POST /user/unblock
+    if (action === 'block_user' || action === 'unblock_user') {
+      const instanceName = body.instance || defaultInst;
+      const { phone } = body;
+      if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const endpoint = action === 'block_user' ? 'block' : 'unblock';
+      const r = await evoFetch(`${base}/user/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, '') }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao ${endpoint} contato`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_blocklist ─────────────────────────────────────────────────────────
+    // GET /user/blocklist
+    if (action === 'get_blocklist') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/user/blocklist`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar lista de bloqueados', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── set_profile_picture ───────────────────────────────────────────────────
+    // POST /user/profilePicture  body: { image: URL }
+    if (action === 'set_profile_picture') {
+      const instanceName = body.instance || defaultInst;
+      const { image } = body;
+      if (!image) return Response.json({ error: 'image é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/user/profilePicture`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao definir foto de perfil', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── set_profile_name ──────────────────────────────────────────────────────
+    // POST /user/profileName  body: { name }
+    if (action === 'set_profile_name') {
+      const instanceName = body.instance || defaultInst;
+      const { name: profileName } = body;
+      if (!profileName) return Response.json({ error: 'name é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/user/profileName`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: profileName }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao definir nome do perfil', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── set_profile_status ────────────────────────────────────────────────────
+    // POST /user/profileStatus  body: { status }
+    if (action === 'set_profile_status') {
+      const instanceName = body.instance || defaultInst;
+      const { status: profileStatus } = body;
+      if (!profileStatus) return Response.json({ error: 'status é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/user/profileStatus`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: profileStatus }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao definir status do perfil', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MESSAGE — ações adicionais
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── download_media ────────────────────────────────────────────────────────
+    // POST /message/downloadmedia
+    // body: { phone, messageId, instance }
+    if (action === 'download_media') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, messageId } = body;
+      if (!phone || !messageId) return Response.json({ error: 'phone e messageId são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/message/downloadmedia`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), id: messageId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao baixar mídia', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_message_status ────────────────────────────────────────────────────
+    // POST /message/status
+    // body: { phone, messageId, instance }
+    if (action === 'get_message_status') {
+      const instanceName = body.instance || defaultInst;
+      const { phone, messageId } = body;
+      if (!phone || !messageId) return Response.json({ error: 'phone e messageId são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/message/status`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), id: messageId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao verificar status da mensagem', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GROUP
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── group_list ────────────────────────────────────────────────────────────
+    // GET /group/list
+    if (action === 'group_list') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/list`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao listar grupos', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, groups: r.data });
+    }
+
+    // ── group_myall ───────────────────────────────────────────────────────────
+    // GET /group/myall
+    if (action === 'group_myall') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/myall`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao listar meus grupos', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, groups: r.data });
+    }
+
+    // ── group_info ────────────────────────────────────────────────────────────
+    // POST /group/info  body: { groupJid }
+    if (action === 'group_info') {
+      const instanceName = body.instance || defaultInst;
+      const { groupJid } = body;
+      if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/info`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar info do grupo', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_invite_link ─────────────────────────────────────────────────────
+    // POST /group/invitelink  body: { groupJid }
+    if (action === 'group_invite_link') {
+      const instanceName = body.instance || defaultInst;
+      const { groupJid } = body;
+      if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/invitelink`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar link do grupo', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_create ──────────────────────────────────────────────────────────
+    // POST /group/create  body: { groupName, participants: string[] }
+    if (action === 'group_create') {
+      const instanceName = body.instance || defaultInst;
+      const { groupName, participants } = body;
+      if (!groupName || !Array.isArray(participants)) return Response.json({ error: 'groupName e participants[] são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/create`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupName, participants: participants.map((p: string) => String(p).replace(/\D/g, '')) }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao criar grupo', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_participant ─────────────────────────────────────────────────────
+    // POST /group/participant  body: { groupJid, participants: string[], action: 'add'|'remove'|'promote'|'demote' }
+    if (action === 'group_participant') {
+      const instanceName = body.instance || defaultInst;
+      const { groupJid, participants, action: participantAction } = body;
+      if (!groupJid || !Array.isArray(participants) || !participantAction) {
+        return Response.json({ error: 'groupJid, participants[] e action são obrigatórios' }, { status: 400 });
+      }
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/participant`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupJid, participants: participants.map((p: string) => String(p).replace(/\D/g, '')), action: participantAction }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao gerenciar participante', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_join ────────────────────────────────────────────────────────────
+    // POST /group/join  body: { code }
+    if (action === 'group_join') {
+      const instanceName = body.instance || defaultInst;
+      const { code } = body;
+      if (!code) return Response.json({ error: 'code é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/join`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao entrar no grupo', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_leave ───────────────────────────────────────────────────────────
+    // POST /group/leave  body: { groupJid }
+    if (action === 'group_leave') {
+      const instanceName = body.instance || defaultInst;
+      const { groupJid } = body;
+      if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/group/leave`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao sair do grupo', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── group_update_name / group_update_description / group_update_photo ─────
+    if (action === 'group_update_name' || action === 'group_update_description' || action === 'group_update_photo') {
+      const instanceName = body.instance || defaultInst;
+      const { groupJid, name, description, image } = body;
+      if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      let endpoint = '';
+      let payload: Record<string, unknown> = { groupJid };
+      if (action === 'group_update_name') { endpoint = 'name'; payload.name = name; }
+      if (action === 'group_update_description') { endpoint = 'description'; payload.description = description; }
+      if (action === 'group_update_photo') { endpoint = 'photo'; payload.image = image; }
+      const r = await evoFetch(`${base}/group/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao atualizar grupo (${endpoint})`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CALL
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── reject_call ───────────────────────────────────────────────────────────
+    // POST /call/reject  body: { callCreator, callId }
+    if (action === 'reject_call') {
+      const instanceName = body.instance || defaultInst;
+      const { callCreator, callId } = body;
+      if (!callCreator || !callId) return Response.json({ error: 'callCreator e callId são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/call/reject`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callCreator, callId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao rejeitar chamada', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LABEL
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── label_list ────────────────────────────────────────────────────────────
+    // GET /label/list
+    if (action === 'label_list') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/label/list`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao listar etiquetas', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, labels: r.data });
+    }
+
+    // ── label_chat / unlabel_chat ─────────────────────────────────────────────
+    // POST /label/chat  |  POST /unlabel/chat
+    // body: { jid, labelId, instance }
+    if (action === 'label_chat' || action === 'unlabel_chat') {
+      const instanceName = body.instance || defaultInst;
+      const { jid, labelId } = body;
+      if (!jid || !labelId) return Response.json({ error: 'jid e labelId são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const endpoint = action === 'label_chat' ? 'label/chat' : 'unlabel/chat';
+      const r = await evoFetch(`${base}/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jid, labelId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao aplicar/remover etiqueta no chat', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── label_message / unlabel_message ───────────────────────────────────────
+    // POST /label/message  |  POST /unlabel/message
+    // body: { jid, messageId, labelId, instance }
+    if (action === 'label_message' || action === 'unlabel_message') {
+      const instanceName = body.instance || defaultInst;
+      const { jid, messageId, labelId } = body;
+      if (!jid || !labelId) return Response.json({ error: 'jid e labelId são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const endpoint = action === 'label_message' ? 'label/message' : 'unlabel/message';
+      const r = await evoFetch(`${base}/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jid, messageId, labelId }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao aplicar/remover etiqueta na mensagem', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── label_edit ────────────────────────────────────────────────────────────
+    // POST /label/edit  body: { labelId, name, color, deleted? }
+    if (action === 'label_edit') {
+      const instanceName = body.instance || defaultInst;
+      const { labelId, name: labelName, color, deleted } = body;
+      if (!labelId) return Response.json({ error: 'labelId é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/label/edit`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelId, name: labelName, color, deleted: !!deleted }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao editar etiqueta', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMMUNITY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── community_create ──────────────────────────────────────────────────────
+    // POST /community/create  body: { communityName }
+    if (action === 'community_create') {
+      const instanceName = body.instance || defaultInst;
+      const { communityName } = body;
+      if (!communityName) return Response.json({ error: 'communityName é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/community/create`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ communityName }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao criar comunidade', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── community_add / community_remove ──────────────────────────────────────
+    // POST /community/add  |  POST /community/remove
+    // body: { communityJid, groupJid: string[], instance }
+    if (action === 'community_add' || action === 'community_remove') {
+      const instanceName = body.instance || defaultInst;
+      const { communityJid, groupJid } = body;
+      if (!communityJid || !groupJid) return Response.json({ error: 'communityJid e groupJid são obrigatórios' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const endpoint = action === 'community_add' ? 'add' : 'remove';
+      const r = await evoFetch(`${base}/community/${endpoint}`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ communityJid, groupJid: Array.isArray(groupJid) ? groupJid : [groupJid] }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: `Falha ao ${endpoint} grupo na comunidade`, details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // POLLS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── get_poll_results ──────────────────────────────────────────────────────
+    // GET /polls/:pollMessageId/results
+    if (action === 'get_poll_results') {
+      const instanceName = body.instance || defaultInst;
+      const { pollMessageId } = body;
+      if (!pollMessageId) return Response.json({ error: 'pollMessageId é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/polls/${encodeURIComponent(pollMessageId)}/results`, {
+        headers: { apikey: instToken },
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar resultados da enquete', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, results: r.data });
     }
 
     return Response.json({ error: `Action inválida: ${action}` }, { status: 400 });

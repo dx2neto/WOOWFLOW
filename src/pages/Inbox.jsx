@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { ChannelBadge, PriorityBadge, StatusBadge } from "@/components/Badges";
@@ -134,6 +134,10 @@ export default function Inbox() {
   const [actionLoading, setActionLoading] = useState(null);
   const [waResults, setWaResults] = useState([]);
   const [searchingWa, setSearchingWa] = useState(false);
+  const [sendingMedia, setSendingMedia] = useState(false);
+  const [syncingHistory, setSyncingHistory] = useState(false);
+  const fileInputRef = useRef(null);
+  const audioInputRef = useRef(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -482,6 +486,126 @@ export default function Inbox() {
     setMessage("");
     await sendMessageContent(content);
   };
+
+  // ── Envio de mídia (imagem/vídeo/documento/áudio) ─────────────────────────
+  const handleSendFile = useCallback(async (file, mediaType) => {
+    if (!file || !selected) return;
+    if (selected.channel !== "whatsapp") {
+      toast({ title: "Envio de mídia disponível apenas para WhatsApp", variant: "destructive" });
+      return;
+    }
+    if (!selectedInstance) {
+      toast({ title: "Nenhuma instância WhatsApp selecionada", variant: "destructive" });
+      return;
+    }
+    setSendingMedia(true);
+    try {
+      // Converte arquivo para base64 (Evolution GO aceita URL ou base64 sem prefixo)
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]); // remove "data:...;base64,"
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const type = mediaType || (
+        file.type.startsWith("image/") ? "image" :
+        file.type.startsWith("video/") ? "video" :
+        file.type.startsWith("audio/") ? "audio" : "document"
+      );
+
+      const response = await evolutionApi({
+        action: "send_media",
+        phone: selected.phone,
+        url: base64,
+        type,
+        filename: file.name,
+        caption: file.name,
+        instance: selectedInstance,
+      });
+
+      if (response?.data?.error || !response?.data?.success) {
+        toast({ title: "Falha ao enviar arquivo", description: response?.data?.error || "Verifique a conexão da instância.", variant: "destructive" });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const newMsg = await base44.entities.Message.create({
+        conversation_id: selected.id,
+        content: `[${type}] ${file.name}`,
+        direction: "out",
+        type,
+        status: "sent",
+        timestamp: now,
+        sender_name: "Atendente",
+        ...(response?.data?.wa_message_id ? { wa_message_id: response.data.wa_message_id } : {}),
+      });
+      setMessages((prev) => [...prev, newMsg]);
+      await base44.entities.Conversation.update(selected.id, {
+        last_message: `[${type}] ${file.name}`,
+        last_message_time: now,
+        status: "em_atendimento",
+        unread: false,
+      });
+      setConversations((prev) => prev.map((c) =>
+        c.id === selected.id ? { ...c, last_message: `[${type}] ${file.name}`, last_message_time: now } : c
+      ));
+      toast({ title: "Arquivo enviado!" });
+    } catch {
+      toast({ title: "Erro ao enviar arquivo", variant: "destructive" });
+    } finally {
+      setSendingMedia(false);
+    }
+  }, [selected, selectedInstance, toast]);
+
+  const handleAttachClick = () => fileInputRef.current?.click();
+  const handleAudioClick = () => audioInputRef.current?.click();
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) handleSendFile(file);
+    event.target.value = "";
+  };
+
+  const handleAudioChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) handleSendFile(file, "audio");
+    event.target.value = "";
+  };
+
+  // ── Ligação WhatsApp ──────────────────────────────────────────────────────
+  const handleWhatsAppCall = useCallback(() => {
+    if (!selected?.phone) return;
+    const phone = selected.phone.replace(/\D/g, "");
+    window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
+  }, [selected]);
+
+  // ── Sincronizar apenas histórico ──────────────────────────────────────────
+  const handleSyncHistoryOnly = useCallback(async () => {
+    if (!selected?.phone || syncingHistory) return;
+    setSyncingHistory(true);
+    try {
+      const response = await evolutionApi({
+        action: "sync_history",
+        phone: selected.phone,
+        conversation_id: selected.id,
+        instance: selectedInstance || selected.instance,
+        limit: 100,
+      });
+      const data = response?.data || {};
+      if (data.requested) {
+        toast({ title: "Histórico solicitado", description: "Mensagens antigas chegarão em instantes via webhook." });
+      } else if (data.error) {
+        toast({ title: "Erro ao solicitar histórico", description: data.error, variant: "destructive" });
+      } else {
+        toast({ title: "Histórico já disponível localmente" });
+      }
+    } catch {
+      toast({ title: "Erro ao sincronizar histórico", variant: "destructive" });
+    } finally {
+      setSyncingHistory(false);
+    }
+  }, [selected, selectedInstance, syncingHistory, toast]);
 
   const createConversation = async (event) => {
     event.preventDefault();
