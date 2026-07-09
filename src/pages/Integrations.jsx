@@ -4,9 +4,11 @@ import { PageContainer, Card } from "@/components/ui/app-card";
 // Note: lucide-react removed Instagram and Facebook icons; Camera/Globe used as substitutes
 import {
   MessageCircle, Database, FileSignature, ShieldCheck, Camera,
-  Globe, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode
+  Globe, Send, CheckCircle, XCircle, Settings, RefreshCw, Plus, QrCode,
+  Mail, Phone, Bot, MessageSquare, RadioTower
 } from "lucide-react";
 import { evolutionApi } from "@/functions/evolutionApi";
+import { omnichannelApi } from "@/functions/omnichannelApi";
 import { ixcApi } from "@/functions/ixcApi";
 import { zapsignApi } from "@/functions/zapsignApi";
 import { serasaApi } from "@/functions/serasaApi";
@@ -20,6 +22,19 @@ const testFunctions = {
   zapsign: zapsignApi,
   validacadastro: serasaApi,
 };
+
+const omnichannelServices = new Set([
+  "instagram",
+  "facebook",
+  "messenger",
+  "tiktok",
+  "email",
+  "telefone",
+  "chat_interno",
+  "chat_externo",
+  "webchat",
+  "ai_assistant",
+]);
 
 const integrations = [
   {
@@ -70,11 +85,74 @@ const integrations = [
   {
     service: "facebook",
     display_name: "Facebook Messenger",
-    description: "Recebimento de mensagens do Facebook Messenger",
+    description: "Recebimento de mensagens do Facebook Messenger pela API Meta",
     icon: Globe,
     color: "from-blue-600 to-blue-700",
     status: "disconnected",
-    fields: ["OAuth - Conectar conta"],
+    fields: ["META_APP_ID", "META_PAGE_ACCESS_TOKEN", "Webhook Meta"],
+  },
+  {
+    service: "messenger",
+    display_name: "Messenger",
+    description: "Canal Meta Messenger centralizado na Inbox",
+    icon: MessageCircle,
+    color: "from-cyan-500 to-blue-600",
+    status: "disconnected",
+    fields: ["META_PAGE_ACCESS_TOKEN", "META_VERIFY_TOKEN"],
+  },
+  {
+    service: "tiktok",
+    display_name: "TikTok",
+    description: "Mensagens e leads do TikTok gerenciados pelo backend",
+    icon: RadioTower,
+    color: "from-slate-700 to-rose-600",
+    status: "disconnected",
+    fields: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "Webhook"],
+  },
+  {
+    service: "email",
+    display_name: "E-mail + IA",
+    description: "Caixa IMAP/SMTP com sugestão e resposta automática por IA",
+    icon: Mail,
+    color: "from-orange-500 to-amber-600",
+    status: "disconnected",
+    fields: ["IMAP", "SMTP", "AI_PROVIDER"],
+  },
+  {
+    service: "telefone",
+    display_name: "Telefone / PABX",
+    description: "Atendimentos telefônicos e URA na mesma fila",
+    icon: Phone,
+    color: "from-indigo-500 to-violet-600",
+    status: "disconnected",
+    fields: ["PABX_API_URL", "PABX_API_TOKEN"],
+  },
+  {
+    service: "chat_interno",
+    display_name: "Chat interno",
+    description: "Mensagens entre usuários e equipes dentro da plataforma",
+    icon: MessageSquare,
+    color: "from-amber-500 to-yellow-600",
+    status: "pending",
+    fields: ["Usuários", "Equipes", "Histórico"],
+  },
+  {
+    service: "webchat",
+    display_name: "Chat para site",
+    description: "Widget externo para captar visitantes e abrir conversas na Inbox",
+    icon: MessageSquare,
+    color: "from-purple-500 to-fuchsia-600",
+    status: "pending",
+    fields: ["Widget", "Origem do site", "Webhook"],
+  },
+  {
+    service: "ai_assistant",
+    display_name: "IA 24h",
+    description: "Assistente para sugerir ou responder automaticamente nos canais conectados",
+    icon: Bot,
+    color: "from-emerald-500 to-teal-600",
+    status: "disconnected",
+    fields: ["AI_PROVIDER", "AI_API_KEY", "Resposta automática"],
   },
   {
     service: "telegram",
@@ -119,15 +197,18 @@ export default function Integrations() {
 
   const handleTestConnection = async (int) => {
     const testFn = testFunctions[int.service];
-    if (!testFn) return;
     setTestingService(int.service);
     try {
-      const response = await testFn(int.service === "evolution_api" ? { action: "test_connection" } : {});
+      const response = testFn
+        ? await testFn(int.service === "evolution_api" ? { action: "test_connection" } : {})
+        : await omnichannelApi({ action: "test_connection", service: int.service, display_name: int.display_name });
       const success = response?.data?.success;
+      const pending = response?.data?.status === "pending";
       const payload = {
         service: int.service,
         display_name: int.display_name,
-        status: success ? "connected" : "error",
+        status: success ? "connected" : pending ? "pending" : "error",
+        error_message: success ? "" : response?.data?.error || response?.data?.details?.message || "Integração aguardando configuração.",
         last_sync: new Date().toISOString(),
       };
       const existing = configs[int.service];
@@ -198,7 +279,7 @@ export default function Integrations() {
                     </button>
                   </>
                 )}
-                {testFunctions[int.service] ? (
+                {(testFunctions[int.service] || omnichannelServices.has(int.service)) ? (
                   status === "connected" ? (
                     <>
                       {int.service !== "evolution_api" && (
