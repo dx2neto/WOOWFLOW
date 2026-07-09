@@ -146,6 +146,15 @@ const integrations = [
     fields: ["Widget", "Origem do site", "Webhook"],
   },
   {
+    service: "chat_externo",
+    display_name: "Chat externo",
+    description: "Entrada de conversas de portais, apps e páginas externas",
+    icon: MessageSquare,
+    color: "from-violet-500 to-indigo-600",
+    status: "pending",
+    fields: ["Origem", "Identificador externo", "Webhook"],
+  },
+  {
     service: "ai_assistant",
     display_name: "IA 24h",
     description: "Assistente para sugerir ou responder automaticamente nos canais conectados",

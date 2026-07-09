@@ -60,6 +60,11 @@ export async function getInstanceInfo(instanceName) {
   return call({ action: "get_instance_info", instanceName });
 }
 
+/** GET /instance/status — status real da sessão. Retorna { success, state, instance } */
+export async function getInstanceStatus(instanceName) {
+  return call({ action: "get_status", instanceName });
+}
+
 /** GET /instance/qr — QR code para autenticação. Retorna { success, qrcode, state } */
 export async function getQrCode(instanceName) {
   return call({ action: "get_qrcode", instanceName });
@@ -124,7 +129,7 @@ export async function serverHealth() {
 
 /** POST /send/text */
 export async function sendText(phone, message, instance) {
-  return call({ action: "send_message", phone, message, instance });
+  return call({ action: "send_text", phone, message, instance });
 }
 
 /** POST /send/link */

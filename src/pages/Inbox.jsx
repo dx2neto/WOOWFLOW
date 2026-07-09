@@ -111,6 +111,14 @@ function statusLabel(status) {
   }[status] || "Pendente";
 }
 
+function sameProviderMessage(a, b) {
+  if (!a || !b) return false;
+  if (a.id && b.id && a.id === b.id) return true;
+  if (a.wa_message_id && b.wa_message_id && a.wa_message_id === b.wa_message_id) return true;
+  if (a.provider_message_id && b.provider_message_id && a.provider_message_id === b.provider_message_id) return true;
+  return false;
+}
+
 export default function Inbox() {
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
@@ -173,7 +181,7 @@ export default function Inbox() {
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       if (event.data.conversation_id !== selectedId) return;
       setMessages((prev) => {
-        if (event.type === "create") return prev.some((m) => m.id === event.data.id) ? prev : [...prev, event.data];
+        if (event.type === "create") return prev.some((m) => sameProviderMessage(m, event.data)) ? prev : [...prev, event.data];
         if (event.type === "update") return prev.map((m) => (m.id === event.data.id ? event.data : m));
         if (event.type === "delete") return prev.filter((m) => m.id !== event.data.id);
         return prev;
@@ -456,7 +464,7 @@ export default function Inbox() {
           toast({ title: "Falha ao enviar mensagem", description: rData.error || "Verifique se a instância está conectada.", variant: "destructive" });
           return;
         }
-        waMessageId = rData.wa_message_id || null;
+        waMessageId = rData.wa_message_id || rData.provider_message_id || null;
       }
 
       const now = new Date().toISOString();
@@ -468,7 +476,11 @@ export default function Inbox() {
         status: selected.channel === "whatsapp" ? "sent" : "delivered",
         timestamp: now,
         sender_name: "Atendente",
-        ...(waMessageId ? { wa_message_id: waMessageId } : {}),
+        provider: selected.channel === "whatsapp" ? "evolution_go" : selected.channel,
+        phone: selected.phone,
+        chat_jid: selected.channel === "whatsapp" ? `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net` : undefined,
+        instance_id: selectedInstance || selected.instance || undefined,
+        ...(waMessageId ? { wa_message_id: waMessageId, provider_message_id: waMessageId } : {}),
       });
       setMessages((prev) => [...prev, newMessage]);
       await base44.entities.Conversation.update(selected.id, { last_message: content, last_message_time: now, status: "em_atendimento", unread: false });
@@ -503,7 +515,7 @@ export default function Inbox() {
       // Converte arquivo para base64 (Evolution GO aceita URL ou base64 sem prefixo)
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]); // remove "data:...;base64,"
+        reader.onload = () => resolve(String(reader.result || "").split(",")[1]); // remove "data:...;base64,"
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
@@ -530,6 +542,7 @@ export default function Inbox() {
       }
 
       const now = new Date().toISOString();
+      const providerMessageId = response?.data?.wa_message_id || response?.data?.provider_message_id || null;
       const newMsg = await base44.entities.Message.create({
         conversation_id: selected.id,
         content: `[${type}] ${file.name}`,
@@ -538,7 +551,15 @@ export default function Inbox() {
         status: "sent",
         timestamp: now,
         sender_name: "Atendente",
-        ...(response?.data?.wa_message_id ? { wa_message_id: response.data.wa_message_id } : {}),
+        provider: "evolution_go",
+        phone: selected.phone,
+        chat_jid: `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net`,
+        instance_id: selectedInstance || selected.instance || undefined,
+        file_name: file.name,
+        mime_type: file.type,
+        caption: file.name,
+        ...(type === "image" && base64 ? { media_base64: base64 } : {}),
+        ...(providerMessageId ? { wa_message_id: providerMessageId, provider_message_id: providerMessageId } : {}),
       });
       setMessages((prev) => [...prev, newMsg]);
       await base44.entities.Conversation.update(selected.id, {
@@ -883,15 +904,16 @@ export default function Inbox() {
                       const isVideo = msgType === "video";
                       const isDocument = msgType === "document";
                       const hasMedia = isImage || isAudio || isVideo || isDocument;
+                      const imageSrc = msg.media_url || (msg.media_base64 ? `data:${msg.mime_type || "image/jpeg"};base64,${msg.media_base64}` : "");
                       const bubbleClass = `max-w-[78%] rounded-2xl px-4 py-2.5 shadow-sm ${isOut ? "bg-primary text-primary-foreground" : "border border-border bg-card"}`;
                       const metaClass = `text-xs ${isOut ? "text-primary-foreground/70" : "text-muted-foreground"}`;
                       return (
                         <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                           <div className={bubbleClass}>
                             {/* Image */}
-                            {isImage && msg.media_base64 ? (
+                            {isImage && imageSrc ? (
                               <img
-                                src={`data:image/jpeg;base64,${msg.media_base64}`}
+                                src={imageSrc}
                                 alt="imagem"
                                 className="mb-1 max-h-60 max-w-full rounded-xl object-cover"
                               />
@@ -903,24 +925,37 @@ export default function Inbox() {
                             ) : null}
                             {/* Audio */}
                             {isAudio && (
-                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
-                                <Mic className="h-5 w-5 shrink-0" />
-                                <span className="text-sm">Áudio</span>
-                              </div>
+                              msg.media_url ? (
+                                <audio controls src={msg.media_url} className="mb-1 max-w-full" />
+                              ) : (
+                                <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                  <Mic className="h-5 w-5 shrink-0" />
+                                  <span className="text-sm">{msg.file_name || "Áudio"}</span>
+                                </div>
+                              )
                             )}
                             {/* Video */}
                             {isVideo && (
-                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
-                                <Video className="h-5 w-5 shrink-0" />
-                                <span className="text-sm">Vídeo</span>
-                              </div>
+                              msg.media_url ? (
+                                <video controls src={msg.media_url} className="mb-1 max-h-64 max-w-full rounded-xl" />
+                              ) : (
+                                <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                                  <Video className="h-5 w-5 shrink-0" />
+                                  <span className="text-sm">{msg.file_name || "Vídeo"}</span>
+                                </div>
+                              )
                             )}
                             {/* Document */}
                             {isDocument && (
-                              <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+                              <a
+                                href={msg.media_url || undefined}
+                                target={msg.media_url ? "_blank" : undefined}
+                                rel="noreferrer"
+                                className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2"
+                              >
                                 <Paperclip className="h-5 w-5 shrink-0" />
-                                <span className="text-sm">Documento</span>
-                              </div>
+                                <span className="text-sm">{msg.file_name || "Documento"}</span>
+                              </a>
                             )}
                             {/* Text content (caption or message) */}
                             {msg.content && !["[image]","[video]","[audio]","[document]","[mídia]","[mensagem]"].includes(msg.content) && (
