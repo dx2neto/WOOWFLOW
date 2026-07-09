@@ -153,6 +153,39 @@ function normalizeInstance(raw: unknown) {
   };
 }
 
+function extractMessageId(payload: unknown): string | null {
+  const seen = new Set<unknown>();
+  const queue: unknown[] = [payload];
+  const idKeys = new Set(['id', 'ID', 'messageId', 'message_id', 'wa_message_id', 'keyId', 'stanzaId']);
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    if (typeof current !== 'object') continue;
+    const record = current as AnyRecord;
+    for (const key of idKeys) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    const key = asRecord(record.key);
+    for (const value of [key.id, key.ID]) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    queue.push(...Object.values(record).filter((value) => value && typeof value === 'object'));
+  }
+  return null;
+}
+
+function sendSuccess(result: unknown) {
+  const messageId = extractMessageId(result);
+  return Response.json({
+    success: true,
+    result,
+    wa_message_id: messageId,
+    provider_message_id: messageId,
+  });
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   const b44 = createClientFromRequest(req);
@@ -162,17 +195,24 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     // ── Variáveis de ambiente (suporta nomes novos EVOLUTION_GO_* e antigos EVOLUTION_*) ──
-    const base        = BASE(
-      Deno.env.get('EVOLUTION_GO_BASE_URL') ||
-      Deno.env.get('EVOLUTION_API_URL') ||
-      'https://evolution-go-9b1u.srv1772067.hstgr.cloud'
-    );
+    const configuredBaseUrl = Deno.env.get('EVOLUTION_GO_BASE_URL') || Deno.env.get('EVOLUTION_API_URL') || '';
+    const base        = configuredBaseUrl ? BASE(configuredBaseUrl) : '';
     // adminToken: autentica endpoints administrativos (/instance/create, /instance/all, /instance/info, /instance/logs, /instance/delete)
     const adminToken  = Deno.env.get('EVOLUTION_GO_ADMIN_TOKEN') || Deno.env.get('EVOLUTION_API_KEY') || '';
     // instanceToken: token padrão da instância (usado como apikey em /send, /user, /chat, /message, /group etc.)
     const envInstToken = Deno.env.get('EVOLUTION_GO_INSTANCE_TOKEN') || '';
     const defaultInst = Deno.env.get('EVOLUTION_GO_INSTANCE_ID') || Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
     const webhookUrl  = Deno.env.get('EVOLUTION_GO_WEBHOOK_URL') || '';
+
+    if (!base) {
+      return Response.json({
+        success: false,
+        error: {
+          code: 'EVOLUTION_BASE_URL_NOT_CONFIGURED',
+          message: 'Variável EVOLUTION_GO_BASE_URL (ou EVOLUTION_API_URL) não configurada. Configure a URL real da Evolution GO no painel Base44 > Variáveis de Ambiente.',
+        },
+      }, { status: 500 });
+    }
 
     if (!adminToken) {
       return Response.json({
@@ -410,7 +450,7 @@ Deno.serve(async (req) => {
 
     // ── send_message ─────────────────────────────────────────────────────────
     // POST /send/text  (apikey: TOKEN DA INSTÂNCIA)  body: { number, text, delay }
-    if (action === 'send_message') {
+    if (action === 'send_message' || action === 'send_text') {
       const instanceName = body.instance || defaultInst;
       const { phone, message } = body;
       if (!phone || !message) return Response.json({ error: 'phone e message são obrigatórios' }, { status: 400 });
@@ -432,17 +472,12 @@ Deno.serve(async (req) => {
         });
         return Response.json({ success: false, error: 'Falha ao enviar mensagem', details: r.data }, { status: r.status || 502 });
       }
-      // Extrai o ID da mensagem retornado pela Evolution Go para salvar no banco
-      const rData = asRecord(r.data);
-      const waMessageId = String(
-        rData.id ?? rData.messageId ?? rData.ID ??
-        asRecord(rData.result).id ?? asRecord(rData.message).id ?? ''
-      );
+      const waMessageId = extractMessageId(r.data);
       await b44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionApi', action: 'send_message', status: 'sucesso',
         details: waMessageId ? `wa_id: ${waMessageId}` : undefined,
       });
-      return Response.json({ success: true, result: r.data, wa_message_id: waMessageId || null });
+      return Response.json({ success: true, result: r.data, wa_message_id: waMessageId, provider_message_id: waMessageId });
     }
 
     // ── get_instance_info ────────────────────────────────────────────────────
@@ -452,6 +487,23 @@ Deno.serve(async (req) => {
       const inst = await findInstance(base, adminToken, instanceName);
       if (!inst) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
       return Response.json({ success: true, instance: normalizeInstance(inst) });
+    }
+
+    if (action === 'get_status' || action === 'get_instance_status') {
+      const instanceName = body.instanceName || body.instance || defaultInst;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instToken = extractToken(found, adminToken);
+      const r = await evoFetch(`${base}/instance/status`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar status da instância', details: r.data }, { status: r.status || 502 });
+      const raw = asRecord(r.data);
+      return Response.json({
+        success: true,
+        state: normalizeState(raw),
+        instance: normalizeInstance({ ...found, ...raw }),
+        result: r.data,
+      });
     }
 
     // ── get_messages ─────────────────────────────────────────────────────────
@@ -621,7 +673,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number, url, type: mediaType || 'image', caption, filename, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar mídia', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_link ─────────────────────────────────────────────────────────────
@@ -641,7 +693,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number, text, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar link', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_location ─────────────────────────────────────────────────────────
@@ -661,7 +713,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number, name: locName, address, latitude, longitude, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar localização', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── check_user ────────────────────────────────────────────────────────────
@@ -1054,7 +1106,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number, question, options, maxAnswer: maxAnswer ?? 1, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar enquete', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_sticker ──────────────────────────────────────────────────────────
@@ -1071,7 +1123,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), sticker, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar sticker', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_contact ──────────────────────────────────────────────────────────
@@ -1088,7 +1140,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), vcard, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar contato', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_button ───────────────────────────────────────────────────────────
@@ -1105,7 +1157,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), title, description, footer, buttons, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar botão', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_list ─────────────────────────────────────────────────────────────
@@ -1122,7 +1174,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), title, description, buttonText, footerText, sections, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar lista', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ── send_carousel ─────────────────────────────────────────────────────────
@@ -1139,7 +1191,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ number: String(phone).replace(/\D/g, ''), text, cards, delay: delay ?? 1000 }),
       });
       if (!r.ok) return Response.json({ success: false, error: 'Falha ao enviar carrossel', details: r.data }, { status: r.status || 502 });
-      return Response.json({ success: true, result: r.data });
+      return sendSuccess(r.data);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
