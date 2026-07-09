@@ -21,9 +21,10 @@ export default function SyncLogRow({ log, expanded, onToggle }) {
   return (
     <>
       <tr className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={onToggle}>
-        <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
+        <td className="px-5 py-3 text-muted-foreground whitespace-nowrap" style={{ minWidth: "9rem" }}>
           {log.created_date ? format(new Date(log.created_date), "dd/MM/yyyy HH:mm:ss") : "—"}
         </td>
+        <td className="px-5 py-3 text-muted-foreground">{log.action || "—"}</td>
         <td className="px-5 py-3">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${log.status === "sucesso" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
             {log.status}
