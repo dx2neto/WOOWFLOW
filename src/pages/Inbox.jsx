@@ -942,31 +942,114 @@ export default function Inbox() {
                 </div>
               </div>
 
+              {/* ── Área de envio ─────────────────────────────────────────── */}
               <div className="flex-shrink-0 border-t border-border bg-card p-3">
+                {/* Inputs ocultos para seleção de arquivo */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.rar"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*,.ogg,.mp3,.m4a,.aac,.wav,.opus"
+                  className="hidden"
+                  onChange={handleAudioChange}
+                />
+
                 <div className="rounded-xl border border-border bg-background p-2">
-                  <div className="mb-2 flex border-b border-border">
-                    <button className="border-b-2 border-primary px-3 pb-2 text-sm font-semibold text-primary">Responder</button>
-                    <button className="px-3 pb-2 text-sm font-semibold text-muted-foreground">Nota interna</button>
+                  {/* Tabs */}
+                  <div className="mb-2 flex items-center justify-between border-b border-border">
+                    <div className="flex">
+                      <button className="border-b-2 border-primary px-3 pb-2 text-sm font-semibold text-primary">Responder</button>
+                      <button className="px-3 pb-2 text-sm font-semibold text-muted-foreground">Nota interna</button>
+                    </div>
+                    {/* Botões de ação WhatsApp — visíveis apenas para conversas WhatsApp */}
+                    {selected?.channel === "whatsapp" && (
+                      <div className="flex items-center gap-1 pb-1">
+                        {/* Sincronizar histórico */}
+                        <button
+                          onClick={handleSyncHistoryOnly}
+                          disabled={syncingHistory}
+                          title="Sincronizar histórico de mensagens"
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${syncingHistory ? "animate-spin" : ""}`} />
+                          <span className="hidden sm:inline">Histórico</span>
+                        </button>
+                        {/* Ligação WhatsApp */}
+                        <button
+                          onClick={handleWhatsAppCall}
+                          title="Iniciar ligação WhatsApp"
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-green-50 hover:text-green-700"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Ligar</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="rounded-lg p-2 hover:bg-muted" title="Anexar"><Paperclip className="h-5 w-5 text-muted-foreground" /></button>
+
+                  {/* Linha de entrada + botões de envio */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Anexar arquivo */}
+                    <button
+                      onClick={handleAttachClick}
+                      disabled={sendingMedia || selected?.channel !== "whatsapp"}
+                      title="Anexar imagem, vídeo ou documento"
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                    >
+                      {sendingMedia ? (
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Paperclip className="h-5 w-5" />
+                      )}
+                    </button>
+
+                    {/* Enviar áudio */}
+                    <button
+                      onClick={handleAudioClick}
+                      disabled={sendingMedia || selected?.channel !== "whatsapp"}
+                      title="Enviar arquivo de áudio"
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                    >
+                      <Mic className="h-5 w-5" />
+                    </button>
+
+                    {/* Campo de texto */}
                     <input
                       type="text"
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
-                      onKeyDown={(event) => event.key === "Enter" && handleSend()}
-                      placeholder="Digite sua mensagem..."
+                      onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
+                      placeholder={
+                        !selected ? "Selecione uma conversa..." :
+                        selected.channel !== "whatsapp" ? "Digite uma nota interna..." :
+                        "Digite sua mensagem..."
+                      }
                       className="h-10 flex-1 bg-transparent px-2 text-sm outline-none"
                     />
-                    <button className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-muted px-3 text-sm font-semibold text-muted-foreground">
-                      <Zap className="h-4 w-4" /> Atalhos <ChevronDown className="h-4 w-4" />
+
+                    {/* Atalhos */}
+                    <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-muted px-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80">
+                      <Zap className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Atalhos</span> <ChevronDown className="h-3.5 w-3.5" />
                     </button>
+
+                    {/* Botão Enviar */}
                     <button
                       onClick={handleSend}
                       disabled={sending || !message.trim()}
                       className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                     >
-                      <Send className="h-4 w-4" /> Enviar
+                      {sending ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      <span>Enviar</span>
                     </button>
                   </div>
                 </div>
