@@ -782,7 +782,7 @@ Deno.serve(async (req) => {
     // ── mark_read ─────────────────────────────────────────────────────────────
     // POST /message/markread  — marca mensagens como lidas
     // body: { phone, ids: ["msgId1", "msgId2"] }
-    if (action === 'mark_read') {
+    if (action === 'mark_read' || action === 'mark_as_read') {
       const instanceName = body.instance || defaultInst;
       const inst = await findInstance(base, adminToken, instanceName);
       const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
@@ -866,7 +866,7 @@ Deno.serve(async (req) => {
     // ── presence ──────────────────────────────────────────────────────────────
     // POST /message/presence  — envia estado de digitação/gravação
     // body: { phone, state: "composing"|"paused", isAudio? }
-    if (action === 'presence') {
+    if (action === 'presence' || action === 'send_presence') {
       const instanceName = body.instance || defaultInst;
       const inst = await findInstance(base, adminToken, instanceName);
       const instanceToken = inst ? extractToken(inst, adminToken) : adminToken;
@@ -967,7 +967,7 @@ Deno.serve(async (req) => {
     // ── pair_instance ─────────────────────────────────────────────────────────
     // POST /instance/pair  — gera código de pareamento (alternativa ao QR)
     // body: { instanceName, phone }
-    if (action === 'pair_instance') {
+    if (action === 'pair_instance' || action === 'pairing_code') {
       const { instanceName, phone } = body;
       if (!instanceName || !phone) return Response.json({ error: 'instanceName e phone são obrigatórios' }, { status: 400 });
 
@@ -1210,12 +1210,12 @@ Deno.serve(async (req) => {
 
     // ── block_user / unblock_user ─────────────────────────────────────────────
     // POST /user/block  |  POST /user/unblock
-    if (action === 'block_user' || action === 'unblock_user') {
+    if (['block_user', 'unblock_user', 'block_contact', 'unblock_contact'].includes(action)) {
       const instanceName = body.instance || defaultInst;
       const { phone } = body;
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
       const { token: instToken } = await resolveToken(instanceName);
-      const endpoint = action === 'block_user' ? 'block' : 'unblock';
+      const endpoint = (action === 'block_user' || action === 'block_contact') ? 'block' : 'unblock';
       const r = await evoFetch(`${base}/user/${endpoint}`, {
         method: 'POST',
         headers: { apikey: instToken, 'Content-Type': 'application/json' },
@@ -1327,7 +1327,7 @@ Deno.serve(async (req) => {
 
     // ── group_list ────────────────────────────────────────────────────────────
     // GET /group/list
-    if (action === 'group_list') {
+    if (action === 'group_list' || action === 'list_groups') {
       const instanceName = body.instance || defaultInst;
       const { token: instToken } = await resolveToken(instanceName);
       const r = await evoFetch(`${base}/group/list`, { headers: { apikey: instToken } });
@@ -1337,7 +1337,7 @@ Deno.serve(async (req) => {
 
     // ── group_myall ───────────────────────────────────────────────────────────
     // GET /group/myall
-    if (action === 'group_myall') {
+    if (action === 'group_myall' || action === 'get_my_groups') {
       const instanceName = body.instance || defaultInst;
       const { token: instToken } = await resolveToken(instanceName);
       const r = await evoFetch(`${base}/group/myall`, { headers: { apikey: instToken } });
@@ -1347,7 +1347,7 @@ Deno.serve(async (req) => {
 
     // ── group_info ────────────────────────────────────────────────────────────
     // POST /group/info  body: { groupJid }
-    if (action === 'group_info') {
+    if (action === 'group_info' || action === 'get_group_info') {
       const instanceName = body.instance || defaultInst;
       const { groupJid } = body;
       if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
@@ -1363,7 +1363,7 @@ Deno.serve(async (req) => {
 
     // ── group_invite_link ─────────────────────────────────────────────────────
     // POST /group/invitelink  body: { groupJid }
-    if (action === 'group_invite_link') {
+    if (action === 'group_invite_link' || action === 'get_group_invite_link') {
       const instanceName = body.instance || defaultInst;
       const { groupJid } = body;
       if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
@@ -1379,7 +1379,7 @@ Deno.serve(async (req) => {
 
     // ── group_create ──────────────────────────────────────────────────────────
     // POST /group/create  body: { groupName, participants: string[] }
-    if (action === 'group_create') {
+    if (action === 'group_create' || action === 'create_group') {
       const instanceName = body.instance || defaultInst;
       const { groupName, participants } = body;
       if (!groupName || !Array.isArray(participants)) return Response.json({ error: 'groupName e participants[] são obrigatórios' }, { status: 400 });
@@ -1395,7 +1395,7 @@ Deno.serve(async (req) => {
 
     // ── group_participant ─────────────────────────────────────────────────────
     // POST /group/participant  body: { groupJid, participants: string[], action: 'add'|'remove'|'promote'|'demote' }
-    if (action === 'group_participant') {
+    if (action === 'group_participant' || action === 'update_group_participant') {
       const instanceName = body.instance || defaultInst;
       const { groupJid, participants, action: participantAction } = body;
       if (!groupJid || !Array.isArray(participants) || !participantAction) {
@@ -1413,7 +1413,7 @@ Deno.serve(async (req) => {
 
     // ── group_join ────────────────────────────────────────────────────────────
     // POST /group/join  body: { code }
-    if (action === 'group_join') {
+    if (action === 'group_join' || action === 'join_group') {
       const instanceName = body.instance || defaultInst;
       const { code } = body;
       if (!code) return Response.json({ error: 'code é obrigatório' }, { status: 400 });
@@ -1429,7 +1429,7 @@ Deno.serve(async (req) => {
 
     // ── group_leave ───────────────────────────────────────────────────────────
     // POST /group/leave  body: { groupJid }
-    if (action === 'group_leave') {
+    if (action === 'group_leave' || action === 'leave_group') {
       const instanceName = body.instance || defaultInst;
       const { groupJid } = body;
       if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
@@ -1444,16 +1444,16 @@ Deno.serve(async (req) => {
     }
 
     // ── group_update_name / group_update_description / group_update_photo ─────
-    if (action === 'group_update_name' || action === 'group_update_description' || action === 'group_update_photo') {
+    if (['group_update_name', 'group_update_description', 'group_update_photo', 'set_group_name', 'set_group_description', 'set_group_picture'].includes(action)) {
       const instanceName = body.instance || defaultInst;
       const { groupJid, name, description, image } = body;
       if (!groupJid) return Response.json({ error: 'groupJid é obrigatório' }, { status: 400 });
       const { token: instToken } = await resolveToken(instanceName);
       let endpoint = '';
       let payload: Record<string, unknown> = { groupJid };
-      if (action === 'group_update_name') { endpoint = 'name'; payload.name = name; }
-      if (action === 'group_update_description') { endpoint = 'description'; payload.description = description; }
-      if (action === 'group_update_photo') { endpoint = 'photo'; payload.image = image; }
+      if (action === 'group_update_name' || action === 'set_group_name') { endpoint = 'name'; payload.name = name; }
+      if (action === 'group_update_description' || action === 'set_group_description') { endpoint = 'description'; payload.description = description; }
+      if (action === 'group_update_photo' || action === 'set_group_picture') { endpoint = 'photo'; payload.image = image; }
       const r = await evoFetch(`${base}/group/${endpoint}`, {
         method: 'POST',
         headers: { apikey: instToken, 'Content-Type': 'application/json' },
@@ -1489,7 +1489,7 @@ Deno.serve(async (req) => {
 
     // ── label_list ────────────────────────────────────────────────────────────
     // GET /label/list
-    if (action === 'label_list') {
+    if (action === 'label_list' || action === 'list_labels') {
       const instanceName = body.instance || defaultInst;
       const { token: instToken } = await resolveToken(instanceName);
       const r = await evoFetch(`${base}/label/list`, { headers: { apikey: instToken } });
@@ -1500,12 +1500,12 @@ Deno.serve(async (req) => {
     // ── label_chat / unlabel_chat ─────────────────────────────────────────────
     // POST /label/chat  |  POST /unlabel/chat
     // body: { jid, labelId, instance }
-    if (action === 'label_chat' || action === 'unlabel_chat') {
+    if (['label_chat', 'unlabel_chat', 'add_label_chat', 'remove_label_chat'].includes(action)) {
       const instanceName = body.instance || defaultInst;
       const { jid, labelId } = body;
       if (!jid || !labelId) return Response.json({ error: 'jid e labelId são obrigatórios' }, { status: 400 });
       const { token: instToken } = await resolveToken(instanceName);
-      const endpoint = action === 'label_chat' ? 'label/chat' : 'unlabel/chat';
+      const endpoint = (action === 'label_chat' || action === 'add_label_chat') ? 'label/chat' : 'unlabel/chat';
       const r = await evoFetch(`${base}/${endpoint}`, {
         method: 'POST',
         headers: { apikey: instToken, 'Content-Type': 'application/json' },
@@ -1518,12 +1518,12 @@ Deno.serve(async (req) => {
     // ── label_message / unlabel_message ───────────────────────────────────────
     // POST /label/message  |  POST /unlabel/message
     // body: { jid, messageId, labelId, instance }
-    if (action === 'label_message' || action === 'unlabel_message') {
+    if (['label_message', 'unlabel_message', 'add_label_message', 'remove_label_message'].includes(action)) {
       const instanceName = body.instance || defaultInst;
       const { jid, messageId, labelId } = body;
       if (!jid || !labelId) return Response.json({ error: 'jid e labelId são obrigatórios' }, { status: 400 });
       const { token: instToken } = await resolveToken(instanceName);
-      const endpoint = action === 'label_message' ? 'label/message' : 'unlabel/message';
+      const endpoint = (action === 'label_message' || action === 'add_label_message') ? 'label/message' : 'unlabel/message';
       const r = await evoFetch(`${base}/${endpoint}`, {
         method: 'POST',
         headers: { apikey: instToken, 'Content-Type': 'application/json' },
@@ -1535,7 +1535,7 @@ Deno.serve(async (req) => {
 
     // ── label_edit ────────────────────────────────────────────────────────────
     // POST /label/edit  body: { labelId, name, color, deleted? }
-    if (action === 'label_edit') {
+    if (action === 'label_edit' || action === 'edit_label') {
       const instanceName = body.instance || defaultInst;
       const { labelId, name: labelName, color, deleted } = body;
       if (!labelId) return Response.json({ error: 'labelId é obrigatório' }, { status: 400 });
@@ -1590,6 +1590,116 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════════════
     // POLLS
     // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── delete_proxy ──────────────────────────────────────────────────────────
+    // DELETE /instance/proxy/:instanceId
+    if (action === 'delete_proxy') {
+      const { instanceName } = body;
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const found = await findInstance(base, adminToken, instanceName);
+      if (!found) return Response.json({ success: false, error: 'Instância não encontrada' }, { status: 404 });
+      const instanceId = String(found.id ?? nestedInstance(found).id ?? instanceName);
+      const r = await evoFetch(`${base}/instance/proxy/${encodeURIComponent(instanceId)}`, {
+        method: 'DELETE',
+        headers: { apikey: adminToken },
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao remover proxy', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NEWSLETTER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── create_newsletter ─────────────────────────────────────────────────────
+    // POST /newsletter/create  body: { name, description? }
+    if (action === 'create_newsletter') {
+      const instanceName = body.instance || defaultInst;
+      const { name: newsletterName, description } = body;
+      if (!newsletterName) return Response.json({ error: 'name é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/create`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newsletterName, description }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao criar newsletter', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── list_newsletters ──────────────────────────────────────────────────────
+    // GET /newsletter/list
+    if (action === 'list_newsletters') {
+      const instanceName = body.instance || defaultInst;
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/list`, { headers: { apikey: instToken } });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao listar newsletters', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, newsletters: r.data });
+    }
+
+    // ── get_newsletter_info ───────────────────────────────────────────────────
+    // POST /newsletter/info  body: { newsletterJid }
+    if (action === 'get_newsletter_info') {
+      const instanceName = body.instance || defaultInst;
+      const { newsletterJid } = body;
+      if (!newsletterJid) return Response.json({ error: 'newsletterJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/info`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newsletterJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar info da newsletter', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_newsletter_link ───────────────────────────────────────────────────
+    // POST /newsletter/link  body: { newsletterJid }
+    if (action === 'get_newsletter_link') {
+      const instanceName = body.instance || defaultInst;
+      const { newsletterJid } = body;
+      if (!newsletterJid) return Response.json({ error: 'newsletterJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/link`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newsletterJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar link da newsletter', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── subscribe_newsletter ──────────────────────────────────────────────────
+    // POST /newsletter/subscribe  body: { newsletterJid }
+    if (action === 'subscribe_newsletter') {
+      const instanceName = body.instance || defaultInst;
+      const { newsletterJid } = body;
+      if (!newsletterJid) return Response.json({ error: 'newsletterJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/subscribe`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newsletterJid }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao inscrever na newsletter', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
+    // ── get_newsletter_messages ───────────────────────────────────────────────
+    // POST /newsletter/messages  body: { newsletterJid, count? }
+    if (action === 'get_newsletter_messages') {
+      const instanceName = body.instance || defaultInst;
+      const { newsletterJid, count } = body;
+      if (!newsletterJid) return Response.json({ error: 'newsletterJid é obrigatório' }, { status: 400 });
+      const { token: instToken } = await resolveToken(instanceName);
+      const r = await evoFetch(`${base}/newsletter/messages`, {
+        method: 'POST',
+        headers: { apikey: instToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newsletterJid, count: count ?? 50 }),
+      });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar mensagens da newsletter', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, messages: r.data });
+    }
 
     // ── get_poll_results ──────────────────────────────────────────────────────
     // GET /polls/:pollMessageId/results
