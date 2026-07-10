@@ -148,30 +148,20 @@ Deno.serve(async (req) => {
 
     if (action === 'faturas') {
       const areceberUrl = baseUrl.replace(/\/$/, '') + '/fn_areceber';
-      const res = await fetch(areceberUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${token}`,
-          ixcsoft: 'listar',
-        },
-        body: JSON.stringify({
-          qtype: 'fn_areceber.status',
-          query: 'A',
-          oper: '=',
-          page: '1',
-          rp: '60',
-          sortname: 'fn_areceber.data_vencimento',
-          sortorder: 'asc',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
-        return Response.json({ error: 'Falha ao buscar faturas do IXC Provedor', details: data }, { status: res.status });
+      // Antes limitado a 60 registros fixos (rp: '60', sem paginação), o que escondia
+      // faturas em atraso além da 60ª — agora busca todas as páginas (até 2000 registros).
+      const { ok: fetchOk, registros, data: fetchErrData } = await fetchAllPages(areceberUrl, {
+        qtype: 'fn_areceber.status',
+        query: 'A',
+        oper: '=',
+        sortname: 'fn_areceber.data_vencimento',
+        sortorder: 'asc',
+      }, 2000);
+      if (!fetchOk) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'falha', details: JSON.stringify(fetchErrData).slice(0, 500) });
+        return Response.json({ error: 'Falha ao buscar faturas do IXC Provedor', details: fetchErrData }, { status: 500 });
       }
 
-      const registros = data.registros || [];
       const clientIds = [...new Set(registros.map((r) => r.id_cliente).filter(Boolean))];
       let clientsById = {};
 
@@ -209,8 +199,8 @@ Deno.serve(async (req) => {
         };
       });
 
-      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'sucesso' });
-      return Response.json({ success: true, result: { total: data.total, registros: faturas } });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'faturas', status: 'sucesso', details: `${faturas.length} registros carregados` });
+      return Response.json({ success: true, result: { total: faturas.length, registros: faturas } });
     }
 
     if (action === 'faturas_cliente') {
