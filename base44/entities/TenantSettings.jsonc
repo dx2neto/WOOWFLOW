@@ -1,0 +1,98 @@
+{
+  "name": "TenantSettings",
+  "type": "object",
+  "properties": {
+    "company_name": {
+      "type": "string",
+      "description": "Nome fantasia da empresa / provedor"
+    },
+    "cnpj": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "whatsapp": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "logo_url": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string"
+    },
+    "support_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "sectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "color": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "description": "Setores de atendimento configurados"
+    },
+    "business_hours": {
+      "type": "object",
+      "description": "Horários de atendimento por dia da semana",
+      "properties": {
+        "monday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "tuesday":   { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "wednesday": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "thursday":  { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "friday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "saturday":  { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
+        "sunday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } }
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "description": "Personalização visual",
+      "properties": {
+        "primary_color": { "type": "string" },
+        "theme": { "type": "string", "enum": ["light", "dark", "auto"], "default": "light" }
+      }
+    },
+    "plan": {
+      "type": "string",
+      "enum": ["starter", "pro", "enterprise"],
+      "default": "starter",
+      "description": "Plano de assinatura ativo"
+    },
+    "plan_limits": {
+      "type": "object",
+      "properties": {
+        "max_users": { "type": "number" },
+        "max_whatsapp_instances": { "type": "number" },
+        "max_conversations_month": { "type": "number" }
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": ["company_name"]
+}
