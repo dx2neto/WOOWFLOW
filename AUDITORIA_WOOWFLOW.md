@@ -2,7 +2,7 @@
 
 **Data:** 09/07/2026
 **Escopo:** Auditoria completa de ponta a ponta (frontend, backend, integrações, entidades/segurança, build e higiene do repositório).
-**Status:** Diagnóstico concluído. **Nenhuma alteração de código foi aplicada ainda** — conforme combinado, este relatório vem primeiro; as correções serão aplicadas por ordem de gravidade após sua aprovação.
+**Status:** Diagnóstico concluído **e correções aplicadas** (2ª rodada). Todos os itens Críticos, de Segurança, e a maioria dos itens de Qualidade/Higiene foram corrigidos. Verificação final: `lint` limpo (0 problemas), `typecheck` limpo (0 erros), `build` de produção com sucesso. Ver seção 3 para o detalhamento do que foi aplicado.
 
 ---
 
@@ -146,15 +146,51 @@ O WOOWFLOW é uma plataforma omnichannel robusta para provedores de internet (IS
 
 ## 3. Correções feitas
 
-**Nenhuma até o momento.** Conforme sua escolha ("relatório primeiro, depois corrigir"), este documento é o diagnóstico. Assim que você aprovar, aplico as correções **em ordem de gravidade**, uma frente por vez, sem quebrar funcionalidades existentes e sempre atacando a causa raiz.
+Todas as correções abaixo foram aplicadas atacando a causa raiz, sem mocks nem gambiarras, e validadas com `npm run lint` (0 problemas), `npm run typecheck` (0 erros) e `npm run build` (sucesso).
 
-Ordem sugerida de aplicação:
-1. C1 (Inbox — correção pequena e isolada, ganho imediato).
-2. S3 (webhook fail-closed) e S5 (remover hardcoded) — baixo risco.
-3. C2 (auth do pipeline de lembretes) — requer teste do workflow.
-4. S1 + S2 (RLS nas entidades) — mudança ampla, aplicar por lotes e testar por papel.
-5. S4 (autorização por rota).
-6. M1–M3, depois B1–B5.
+**C1 — Inbox (crash TDZ) ✅**
+`src/pages/Inbox.jsx`: a declaração `const selected = conversations.find(...)` foi movida para logo após os `useState` (antes dos `useCallback`/`useMemo` que a usam), eliminando o `ReferenceError`. `typecheck` não acusa mais TS2448.
+
+**C2 — Pipeline de lembretes (auth de serviço) ✅**
+Introduzido um token interno compartilhado (`INTERNAL_FUNCTION_TOKEN`). As funções `ixcApi`, `evolutionApi`, `zapsignApi` e as 4 de lembrete (`sendPaymentReminders`, `sendNegotiationOffers`, `sendBillingRuleReminders`, `sendContractRenewalReminders`) agora autorizam a chamada por **usuário autenticado OU token interno** (`x-internal-token`), e as chamadas função→função passam esse header em vez de encaminhar um `Authorization` vazio. Isso faz o agendador funcionar sem abrir endpoint anônimo. Também melhorada a dedupe (`filter({ status: 'enviado' })` em vez de `filter({})`, reduzindo leitura e permitindo retentar falhas). Nova variável documentada em `.env.example`.
+> Ação necessária do lado do Base44: gerar um valor forte para `INTERNAL_FUNCTION_TOKEN` (ex.: `openssl rand -hex 32`), configurá-lo como secret do backend e no cabeçalho `x-internal-token` dos workflows agendados.
+
+**S1 + S2 — RLS nas entidades ✅**
+Adicionado bloco `rls` às **39 entidades**:
+- Dados operacionais (Customer, Conversation, Message, Lead, Charge, Agreement, etc.): create/read/update exigem usuário autenticado (`$or` de `admin`/`user`, o que **bloqueia acesso anônimo** sem travar a equipe); `delete` restrito a `admin`.
+- Logs/config/permissões (AuditLog, ErrorLog, IntegrationLog, ReminderLog, NegotiationOfferLog, AgreementVerificationLog, TenantSettings, AgreementSettings, BillingRule, Profile): admin-only (as funções escrevem via `asServiceRole`, que ignora RLS — não quebra).
+- `User`: leitura autenticada; create/update/delete admin (impede escalonamento de papel).
+- **Field-level RLS admin-only** nos campos secretos: `IntegrationConfig.api_key`, `SipTrunk.sip_password`, `SignatureRequest.zapsign_doc_token`.
+- `Profile.read` liberado para autenticados (permite o frontend resolver as permissões do próprio usuário; edição continua admin).
+> Validar no ambiente publicado: RLS não pôde ser testado contra o backend Base44 nesta sessão. Teste acesso por papel antes do publish.
+
+**S3 — Webhook fail-closed ✅**
+`evolutionWebhook`: agora **rejeita** (500) quando nenhum segredo está configurado e valida o segredo por query string **ou** header (`x-webhook-secret`/`apikey`). Fim do comportamento fail-open.
+
+**S4 — Autorização por rota ✅**
+Novo `src/components/RequirePermission.jsx` + integração no `AuthContext` (`isAdmin`, `hasModule`, `hasSpecial`, carregamento do `Profile`). Em `App.jsx`: rotas administrativas (`/users`, `/audit-logs`, `/system-logs`, `/settings`, `/integrations`, `/evolution-sync-logs`, `/agreements/settings`) exigem admin; relatórios/Lara exigem permissão `reports`; `/financial` exige `access_financial_data`.
+
+**S5 — URL/instância hardcoded ✅**
+`agreementApi`: removidos os fallbacks embutidos (`evolution-go-...hstgr.cloud`, `CONNECT`); agora exige `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` via env e falha com erro claro (503) se ausentes.
+
+**M2 — Performance dos lembretes ✅** (parcial)
+Troca de `ReminderLog.filter({})`/`NegotiationOfferLog.filter({})` por filtro em `status: 'enviado'`, reduzindo o volume lido a cada execução.
+
+**B1 — README ✅** Reescrito o `README.md` (antes era o README do tinyglobby) com setup, variáveis e fluxo de publicação reais.
+
+**B2 — Higiene do repositório ✅** Removidos: `WOOWFLOW/` (cópia aninhada ~5,8 MB), `package 2`–`package 6/`, `o.json`, `README 2.md`, `package 2.json`, `fdir-6.5.0.tgz`, `tinyglobby-0.2.17.tgz`, `.index.html.swp`, `.DS_Store`.
+
+**B3 — Code-splitting ✅** `vite.config.js` com `manualChunks` (react, recharts, framer-motion). Bundle principal caiu de **1.717 KB → 1.103 KB**; `recharts` (445 KB) e `react` (164 KB) agora em chunks separados (melhor cache).
+
+**B4 — typecheck/lint ✅** Corrigidas as subtrações de `Date` (coerção com `+`) em Dashboard/Reports/Financial/CustomerConversationsHistory; removidas as 6 variáveis não usadas. `lint` e `typecheck` agora limpos.
+
+**B5 — Config ✅** `base44/config.jsonc` renomeado de "Untitled" para "WOOWFLOW". `.gitignore` corrigido (removido o perigoso `*.json`; passa a ignorar apenas `o.json` e `*.tgz`).
+
+### Itens NÃO aplicados (por dependerem de decisão/insumos externos)
+
+- **M1 (funções stub)**: `crmApi`, `signatureApi`, `telephonyApi`, `metaApi`, `tiktokApi`, `emailApi`, `billingApi` continuam como testadores de conexão. Implementar as integrações reais exige as especificações/credenciais de cada provedor — fora do escopo de uma correção automática. Recomendação mantida na seção 4.
+- **S5 (rotação de chaves)** e a configuração dos novos secrets (`INTERNAL_FUNCTION_TOKEN`, `EVOLUTION_GO_WEBHOOK_SECRET`) devem ser feitas por você no painel do Base44.
+- **B5 (UX)**: sino de notificação decorativo e persistência do tema — melhorias cosméticas, não aplicadas.
 
 ---
 
