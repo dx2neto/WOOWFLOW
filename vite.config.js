@@ -28,10 +28,6 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             "vendor-react": ["react", "react-dom", "react-router-dom"],
             "vendor-charts": ["recharts"],
-            "vendor-three": ["three"],
-            "vendor-maps": ["react-leaflet", "leaflet"],
-            "vendor-pdf": ["jspdf", "html2canvas"],
-            "vendor-editor": ["react-quill"],
             "vendor-motion": ["framer-motion"],
           },
         },

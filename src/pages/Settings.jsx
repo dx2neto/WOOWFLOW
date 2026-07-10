@@ -237,7 +237,7 @@ export default function Settings() {
     return updated;
   };
 
-  const handleSaveSectorEdit = async () => {
+  const handleSaveSectorEdit = async (_index) => {
     setEditingSector(null);
     await saveSectors(sectors);
   };
