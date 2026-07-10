@@ -1,0 +1,26 @@
+{
+  "name": "Tag",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "color": {
+      "type": "string",
+      "enum": [
+        "blue",
+        "green",
+        "red",
+        "yellow",
+        "purple",
+        "gray",
+        "orange",
+        "pink"
+      ],
+      "default": "blue"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

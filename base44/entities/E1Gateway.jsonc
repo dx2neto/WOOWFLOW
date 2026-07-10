@@ -1,0 +1,109 @@
+{
+  "name": "E1Gateway",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "port": {
+      "type": "number",
+      "default": 5060
+    },
+    "signaling_type": {
+      "type": "string",
+      "enum": [
+        "r2_digital",
+        "isdn",
+        "sip_convertido",
+        "e1_para_sip",
+        "gateway_externo"
+      ],
+      "default": "e1_para_sip"
+    },
+    "channels_count": {
+      "type": "number",
+      "default": 30
+    },
+    "operator": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "area_code": {
+      "type": "string"
+    },
+    "link_status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "falha"
+      ],
+      "default": "online"
+    },
+    "linked_trunk": {
+      "type": "string"
+    },
+    "inbound_route": {
+      "type": "string"
+    },
+    "outbound_route": {
+      "type": "string"
+    },
+    "channels_available": {
+      "type": "number",
+      "default": 0
+    },
+    "channels_busy": {
+      "type": "number",
+      "default": 0
+    },
+    "channels_failed": {
+      "type": "number",
+      "default": 0
+    },
+    "calls_in_progress": {
+      "type": "number",
+      "default": 0
+    },
+    "calls_completed": {
+      "type": "number",
+      "default": 0
+    },
+    "calls_rejected": {
+      "type": "number",
+      "default": 0
+    },
+    "route_errors": {
+      "type": "number",
+      "default": 0
+    },
+    "registration_loss": {
+      "type": "number",
+      "default": 0
+    },
+    "latency_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "jitter_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "packet_loss": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "ip_address"
+  ]
+}

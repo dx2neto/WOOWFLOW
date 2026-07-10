@@ -1,0 +1,116 @@
+{
+  "name": "Message",
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out",
+        "internal",
+        "system",
+        "ai"
+      ],
+      "default": "in"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "audio",
+        "image",
+        "document",
+        "video",
+        "sticker",
+        "location",
+        "reaction",
+        "poll",
+        "contact",
+        "button",
+        "list",
+        "carousel",
+        "email",
+        "system"
+      ],
+      "default": "text"
+    },
+    "sender_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "received",
+        "sent",
+        "delivered",
+        "read",
+        "failed"
+      ],
+      "default": "received"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "media_base64": {
+      "type": "string"
+    },
+    "media_url": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "provider_message_id": {
+      "type": "string"
+    },
+    "instance_id": {
+      "type": "string"
+    },
+    "contact_id": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "wa_message_id": {
+      "type": "string",
+      "description": "ID nativo da mensagem no WhatsApp (info.ID), usado como refer\u00eancia para o chat/history-sync"
+    },
+    "chat_jid": {
+      "type": "string",
+      "description": "JID completo do chat no WhatsApp (ex: 5511999999999@s.whatsapp.net)"
+    },
+    "caption": {
+      "type": "string"
+    },
+    "file_name": {
+      "type": "string"
+    },
+    "mime_type": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "is_group": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "conversation_id",
+    "content",
+    "direction"
+  ]
+}

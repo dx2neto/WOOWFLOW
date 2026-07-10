@@ -1,0 +1,57 @@
+{
+  "name": "ChatbotFlow",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "WhatsApp",
+        "Instagram"
+      ],
+      "default": "WhatsApp"
+    },
+    "steps": {
+      "type": "number",
+      "default": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "rascunho"
+      ],
+      "default": "rascunho"
+    },
+    "greeting_messages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Mensagens de sauda\u00e7\u00e3o enviadas em ordem no in\u00edcio do fluxo"
+    },
+    "menu_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "digit": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Op\u00e7\u00f5es do menu da URA, em ordem de exibi\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "IntegrationLog",
+  "type": "object",
+  "properties": {
+    "integration": {
+      "type": "string",
+      "enum": [
+        "evolutionApi",
+        "evolutionWebhook",
+        "omnichannelApi",
+        "metaApi",
+        "metaWebhook",
+        "tiktokApi",
+        "emailApi",
+        "erpApi",
+        "telephonyApi",
+        "crmApi",
+        "billingApi",
+        "signatureApi",
+        "aiOmnichannelApi",
+        "webChatApi",
+        "internalChatApi",
+        "ixcApi",
+        "zapsignApi",
+        "serasaApi",
+        "sendPaymentReminders",
+        "sendNegotiationOffers"
+      ]
+    },
+    "action": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sucesso",
+        "falha"
+      ],
+      "default": "sucesso"
+    },
+    "details": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "integration",
+    "status"
+  ]
+}

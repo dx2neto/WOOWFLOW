@@ -1,0 +1,37 @@
+{
+  "name": "NegotiationOfferLog",
+  "type": "object",
+  "properties": {
+    "invoice_id": {
+      "type": "string"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "value": {
+      "type": "number"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "days_late": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "enviado",
+        "falha"
+      ],
+      "default": "enviado"
+    }
+  },
+  "required": [
+    "invoice_id",
+    "phone"
+  ]
+}

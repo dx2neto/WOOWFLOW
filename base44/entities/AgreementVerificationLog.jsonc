@@ -1,0 +1,45 @@
+{
+  "name": "AgreementVerificationLog",
+  "type": "object",
+  "properties": {
+    "customer_id": {
+      "type": "string"
+    },
+    "conversation_id": {
+      "type": "string"
+    },
+    "input_type": {
+      "type": "string",
+      "enum": ["customer_id", "cpf_cnpj", "phone", "contract_id", "conversation"],
+      "default": "customer_id"
+    },
+    "input_value": {
+      "type": "string"
+    },
+    "agreement_status": {
+      "type": "string",
+      "enum": ["active", "overdue", "broken", "paid", "pending_signature", "none"],
+      "default": "none"
+    },
+    "has_agreement": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "not_found"],
+      "default": "success"
+    },
+    "error_message": {
+      "type": "string"
+    },
+    "result_summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "input_type",
+    "input_value",
+    "status"
+  ]
+}

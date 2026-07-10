@@ -1,0 +1,62 @@
+{
+  "name": "AgreementSettings",
+  "type": "object",
+  "properties": {
+    "tolerance_days_overdue": {
+      "type": "number",
+      "default": 5,
+      "description": "Dias de tolerância antes de considerar acordo vencido"
+    },
+    "days_to_mark_broken": {
+      "type": "number",
+      "default": 15,
+      "description": "Dias de atraso para marcar acordo como quebrado"
+    },
+    "auto_message_active": {
+      "type": "string",
+      "description": "Mensagem automática para acordo ativo"
+    },
+    "auto_message_overdue": {
+      "type": "string",
+      "description": "Mensagem automática para acordo vencido"
+    },
+    "auto_message_broken": {
+      "type": "string",
+      "description": "Mensagem automática para acordo quebrado"
+    },
+    "allow_unblock_on_agreement": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permitir desbloqueio mediante acordo"
+    },
+    "require_zapsign": {
+      "type": "boolean",
+      "default": false,
+      "description": "Exigir assinatura ZapSign"
+    },
+    "require_serasa": {
+      "type": "boolean",
+      "default": false,
+      "description": "Exigir validação Serasa antes de criar acordo"
+    },
+    "responsible_sector": {
+      "type": "string",
+      "description": "Setor responsável pela renegociação"
+    },
+    "default_agent": {
+      "type": "string",
+      "description": "Atendente padrão para acordos"
+    },
+    "send_whatsapp_reminder": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enviar lembrete automático pelo WhatsApp"
+    },
+    "singleton_key": {
+      "type": "string",
+      "default": "global",
+      "description": "Chave única para garantir apenas um registro de configuração"
+    }
+  },
+  "required": []
+}

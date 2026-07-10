@@ -1,0 +1,80 @@
+{
+  "name": "Customer",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "cpf_cnpj": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "plan": {
+      "type": "string"
+    },
+    "contract_number": {
+      "type": "string"
+    },
+    "contract_status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "suspenso",
+        "cancelado",
+        "instalacao"
+      ],
+      "default": "ativo"
+    },
+    "financial_status": {
+      "type": "string",
+      "enum": [
+        "em_dia",
+        "pendente",
+        "inadimplente",
+        "negociando"
+      ],
+      "default": "em_dia"
+    },
+    "balance_due": {
+      "type": "number",
+      "default": 0
+    },
+    "monthly_fee": {
+      "type": "number"
+    },
+    "installation_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "pppoe_login": {
+      "type": "string"
+    },
+    "connection_status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "bloqueado"
+      ],
+      "default": "online"
+    },
+    "sector": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "phone"
+  ]
+}

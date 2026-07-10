@@ -1,0 +1,111 @@
+{
+  "name": "IntegrationConfig",
+  "type": "object",
+  "properties": {
+    "service": {
+      "type": "string",
+      "enum": [
+        "evolution_api",
+        "evolution_go",
+        "ixc_provedor",
+        "erp_provider",
+        "zapsign",
+        "digital_signature",
+        "validacadastro",
+        "instagram",
+        "instagram_direct",
+        "facebook",
+        "facebook_messenger",
+        "messenger",
+        "tiktok",
+        "telegram",
+        "email",
+        "telefone",
+        "telephony_pabx",
+        "crm",
+        "billing",
+        "chat_interno",
+        "chat_externo",
+        "webchat",
+        "ai_assistant",
+        "ai_sales_support",
+        "google_sheets"
+      ],
+      "default": "evolution_api"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "error",
+        "pending"
+      ],
+      "default": "disconnected"
+    },
+    "api_url": {
+      "type": "string"
+    },
+    "api_key": {
+      "type": "string"
+    },
+    "config": {
+      "type": "object"
+    },
+    "settings": {
+      "type": "object"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": false
+    },
+    "provider_account_id": {
+      "type": "string"
+    },
+    "provider_account_name": {
+      "type": "string"
+    },
+    "webhook_url": {
+      "type": "string"
+    },
+    "error_message": {
+      "type": "string"
+    },
+    "ai_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "ai_auto_reply": {
+      "type": "boolean",
+      "default": false
+    },
+    "last_sync": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "service",
+    "display_name"
+  ]
+}
