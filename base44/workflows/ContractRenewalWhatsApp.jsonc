@@ -1,0 +1,45 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "contract_renewal_whatsapp",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_contract_renewal_reminders": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendContractRenewalReminders",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar lembrete de renova\u00e7\u00e3o",
+            "description": "Contratos a vencer em 7 dias"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Verifica diariamente os contratos pr\u00f3ximos ao vencimento no IXC e envia uma mensagem personalizada via WhatsApp (Evolution API) lembrando o cliente da renova\u00e7\u00e3o",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "America/Sao_Paulo",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "name": "Lembrete de Renova\u00e7\u00e3o de Contrato"
+}
