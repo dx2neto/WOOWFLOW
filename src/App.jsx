@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RequirePermission from '@/components/RequirePermission';
 import LoginRedirect from '@/components/LoginRedirect';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
@@ -93,31 +94,46 @@ const AuthenticatedApp = () => {
           <Route path="/message-templates" element={<MessageTemplates />} />
           <Route path="/signatures" element={<Signatures />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/integrations" element={<Integrations />} />
-          <Route path="/users" element={<UsersPage />} />
           <Route path="/tags-queues" element={<TagsQueues />} />
           <Route path="/holidays" element={<Holidays />} />
-          <Route path="/audit-logs" element={<AuditLogs />} />
-          <Route path="/system-logs" element={<SystemLogs />} />
-          <Route path="/evolution-sync-logs" element={<EvolutionSyncLogs />} />
           <Route path="/telephony" element={<Telephony />} />
-          <Route path="/lara-logs" element={<LaraLogs />} />
-          <Route path="/lara-dashboard" element={<LaraDashboard />} />
-          <Route path="/lara-reports" element={<LaraReports />} />
-          <Route path="/settings" element={<Settings />} />
+
+          {/* Relatórios / Lara — exigem permissão de relatórios */}
+          <Route element={<RequirePermission module="reports" />}>
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/lara-logs" element={<LaraLogs />} />
+            <Route path="/lara-dashboard" element={<LaraDashboard />} />
+            <Route path="/lara-reports" element={<LaraReports />} />
+          </Route>
+
+          {/* Áreas administrativas — apenas admin */}
+          <Route element={<RequirePermission adminOnly />}>
+            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/system-logs" element={<SystemLogs />} />
+            <Route path="/evolution-sync-logs" element={<EvolutionSyncLogs />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
           {/* IXCSoft pages */}
           <Route path="/contracts"   element={<Contracts />} />
           <Route path="/plans"       element={<Plans />} />
-          <Route path="/financial"   element={<Financial />} />
           <Route path="/work-orders" element={<WorkOrders />} />
           <Route path="/noc"         element={<NOC />} />
           <Route path="/vendors"     element={<Vendors />} />
           <Route path="/ixc-test"    element={<IxcTest />} />
+
+          {/* Dados financeiros — exigem permissão especial */}
+          <Route element={<RequirePermission special="access_financial_data" />}>
+            <Route path="/financial"   element={<Financial />} />
+          </Route>
+
           {/* Módulo de Verificação de Acordo */}
           <Route path="/agreements"          element={<Agreements />} />
-          <Route path="/agreements/settings" element={<AgreementSettings />} />
           <Route path="/agreements/:id"      element={<AgreementDetail />} />
+          <Route element={<RequirePermission adminOnly />}>
+            <Route path="/agreements/settings" element={<AgreementSettings />} />
+          </Route>
         </Route>
       </Route>
 

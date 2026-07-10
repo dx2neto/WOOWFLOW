@@ -2,36 +2,52 @@
   "name": "SignatureRequest",
   "type": "object",
   "properties": {
-    // ── Dados do cliente ──────────────────────────────────────────────────────
-    "customer_name": { "type": "string" },
-    "customer_cpf_cnpj": { "type": "string" },
-    "phone": { "type": "string" },
-    "email": { "type": "string" },
-
-    // ── Referências IXCSoft ───────────────────────────────────────────────────
-    "ixc_customer_id": { "type": "string" },
-    "ixc_contract_id": { "type": "string" },
-    "plan_name": { "type": "string" },
-    "plan_value": { "type": "number" },
-    "contract_start_date": { "type": "string", "format": "date" },
-    "contract_city": { "type": "string" },
+    "customer_name": {
+      "type": "string"
+    },
+    "customer_cpf_cnpj": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "ixc_customer_id": {
+      "type": "string"
+    },
+    "ixc_contract_id": {
+      "type": "string"
+    },
+    "plan_name": {
+      "type": "string"
+    },
+    "plan_value": {
+      "type": "number"
+    },
+    "contract_start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "contract_city": {
+      "type": "string"
+    },
     "ixc_data_snapshot": {
       "type": "string",
       "description": "JSON snapshot dos dados do contrato IXC no momento da geração"
     },
-
-    // ── Template ──────────────────────────────────────────────────────────────
     "template_id": {
       "type": "string",
       "description": "ID do ContractTemplate usado"
     },
-    "template_name": { "type": "string" },
+    "template_name": {
+      "type": "string"
+    },
     "variables_used": {
       "type": "string",
       "description": "JSON das variáveis preenchidas no template"
     },
-
-    // ── Tipo e status ─────────────────────────────────────────────────────────
     "document_type": {
       "type": "string",
       "enum": [
@@ -55,11 +71,21 @@
       ],
       "default": "pendente"
     },
-
-    // ── ZapSign ───────────────────────────────────────────────────────────────
     "zapsign_doc_token": {
       "type": "string",
-      "description": "Token único do documento no ZapSign"
+      "description": "Token único do documento no ZapSign",
+      "rls": {
+        "read": {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        "write": {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      }
     },
     "zapsign_open_id": {
       "type": "string",
@@ -77,21 +103,91 @@
       "type": "string",
       "description": "JSON array com dados dos signatários (nome, email, token, status)"
     },
-
-    // ── Datas ─────────────────────────────────────────────────────────────────
-    "signed_date": { "type": "string", "format": "date" },
-    "expires_at": { "type": "string", "format": "date" },
-
-    // ── WhatsApp ──────────────────────────────────────────────────────────────
-    "whatsapp_sent": { "type": "boolean", "default": false },
-    "whatsapp_sent_at": { "type": "string", "format": "date-time" },
-    "whatsapp_instance": { "type": "string" },
-
-    // ── Metadados ─────────────────────────────────────────────────────────────
-    "sent_by_user_id": { "type": "string" },
-    "conversation_id": { "type": "string" },
-    "notes": { "type": "string" },
-    "provider": { "type": "string", "default": "ZapSign" }
+    "signed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "whatsapp_sent": {
+      "type": "boolean",
+      "default": false
+    },
+    "whatsapp_sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "whatsapp_instance": {
+      "type": "string"
+    },
+    "sent_by_user_id": {
+      "type": "string"
+    },
+    "conversation_id": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string",
+      "default": "ZapSign"
+    }
   },
-  "required": ["customer_name", "phone", "document_type"]
+  "required": [
+    "customer_name",
+    "phone",
+    "document_type"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

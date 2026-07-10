@@ -53,7 +53,7 @@ export default function CustomerConversationsHistory({ phone, email }) {
           email ? base44.entities.Conversation.filter({ email }) : Promise.resolve([]),
         ]);
         const merged = [...byPhone, ...byEmail.filter((c) => !byPhone.some((p) => p.id === c.id))];
-        merged.sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0));
+        merged.sort((a, b) => +new Date(b.last_message_time || 0) - +new Date(a.last_message_time || 0));
         if (active) setConversations(merged);
       } catch {
         if (active) setConversations([]);

@@ -8,11 +8,11 @@
     },
     "days_offset": {
       "type": "number",
-      "description": "Dias em rela\u00e7\u00e3o ao vencimento. Negativo = antes do vencimento, positivo = depois (atraso)."
+      "description": "Dias em relação ao vencimento. Negativo = antes do vencimento, positivo = depois (atraso)."
     },
     "message_template": {
       "type": "string",
-      "description": "Mensagem enviada via WhatsApp. Use {customer_name}, {value} e {due_date} como vari\u00e1veis."
+      "description": "Mensagem enviada via WhatsApp. Use {customer_name}, {value} e {due_date} como variáveis."
     },
     "active": {
       "type": "boolean",
@@ -23,5 +23,27 @@
     "name",
     "days_offset",
     "message_template"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

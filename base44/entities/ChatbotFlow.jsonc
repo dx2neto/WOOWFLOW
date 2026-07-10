@@ -30,7 +30,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Mensagens de sauda\u00e7\u00e3o enviadas em ordem no in\u00edcio do fluxo"
+      "description": "Mensagens de saudação enviadas em ordem no início do fluxo"
     },
     "menu_options": {
       "type": "array",
@@ -48,10 +48,59 @@
           }
         }
       },
-      "description": "Op\u00e7\u00f5es do menu da URA, em ordem de exibi\u00e7\u00e3o"
+      "description": "Opções do menu da URA, em ordem de exibição"
     }
   },
   "required": [
     "name"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

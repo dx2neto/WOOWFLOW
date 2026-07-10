@@ -3,8 +3,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Permite chamada por usuário autenticado OU por outra função de backend
+    // (chamada interna/agendada) que apresente o token interno compartilhado.
+    const user = await base44.auth.me().catch(() => null);
+    const internalToken = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
+    const internalOk = internalToken !== '' && req.headers.get('x-internal-token') === internalToken;
+    if (!user && !internalOk) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const baseUrl = Deno.env.get('IXC_API_URL');
     const token = Deno.env.get('IXC_API_TOKEN');

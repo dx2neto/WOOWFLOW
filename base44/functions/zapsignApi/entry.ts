@@ -84,8 +84,12 @@ Deno.serve(async (req) => {
   const b44 = createClientFromRequest(req);
 
   try {
-    const user = await b44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Permite chamada por usuário autenticado OU por outra função de backend
+    // (chamada interna/agendada) que apresente o token interno compartilhado.
+    const user = await b44.auth.me().catch(() => null);
+    const internalToken = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
+    const internalOk = internalToken !== '' && req.headers.get('x-internal-token') === internalToken;
+    if (!user && !internalOk) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const zapToken  = Deno.env.get('ZAPSIGN_API_TOKEN');
     const ixcUrl    = Deno.env.get('IXC_API_URL');

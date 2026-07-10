@@ -23,7 +23,7 @@
     },
     "shortcut": {
       "type": "string",
-      "description": "Atalho r\u00e1pido para inserir o template, ex: /boasvindas"
+      "description": "Atalho rápido para inserir o template, ex: /boasvindas"
     },
     "active": {
       "type": "boolean",
@@ -33,5 +33,54 @@
   "required": [
     "title",
     "content"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

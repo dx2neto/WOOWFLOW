@@ -27,6 +27,8 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
 .vite
-*.json
+
+# Artefatos locais / lixo (NÃO ignorar package.json, components.json, etc.)
+o.json
+*.tgz

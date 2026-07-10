@@ -28,12 +28,24 @@
     },
     "origin": {
       "type": "string",
-      "enum": ["ixc", "local", "manual", "zapsign"],
+      "enum": [
+        "ixc",
+        "local",
+        "manual",
+        "zapsign"
+      ],
       "default": "manual"
     },
     "status": {
       "type": "string",
-      "enum": ["active", "overdue", "broken", "paid", "pending_signature", "none"],
+      "enum": [
+        "active",
+        "overdue",
+        "broken",
+        "paid",
+        "pending_signature",
+        "none"
+      ],
       "default": "active"
     },
     "original_amount": {
@@ -77,7 +89,13 @@
     },
     "zapsign_status": {
       "type": "string",
-      "enum": ["pending", "signed", "refused", "expired", "none"],
+      "enum": [
+        "pending",
+        "signed",
+        "refused",
+        "expired",
+        "none"
+      ],
       "default": "none"
     },
     "zapsign_url": {
@@ -94,7 +112,15 @@
     },
     "recommended_action": {
       "type": "string",
-      "enum": ["none", "send_reminder", "request_payment", "renegotiate", "block_warning", "send_to_human", "send_zapsign"],
+      "enum": [
+        "none",
+        "send_reminder",
+        "request_payment",
+        "renegotiate",
+        "block_warning",
+        "send_to_human",
+        "send_zapsign"
+      ],
       "default": "none"
     }
   },
@@ -103,5 +129,54 @@
     "status",
     "original_amount",
     "negotiated_amount"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

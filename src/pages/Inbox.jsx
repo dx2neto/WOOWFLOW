@@ -188,7 +188,6 @@ export default function Inbox() {
   // Conversas e mensagens
   const [conversations, setConversations]           = useState([]);
   const [loading, setLoading]                       = useState(true);
-  const [loadingConversations, setLoadingConversations] = useState(false);
   const [selectedId, setSelectedId]                 = useState(null);
   const [messages, setMessages]                     = useState([]);
   const [loadingMessages, setLoadingMessages]       = useState(false);
@@ -216,6 +215,10 @@ export default function Inbox() {
   const [rightTab, setRightTab] = useState("dados");
   const [configs, setConfigs]   = useState({});
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Conversa selecionada (dado derivado) — declarado cedo para evitar TDZ
+  // nos useCallback/useMemo abaixo que dependem de `selected`.
+  const selected = conversations.find((c) => c.id === selectedId);
 
   // Modal nova conversa
   const [showNewConversation, setShowNewConversation] = useState(false);
@@ -707,8 +710,6 @@ export default function Inbox() {
 
 
   // ── Dados derivados ───────────────────────────────────────────────────────
-  const selected = conversations.find((c) => c.id === selectedId);
-
   const channelCounts = useMemo(() => {
     const counts = { all: conversations.length };
     for (const c of conversations) counts[c.channel] = (counts[c.channel] || 0) + 1;

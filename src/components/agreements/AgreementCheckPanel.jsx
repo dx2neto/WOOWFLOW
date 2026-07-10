@@ -51,7 +51,7 @@ export default function AgreementCheckPanel({ conversation, instance }) {
         setError({ type: "error", code: errCode, message: errMsg });
         setResult(null);
       }
-    } catch (e) {
+    } catch {
       setError({ type: "error", code: "NETWORK_ERROR", message: "Erro de conexão ao verificar acordo. Tente novamente." });
       setResult(null);
     } finally {

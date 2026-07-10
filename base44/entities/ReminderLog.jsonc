@@ -20,7 +20,7 @@
     },
     "rule": {
       "type": "string",
-      "description": "Nome da regra de cobran\u00e7a que gerou este lembrete"
+      "description": "Nome da regra de cobrança que gerou este lembrete"
     },
     "status": {
       "type": "string",
@@ -34,5 +34,27 @@
   "required": [
     "invoice_id",
     "phone"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

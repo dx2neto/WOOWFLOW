@@ -43,9 +43,15 @@
       "items": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "color": { "type": "string" },
-          "description": { "type": "string" }
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
         }
       },
       "description": "Setores de atendimento configurados"
@@ -54,35 +60,146 @@
       "type": "object",
       "description": "Horários de atendimento por dia da semana",
       "properties": {
-        "monday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "tuesday":   { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "wednesday": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "thursday":  { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "friday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "saturday":  { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } },
-        "sunday":    { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "active": { "type": "boolean" } } }
+        "monday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "tuesday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "wednesday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "thursday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "friday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "saturday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "sunday": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        }
       }
     },
     "appearance": {
       "type": "object",
       "description": "Personalização visual",
       "properties": {
-        "primary_color": { "type": "string" },
-        "theme": { "type": "string", "enum": ["light", "dark", "auto"], "default": "light" }
+        "primary_color": {
+          "type": "string"
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
+          "default": "light"
+        }
       }
     },
     "plan": {
       "type": "string",
-      "enum": ["starter", "pro", "enterprise"],
+      "enum": [
+        "starter",
+        "pro",
+        "enterprise"
+      ],
       "default": "starter",
       "description": "Plano de assinatura ativo"
     },
     "plan_limits": {
       "type": "object",
       "properties": {
-        "max_users": { "type": "number" },
-        "max_whatsapp_instances": { "type": "number" },
-        "max_conversations_month": { "type": "number" }
+        "max_users": {
+          "type": "number"
+        },
+        "max_whatsapp_instances": {
+          "type": "number"
+        },
+        "max_conversations_month": {
+          "type": "number"
+        }
       }
     },
     "active": {
@@ -94,5 +211,29 @@
       "format": "date-time"
     }
   },
-  "required": ["company_name"]
+  "required": [
+    "company_name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

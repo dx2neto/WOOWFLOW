@@ -4,7 +4,7 @@
   "properties": {
     "month": {
       "type": "string",
-      "description": "M\u00eas de refer\u00eancia no formato YYYY-MM"
+      "description": "Mês de referência no formato YYYY-MM"
     },
     "target_new_contracts": {
       "type": "number",
@@ -17,5 +17,54 @@
   },
   "required": [
     "month"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

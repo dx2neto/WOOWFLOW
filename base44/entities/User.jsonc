@@ -10,11 +10,11 @@
     },
     "profile_key": {
       "type": "string",
-      "description": "Perfil de permiss\u00f5es atribu\u00eddo ao usu\u00e1rio"
+      "description": "Perfil de permissões atribuído ao usuário"
     },
     "sector": {
       "type": "string",
-      "description": "Setor do usu\u00e1rio na plataforma"
+      "description": "Setor do usuário na plataforma"
     },
     "status": {
       "type": "string",
@@ -32,5 +32,36 @@
     "role"
   ],
   "name": "User",
-  "type": "object"
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

@@ -85,7 +85,7 @@
     },
     "wa_message_id": {
       "type": "string",
-      "description": "ID nativo da mensagem no WhatsApp (info.ID), usado como refer\u00eancia para o chat/history-sync"
+      "description": "ID nativo da mensagem no WhatsApp (info.ID), usado como referência para o chat/history-sync"
     },
     "chat_jid": {
       "type": "string",
@@ -112,5 +112,54 @@
     "conversation_id",
     "content",
     "direction"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

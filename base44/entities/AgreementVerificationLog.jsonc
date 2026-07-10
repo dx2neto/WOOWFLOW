@@ -10,7 +10,13 @@
     },
     "input_type": {
       "type": "string",
-      "enum": ["customer_id", "cpf_cnpj", "phone", "contract_id", "conversation"],
+      "enum": [
+        "customer_id",
+        "cpf_cnpj",
+        "phone",
+        "contract_id",
+        "conversation"
+      ],
       "default": "customer_id"
     },
     "input_value": {
@@ -18,7 +24,14 @@
     },
     "agreement_status": {
       "type": "string",
-      "enum": ["active", "overdue", "broken", "paid", "pending_signature", "none"],
+      "enum": [
+        "active",
+        "overdue",
+        "broken",
+        "paid",
+        "pending_signature",
+        "none"
+      ],
       "default": "none"
     },
     "has_agreement": {
@@ -27,7 +40,11 @@
     },
     "status": {
       "type": "string",
-      "enum": ["success", "error", "not_found"],
+      "enum": [
+        "success",
+        "error",
+        "not_found"
+      ],
       "default": "success"
     },
     "error_message": {
@@ -41,5 +58,27 @@
     "input_type",
     "input_value",
     "status"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

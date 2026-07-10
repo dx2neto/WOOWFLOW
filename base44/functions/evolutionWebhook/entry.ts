@@ -72,10 +72,18 @@ function detectMsgType(info: AnyRecord, msgBody: AnyRecord): string {
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   try {
-    // ── autenticação via query string ─────────────────────────────────────────
+    // ── autenticação do webhook (fail-closed) ─────────────────────────────────
+    // O segredo pode vir por header (preferível — não aparece em logs de acesso)
+    // ou por query string (compatibilidade com o Evolution Go).
     const apiKey      = Deno.env.get('EVOLUTION_GO_WEBHOOK_SECRET') || Deno.env.get('EVOLUTION_GO_ADMIN_TOKEN') || Deno.env.get('EVOLUTION_API_KEY') || Deno.env.get('GLOBAL_API_KEY') || '';
-    const providedKey = new URL(req.url).searchParams.get('key');
-    if (apiKey && providedKey !== apiKey) {
+    // Sem segredo configurado => rejeita (não aceitar chamadas anônimas).
+    if (!apiKey) {
+      return Response.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    }
+    const providedKey = new URL(req.url).searchParams.get('key')
+      || req.headers.get('x-webhook-secret')
+      || req.headers.get('apikey');
+    if (providedKey !== apiKey) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

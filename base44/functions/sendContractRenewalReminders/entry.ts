@@ -6,11 +6,20 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Aceita disparo por usuário autenticado (trigger manual) OU pelo agendador
+    // via token interno compartilhado — evita expor envio em massa a anônimos.
+    const user = await base44.auth.me().catch(() => null);
+    const internalToken = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
+    const internalOk = internalToken !== '' && req.headers.get('x-internal-token') === internalToken;
+    if (!user && !internalOk) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const origin = new URL(req.url).origin;
     const authHeader = req.headers.get('Authorization') || '';
+    const internalHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: authHeader,
+      'x-internal-token': internalToken,
+    };
 
     // Busca o template de renovação configurado em Assinaturas (document_type = renovacao)
     const templates = await base44.asServiceRole.entities.ContractTemplate.filter({ document_type: 'renovacao', active: true });
@@ -25,7 +34,7 @@ Deno.serve(async (req) => {
 
     const contratosRes = await fetch(origin + '/functions/ixcApi', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+      headers: internalHeaders,
       body: JSON.stringify({ action: 'contratos' }),
     });
     const contratosRawText = await contratosRes.text();
@@ -56,7 +65,7 @@ Deno.serve(async (req) => {
 
       const zapRes = await fetch(origin + '/functions/zapsignApi', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        headers: internalHeaders,
         body: JSON.stringify({
           action: 'create_from_ixc',
           ixcCustomerId: c.client_id,

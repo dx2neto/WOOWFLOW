@@ -81,7 +81,7 @@ export default function Financial() {
   const matches = (c) => !q || c.customer_name?.toLowerCase().includes(q) || c.phone?.includes(search);
 
   const vencidas = charges.filter((c) => c.status === "vencida" && matches(c)).sort((a, b) => b.days_late - a.days_late);
-  const pendentes = charges.filter((c) => c.status === "pendente" && matches(c)).sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
+  const pendentes = charges.filter((c) => c.status === "pendente" && matches(c)).sort((a, b) => +new Date(a.due_date || 0) - +new Date(b.due_date || 0));
 
   const totalVencido = vencidas.reduce((s, c) => s + (c.value || 0), 0);
   const totalPendente = pendentes.reduce((s, c) => s + (c.value || 0), 0);

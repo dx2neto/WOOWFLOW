@@ -18,11 +18,6 @@ function getDateCutoff(period) {
   const d = new Date(); d.setDate(d.getDate() - days); return d;
 }
 
-function fmtSeconds(s) {
-  if (!s || s < 0) return "—";
-  const m = Math.floor(s / 60); const sec = Math.round(s % 60);
-  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
-}
 
 // ─── Hook de dados ────────────────────────────────────────────────────────────
 function useReportsData(period) {
@@ -73,7 +68,7 @@ function useReportsData(period) {
       if (["resolvido","finalizado"].includes(c.status)) map[name].resolvidos++;
       if (c.satisfaction_score) map[name].scores.push(Number(c.satisfaction_score));
       if (c.first_response_at && c.created_date) {
-        map[name].firstRespSecs.push((new Date(c.first_response_at) - new Date(c.created_date)) / 1000);
+        map[name].firstRespSecs.push((+new Date(c.first_response_at) - +new Date(c.created_date)) / 1000);
       }
     });
     return Object.values(map)
@@ -131,14 +126,14 @@ function useReportsData(period) {
 
     const withResp = filtered.filter((c) => c.first_response_at && c.created_date);
     const avgFirst = withResp.length
-      ? withResp.reduce((s, c) => s + (new Date(c.first_response_at) - new Date(c.created_date)) / 1000, 0) / withResp.length
+      ? withResp.reduce((s, c) => s + (+new Date(c.first_response_at) - +new Date(c.created_date)) / 1000, 0) / withResp.length
       : null;
 
     const scores  = filtered.map((c) => Number(c.satisfaction_score)).filter(Boolean);
     const avgNps  = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length * 20) : null;
 
     const withSla = filtered.filter((c) => c.first_response_at && c.created_date);
-    const cumpridos = withSla.filter((c) => (new Date(c.first_response_at) - new Date(c.created_date)) / 1000 <= 900).length;
+    const cumpridos = withSla.filter((c) => (+new Date(c.first_response_at) - +new Date(c.created_date)) / 1000 <= 900).length;
     const slaPct    = withSla.length ? Math.round((cumpridos / withSla.length) * 100) : null;
 
     return { conversion, avgFirst, avgNps, slaPct };

@@ -8,9 +8,9 @@ Deno.serve(async (req) => {
 
     const ixcBaseUrl    = Deno.env.get('IXC_API_URL');
     const ixcToken      = Deno.env.get('IXC_API_TOKEN');
-    const evoBaseUrl    = Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud';
+    const evoBaseUrl    = Deno.env.get('EVOLUTION_API_URL') || '';
     const evoKey        = Deno.env.get('EVOLUTION_API_KEY') || '';
-    const evoDefaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+    const evoDefaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || '';
     const zapToken      = Deno.env.get('ZAPSIGN_API_TOKEN');
 
     const body = await req.json().catch(() => ({}));
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     // ── guards de configuração ────────────────────────────────────────────────
     // ZapSign: só valida na hora de usar (generate_zapsign)
     // IXC: valida na hora de usar (verify/check)
-    // Evolution Go: URL e key têm defaults embutidos
+    // Evolution Go: URL e key obrigatórias via env (validadas em send_reminder)
 
     // ── helpers ──────────────────────────────────────────────────────────────
     const ok = (data: any, msg = 'OK') => Response.json({ success: true, data, message: msg });
@@ -416,6 +416,11 @@ Deno.serve(async (req) => {
         if (!agreement) return fail('NOT_FOUND', 'Acordo não encontrado', 404);
         const customerPhone = agreement.customer_phone;
         if (!customerPhone) return fail('NO_PHONE', 'Cliente sem telefone cadastrado');
+
+        // Config obrigatória do Evolution Go (sem defaults embutidos).
+        if (!evoBaseUrl || !evoKey) {
+          return fail('EVOLUTION_NOT_CONFIGURED', 'Configure EVOLUTION_API_URL e EVOLUTION_API_KEY no backend.', 503);
+        }
 
         const settings = await getSettings();
         const fmtBRL = (v: number) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

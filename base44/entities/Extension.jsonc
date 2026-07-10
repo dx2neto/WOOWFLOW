@@ -63,7 +63,7 @@
     },
     "forward_destination": {
       "type": "string",
-      "description": "Ramal, n\u00famero externo ou fila para onde o desvio encaminha"
+      "description": "Ramal, número externo ou fila para onde o desvio encaminha"
     },
     "active": {
       "type": "boolean",
@@ -73,5 +73,54 @@
   "required": [
     "number",
     "attendant_name"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }

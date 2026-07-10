@@ -332,14 +332,14 @@ function useInboxMetrics(period) {
     let cumpridos = 0, avgFirstResponse = 0, avgResolution = 0;
 
     withResponse.forEach((c) => {
-      const diff = (new Date(c.first_response_at) - new Date(c.created_date)) / 1000;
+      const diff = (+new Date(c.first_response_at) - +new Date(c.created_date)) / 1000;
       if (diff <= SLA_LIMIT_SEC) cumpridos++;
       avgFirstResponse += diff;
     });
 
     const resolved = filtered.filter((c) => c.resolved_at && c.created_date);
     resolved.forEach((c) => {
-      avgResolution += (new Date(c.resolved_at) - new Date(c.created_date)) / 1000;
+      avgResolution += (+new Date(c.resolved_at) - +new Date(c.created_date)) / 1000;
     });
 
     const slaPct = withResponse.length ? Math.round((cumpridos / withResponse.length) * 100) : null;

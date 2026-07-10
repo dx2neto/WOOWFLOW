@@ -5,6 +5,7 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [permissions, setPermissions] = useState(null); // { modules: {}, special: [] }
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
@@ -19,19 +20,52 @@ export const AuthProvider = ({ children }) => {
         setUser(currentUser);
         setIsAuthenticated(true);
         setAuthError(null);
+
+        // Carrega o perfil de permissões do usuário (admins ignoram — têm acesso total).
+        if (currentUser?.role !== 'admin' && currentUser?.profile_key) {
+          try {
+            const profiles = await base44.entities.Profile.filter({ key: currentUser.profile_key });
+            const p = profiles?.[0];
+            setPermissions({
+              modules: p?.module_permissions || {},
+              special: p?.special_permissions || [],
+            });
+          } catch {
+            setPermissions({ modules: {}, special: [] });
+          }
+        } else {
+          setPermissions(null); // admin ou sem perfil -> resolvido por isAdmin
+        }
       } else {
         setUser(null);
+        setPermissions(null);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('User auth check failed:', error);
       setUser(null);
+      setPermissions(null);
       setIsAuthenticated(false);
     } finally {
       setIsLoadingAuth(false);
       setAuthChecked(true);
     }
   }, []);
+
+  const isAdmin = user?.role === 'admin';
+
+  // Verifica permissão de módulo (ex.: hasModule('reports', 'view')).
+  const hasModule = useCallback((moduleKey, action = 'view') => {
+    if (isAdmin) return true;
+    const actions = permissions?.modules?.[moduleKey];
+    return Array.isArray(actions) && actions.includes(action);
+  }, [isAdmin, permissions]);
+
+  // Verifica permissão especial (ex.: hasSpecial('access_financial_data')).
+  const hasSpecial = useCallback((key) => {
+    if (isAdmin) return true;
+    return Array.isArray(permissions?.special) && permissions.special.includes(key);
+  }, [isAdmin, permissions]);
 
   useEffect(() => {
     checkUserAuth();
@@ -54,6 +88,10 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user,
+      permissions,
+      isAdmin,
+      hasModule,
+      hasSpecial,
       isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings: false,

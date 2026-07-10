@@ -13,14 +13,23 @@ function fillTemplate(template, inv) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Aceita disparo por usuário autenticado (trigger manual) OU pelo agendador
+    // via token interno compartilhado — evita expor envio em massa a anônimos.
+    const user = await base44.auth.me().catch(() => null);
+    const internalToken = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
+    const internalOk = internalToken !== '' && req.headers.get('x-internal-token') === internalToken;
+    if (!user && !internalOk) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const internalHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: req.headers.get('Authorization') || '',
+      'x-internal-token': internalToken,
+    };
 
     const origin = new URL(req.url).origin;
 
     const faturasRes = await fetch(origin + '/functions/ixcApi', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
+      headers: internalHeaders,
       body: JSON.stringify({ action: 'faturas' }),
     });
     const faturasData = await faturasRes.json();
@@ -31,7 +40,7 @@ Deno.serve(async (req) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const alreadySent = await base44.asServiceRole.entities.ReminderLog.filter({});
+    const alreadySent = await base44.asServiceRole.entities.ReminderLog.filter({ status: 'enviado' });
     const sentKeys = new Set(alreadySent.map((l) => `${l.rule}:${l.invoice_id}`));
 
     let sentCount = 0;
@@ -51,7 +60,7 @@ Deno.serve(async (req) => {
         const message = fillTemplate(rule.message_template, inv);
         const sendRes = await fetch(origin + '/functions/evolutionApi', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
+          headers: internalHeaders,
           body: JSON.stringify({ action: 'send_message', phone: inv.phone, message }),
         });
         const sendData = await sendRes.json();

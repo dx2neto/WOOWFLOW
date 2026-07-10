@@ -20,6 +20,23 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
+    build: {
+      // Divide bibliotecas pesadas em chunks separados para reduzir o bundle
+      // inicial e melhorar o cache do navegador.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            "vendor-charts": ["recharts"],
+            "vendor-three": ["three"],
+            "vendor-maps": ["react-leaflet", "leaflet"],
+            "vendor-pdf": ["jspdf", "html2canvas"],
+            "vendor-editor": ["react-quill"],
+            "vendor-motion": ["framer-motion"],
+          },
+        },
+      },
+    },
     server: env.VITE_BASE44_APP_BASE_URL ? {
       proxy: {
         "/b44": {

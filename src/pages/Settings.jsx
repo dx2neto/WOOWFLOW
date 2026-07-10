@@ -56,7 +56,7 @@ const DEFAULT_SECTORS = [
 // ─── Componente principal ──────────────────────────────────────────────────────
 export default function Settings() {
   const [tab, setTab] = useState("company");
-  const [settings, setSettings] = useState(null);
+  const [, setSettings] = useState(null);
   const [settingsId, setSettingsId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -237,7 +237,7 @@ export default function Settings() {
     return updated;
   };
 
-  const handleSaveSectorEdit = async (index) => {
+  const handleSaveSectorEdit = async () => {
     setEditingSector(null);
     await saveSectors(sectors);
   };
