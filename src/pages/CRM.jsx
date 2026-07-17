@@ -49,6 +49,7 @@ export default function CRM() {
     setDraggedId(null);
   };
 
+  const today = new Date().toISOString().slice(0, 10);
   const totalValue = leads.filter(l => l.stage !== "venda_perdida").reduce((sum, l) => sum + (l.estimated_value || 0), 0);
   const wonLeads = leads.filter((l) => l.stage === "venda_fechada").length;
 
@@ -106,6 +107,11 @@ export default function CRM() {
                         <p className="font-medium text-sm leading-tight">{lead.name}</p>
                         <ChannelBadge channel={lead.origin} />
                       </div>
+                      {lead.next_contact && lead.next_contact <= today && lead.stage !== "venda_fechada" && lead.stage !== "venda_perdida" && (
+                        <span className="inline-block mb-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700">
+                          Follow-up atrasado
+                        </span>
+                      )}
                       <div className="space-y-1 text-xs text-muted-foreground">
                         {lead.phone && <p className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {lead.phone}</p>}
                         {lead.city && <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.city}</p>}

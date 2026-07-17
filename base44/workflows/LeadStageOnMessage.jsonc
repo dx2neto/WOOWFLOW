@@ -1,0 +1,41 @@
+{
+  "name": "Avan\u00e7ar Lead por Intera\u00e7\u00e3o",
+  "description": "Sempre que uma mensagem \u00e9 enviada ou recebida de um telefone com lead no CRM, move a etapa do funil e agenda o pr\u00f3ximo follow-up automaticamente.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Message",
+      "events": [
+        "create"
+      ]
+    },
+    "condition": "${ (.trigger.data.phone // \"\") != \"\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "lead_stage_on_message",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "advance_lead": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "advanceLeadOnInteraction",
+            "args": {
+              "phone": "${ .trigger.data.phone }",
+              "direction": "${ .trigger.data.direction }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Avan\u00e7ar lead",
+            "description": "Conforme intera\u00e7\u00e3o"
+          }
+        }
+      }
+    ]
+  }
+}
