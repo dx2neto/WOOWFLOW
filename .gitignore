@@ -32,3 +32,4 @@ dist-ssr
 # Artefatos locais / lixo (NÃO ignorar package.json, components.json, etc.)
 o.json
 *.tgz
+base44/.app.jsonc
