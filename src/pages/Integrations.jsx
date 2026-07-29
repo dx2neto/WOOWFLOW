@@ -189,6 +189,9 @@ const statusConfig = {
   pending: { label: "Pendente", color: "text-amber-700 bg-amber-50 border-amber-200", icon: RefreshCw },
 };
 
+const VALID_STATUSES = ["connected", "disconnected", "error", "pending"];
+const coerceStatus = (val) => (typeof val === "string" && VALID_STATUSES.includes(val) ? val : "pending");
+
 function formatSyncDate(value) {
   if (!value) return "Nunca sincronizado";
   return new Date(value).toLocaleString("pt-BR", {
@@ -319,7 +322,7 @@ export default function Integrations() {
       const data = response?.data || {};
       const success = !!data.success;
       await persistConfig(integration, {
-        status: success ? "connected" : data.status || "pending",
+        status: success ? "connected" : coerceStatus(data.status),
         is_active: success,
         error_message: success ? "" : data.error || (data.missing?.length ? `Faltando: ${data.missing.join(", ")}` : "Integração aguardando configuração."),
         last_sync: new Date().toISOString(),
@@ -342,7 +345,7 @@ export default function Integrations() {
       const data = response?.data || {};
       const success = !!data.success;
       await persistConfig(integration, {
-        status: success ? "connected" : data.status || "pending",
+        status: success ? "connected" : coerceStatus(data.status),
         error_message: success ? "" : data.error || (data.missing?.length ? `Faltando: ${data.missing.join(", ")}` : "Sincronização aguardando configuração."),
         last_sync: new Date().toISOString(),
       });
