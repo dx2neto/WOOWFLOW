@@ -4,7 +4,7 @@ type AnyRecord = Record<string, unknown>;
 
 const SERVICE_ENV: Record<string, string[]> = {
   erp_provider: ['ERP_API_URL', 'ERP_API_TOKEN'],
-  evolution_go: ['EVOLUTION_GO_BASE_URL', 'EVOLUTION_GO_ADMIN_TOKEN'],
+  evolution_go: ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY'],
   facebook_messenger: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   instagram_direct: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   instagram: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
