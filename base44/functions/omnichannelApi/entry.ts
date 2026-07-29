@@ -4,7 +4,7 @@ type AnyRecord = Record<string, unknown>;
 
 const SERVICE_ENV: Record<string, string[]> = {
   erp_provider: ['ERP_API_URL', 'ERP_API_TOKEN'],
-  evolution_go: ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY'],
+  evolution_api: ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY'],
   facebook_messenger: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   instagram_direct: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
   instagram: ['META_APP_ID', 'META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN'],
@@ -22,7 +22,7 @@ const SERVICE_ENV: Record<string, string[]> = {
 };
 
 const SERVICE_ALIASES: Record<string, string> = {
-  evolution_api: 'evolution_go',
+  evolution_go: 'evolution_api',
   ixc_provedor: 'erp_provider',
   zapsign: 'digital_signature',
   facebook: 'facebook_messenger',
@@ -34,6 +34,7 @@ const SERVICE_ALIASES: Record<string, string> = {
 
 const MANAGED_SERVICES = new Set([
   'erp_provider',
+  'evolution_api',
   'evolution_go',
   'facebook_messenger',
   'instagram_direct',

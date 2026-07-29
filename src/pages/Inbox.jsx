@@ -518,7 +518,7 @@ export default function Inbox() {
         status: direction === "out" && selected.channel === "whatsapp" ? "sent" : "delivered",
         timestamp: now,
         sender_name: "Atendente",
-        provider: selected.channel === "whatsapp" ? "evolution_go" : selected.channel,
+        provider: selected.channel === "whatsapp" ? "evolution_api" : selected.channel,
         phone: selected.phone,
         chat_jid: selected.channel === "whatsapp" ? `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net` : undefined,
         instance_id: selectedInstance || selected.instance || undefined,
@@ -564,7 +564,7 @@ export default function Inbox() {
       const pid = resp?.data?.wa_message_id || resp?.data?.provider_message_id || null;
       const newMsg = await base44.entities.Message.create({
         conversation_id: selected.id, content: `[${type}] ${file.name}`, direction: "out", type,
-        status: "sent", timestamp: now, sender_name: "Atendente", provider: "evolution_go",
+        status: "sent", timestamp: now, sender_name: "Atendente", provider: "evolution_api",
         phone: selected.phone, chat_jid: `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net`,
         instance_id: selectedInstance || selected.instance || undefined,
         file_name: file.name, mime_type: file.type, caption: file.name,

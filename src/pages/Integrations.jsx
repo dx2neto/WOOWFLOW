@@ -36,7 +36,7 @@ import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal
 
 const integrationActions = {
   erp_provider: ixcApi,
-  evolution_go: evolutionApi,
+  evolution_api: evolutionApi,
   facebook_messenger: metaApi,
   instagram_direct: metaApi,
   tiktok: tiktokApi,
@@ -49,7 +49,7 @@ const integrationActions = {
 };
 
 const configAliases = {
-  evolution_go: ["evolution_go", "evolution_api"],
+  evolution_api: ["evolution_api", "evolution_go"],
   erp_provider: ["erp_provider", "ixc_provedor"],
   digital_signature: ["digital_signature", "zapsign"],
   facebook_messenger: ["facebook_messenger", "facebook", "messenger"],
@@ -71,10 +71,10 @@ const integrations = [
     sync: true,
   },
   {
-    service: "evolution_go",
-    display_name: "WhatsApp Evolution GO",
+    service: "evolution_api",
+    display_name: "WhatsApp Evolution API",
     category: "Atendimento",
-    provider: "Evolution GO",
+    provider: "Evolution API",
     description: "Instâncias, QR Code, envio, mídia, webhook e histórico no Inbox.",
     icon: MessageCircle,
     color: "from-emerald-500 to-green-700",
@@ -274,7 +274,7 @@ export default function Integrations() {
 
   const callIntegration = async (integration, action) => {
     const fn = integrationActions[integration.service] || omnichannelApi;
-    if (integration.service === "evolution_go") {
+    if (integration.service === "evolution_api") {
       return fn({ action: action === "sync" ? "list_instances" : "test_connection" });
     }
     if (integration.service === "erp_provider") {
@@ -290,7 +290,7 @@ export default function Integrations() {
   };
 
   const handleConfigure = async (integration) => {
-    if (integration.service === "evolution_go") {
+    if (integration.service === "evolution_api") {
       setShowInstanceManager(true);
       return;
     }
@@ -503,7 +503,7 @@ export default function Integrations() {
                 </button>
               </div>
 
-              {integration.service === "evolution_go" && (
+              {integration.service === "evolution_api" && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setShowInstanceManager(true)}
