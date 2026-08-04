@@ -558,6 +558,156 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, data: { ...sigReq, sign_url: signUrl, whatsapp_sent: whatsappSent } });
     }
 
+    // ── create_from_lead ───────────────────────────────────────────────────
+    // Cria documento ZapSign a partir de um Lead, usando o primeiro template ativo.
+    // Disparado pelo workflow quando o stage do lead muda para "preparar_contrato".
+    if (action === 'create_from_lead') {
+      if (!zapToken) {
+        return Response.json({
+          success: false,
+          error: { code: 'ZAPSIGN_NOT_CONFIGURED', message: 'ZAPSIGN_API_TOKEN não configurado.' }
+        }, { status: 500 });
+      }
+
+      const { leadId } = body;
+      if (!leadId) return Response.json({ error: 'leadId obrigatório' }, { status: 400 });
+
+      const lead = await b44.asServiceRole.entities.Lead.get(leadId);
+      if (!lead) return Response.json({ error: 'Lead não encontrado' }, { status: 404 });
+      if (!lead.phone) return Response.json({ error: 'Lead sem telefone cadastrado.' }, { status: 400 });
+
+      // Seleciona o primeiro template ativo (mais utilizado primeiro)
+      const allTemplates = await b44.asServiceRole.entities.ContractTemplate.filter({ active: true });
+      const template = (allTemplates || []).sort((a: { usage_count?: number }, b: { usage_count?: number }) => (b.usage_count || 0) - (a.usage_count || 0))[0];
+      if (!template) {
+        return Response.json({
+          success: false,
+          error: { code: 'NO_TEMPLATE', message: 'Nenhum template ativo encontrado. Crie um template em Assinatura → Templates.' }
+        }, { status: 400 });
+      }
+      if (!template.zapsign_template_id) {
+        return Response.json({
+          success: false,
+          error: { code: 'NO_ZAPSIGN_TEMPLATE', message: `Template "${template.name}" sem zapsign_template_id configurado.` }
+        }, { status: 400 });
+      }
+
+      const customerName = String(lead.name || '');
+      const customerPhone = String(lead.phone).replace(/\D/g, '');
+      const customerEmail = String(lead.email || '');
+      const planInterest = String(lead.plan_interest || '');
+
+      const templateVars = JSON.parse(template.variables || '[]');
+      const filledVars: Record<string, string> = {};
+      for (const v of templateVars) {
+        filledVars[v.key] = v.default ?? '';
+      }
+      if (filledVars.nome_cliente !== undefined) filledVars.nome_cliente = customerName;
+      if (filledVars.email !== undefined) filledVars.email = customerEmail;
+      if (filledVars.telefone !== undefined) filledVars.telefone = lead.phone;
+      if (filledVars.plano !== undefined) filledVars.plano = planInterest;
+      if (filledVars.cidade !== undefined) filledVars.cidade = String(lead.city || '');
+      if (filledVars.data_hoje !== undefined) filledVars.data_hoje = fmtDateBR(new Date().toISOString());
+
+      const zapPayload = {
+        template_id: template.zapsign_template_id,
+        template_data: filledVars,
+        name: `${template.name} — ${customerName}`,
+        signers: [
+          {
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            send_automatic_email: !!customerEmail,
+            send_automatic_whatsapp: false,
+          },
+          ...JSON.parse(template.extra_signers || '[]'),
+        ],
+      };
+
+      const zapRes = await zapFetch(zapToken, '/docs/', { method: 'POST', body: JSON.stringify(zapPayload) });
+      if (!zapRes.ok) {
+        await b44.asServiceRole.entities.IntegrationLog.create({
+          integration: 'zapsignApi', action: 'create_from_lead', status: 'falha',
+          details: JSON.stringify(zapRes.data).slice(0, 500),
+        });
+        return Response.json({
+          success: false,
+          error: { code: 'ZAPSIGN_ERROR', message: 'Falha ao criar documento no ZapSign.', details: zapRes.data }
+        }, { status: 502 });
+      }
+
+      const zd = zapRes.data as Record<string, unknown>;
+      const firstSigner = (zd.signers as Record<string, unknown>[])?.[0];
+      const signUrl = String(firstSigner?.sign_url || '');
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + (template.expires_in_days || 30));
+
+      const sigReq = await b44.asServiceRole.entities.SignatureRequest.create({
+        customer_name: customerName,
+        phone: lead.phone,
+        email: customerEmail,
+        template_id: template.id,
+        template_name: template.name,
+        variables_used: JSON.stringify(filledVars),
+        document_type: template.document_type || 'contrato',
+        status: 'pendente',
+        zapsign_doc_token: String(zd.token || ''),
+        zapsign_open_id: String(zd.open_id || ''),
+        document_url: String(zd.original_file || ''),
+        sign_url: signUrl,
+        signers: JSON.stringify(zd.signers || []),
+        expires_at: expiresAt.toISOString().split('T')[0],
+        sent_by_user_id: user?.id,
+        provider: 'ZapSign',
+      });
+
+      await b44.asServiceRole.entities.ContractTemplate.update(template.id, {
+        usage_count: (template.usage_count || 0) + 1,
+      });
+
+      let whatsappSent = false;
+      if (signUrl && lead.phone) {
+        try {
+          const msg = (template.whatsapp_message_template || `Olá, {nome}! Seu {tipo_doc} está pronto para assinatura:\n{link_assinatura}`)
+            .replace('{nome}', customerName)
+            .replace('{link_assinatura}', signUrl)
+            .replace('{plano}', planInterest)
+            .replace('{valor}', '')
+            .replace('{tipo_doc}', template.document_type === 'contrato' ? 'contrato' : (template.document_type || 'documento'));
+
+          const number = lead.phone.replace(/\D/g, '');
+          const allRes = await fetch(`${evoBase.replace(/\/$/, '')}/instance/all`, { headers: { apikey: evoKey } });
+          const allData = await allRes.json().catch(() => ({}));
+          const instList = allData.data || allData || [];
+          const targetInst = instList.find((i: Record<string, unknown>) => (i.name || (i.instance as Record<string, unknown>)?.instanceName) === evoInst);
+          const instToken = targetInst?.token || evoKey;
+
+          const wRes = await fetch(`${evoBase.replace(/\/$/, '')}/send/text`, {
+            method: 'POST',
+            headers: { apikey: instToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number, text: msg }),
+          });
+          if (wRes.ok) {
+            whatsappSent = true;
+            await b44.asServiceRole.entities.SignatureRequest.update(sigReq.id, {
+              whatsapp_sent: true,
+              whatsapp_sent_at: new Date().toISOString(),
+              whatsapp_instance: evoInst,
+            });
+          }
+        } catch (_e) { /* WhatsApp opcional — documento já foi criado */ }
+      }
+
+      await b44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'zapsignApi', action: 'create_from_lead', status: 'sucesso',
+        details: `lead=${leadId} doc=${zd.token} whatsapp=${whatsappSent}`,
+      });
+
+      return Response.json({ success: true, data: { ...sigReq, sign_url: signUrl, whatsapp_sent: whatsappSent } });
+    }
+
     // ── resend ─────────────────────────────────────────────────────────────
     if (action === 'resend' || action === 'send_document') {
       const { id, whatsAppInstance = evoInst } = body;

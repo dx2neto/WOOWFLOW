@@ -45,6 +45,7 @@
         "proposta_enviada",
         "aguardando_retorno",
         "agendamento",
+        "preparar_contrato",
         "venda_fechada",
         "venda_perdida"
       ],

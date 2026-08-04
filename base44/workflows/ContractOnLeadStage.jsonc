@@ -1,0 +1,41 @@
+{
+  "name": "Enviar Contrato ao Preparar",
+  "description": "Dispara a cria\u00e7\u00e3o e envio do contrato via ZapSign instantaneamente quando o stage do Lead muda para 'preparar_contrato'",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Lead",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.stage == \"preparar_contrato\" and .trigger.old_data.stage != \"preparar_contrato\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "send_contract_on_lead_stage",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_contract": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "zapsignApi",
+            "args": {
+              "action": "create_from_lead",
+              "leadId": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar contrato via ZapSign",
+            "description": "Cria documento e envia link por WhatsApp"
+          }
+        }
+      }
+    ]
+  }
+}
