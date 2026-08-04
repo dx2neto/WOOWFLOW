@@ -3,6 +3,7 @@ import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { ixcApi } from "@/functions/ixcApi";
 import { Search, FileText, CheckCircle, XCircle, Download, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
+import ZapSignStatusPanel from "@/components/contracts/ZapSignStatusPanel";
 
 const STATUS_MAP = {
   ativo:     { label: "Ativo",     color: "bg-green-100 text-green-700" },
@@ -93,6 +94,10 @@ export default function Contracts() {
         <StatCard title="Ativos"     value={ativos.length}     icon={CheckCircle} color="accent" />
         <StatCard title="Cancelados" value={cancelados.length} icon={XCircle}     color="danger" />
         <StatCard title="Online"     value={online.length}     icon={Wifi}        color="indigo" />
+      </div>
+
+      <div className="mb-6">
+        <ZapSignStatusPanel />
       </div>
 
       {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
