@@ -18,6 +18,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
 import Inbox from '@/pages/Inbox';
+import WorkQueue from '@/pages/WorkQueue';
 import CRM from '@/pages/CRM';
 import CrmAutomations from '@/pages/CrmAutomations';
 import Customers from '@/pages/Customers';
@@ -84,6 +85,7 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />
+          <Route path="/work-queue" element={<WorkQueue />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/crm-automations" element={<CrmAutomations />} />
           <Route path="/customers" element={<Customers />} />

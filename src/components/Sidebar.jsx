@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
-  LayoutDashboard, Inbox, Users, DollarSign,
+  LayoutDashboard, Inbox, Users, DollarSign, ClipboardList,
   Send, Bot, FileSignature, BarChart3, BookOpen, Plug, Settings,
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
@@ -48,6 +48,7 @@ const menuGroups = [
     items: [
       { label: "Dashboard",           path: "/dashboard",       icon: LayoutDashboard },
       { label: "Caixa de Entrada",    path: "/inbox",           icon: Inbox, badgeKey: "inbox" },
+      { label: "Fila de Trabalho",    path: "/work-queue",      icon: ClipboardList },
       { label: "CRM",                 path: "/crm",             icon: Users },
       { label: "Automações do CRM",   path: "/crm-automations", icon: Workflow },
       { label: "Campanhas",           path: "/campaigns",       icon: Send },
