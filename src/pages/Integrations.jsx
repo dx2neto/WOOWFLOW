@@ -319,7 +319,7 @@ export default function Integrations() {
     setBusyService(`${integration.service}:test`);
     try {
       const response = await callIntegration(integration, "test_connection");
-      const data = response?.data || {};
+      const data = response?.data || response || {};
       const success = !!data.success;
       await persistConfig(integration, {
         status: success ? "connected" : coerceStatus(data.status),
@@ -342,7 +342,7 @@ export default function Integrations() {
     setBusyService(`${integration.service}:sync`);
     try {
       const response = await callIntegration(integration, "sync");
-      const data = response?.data || {};
+      const data = response?.data || response || {};
       const success = !!data.success;
       await persistConfig(integration, {
         status: success ? "connected" : coerceStatus(data.status),
