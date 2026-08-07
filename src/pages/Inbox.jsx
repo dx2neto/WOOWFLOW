@@ -237,6 +237,10 @@ export default function Inbox() {
   const [transferAttendant, setTransferAttendant] = useState("");
   const [users, setUsers]                         = useState([]);
 
+  // ── NOVOS: Limpar contatos ────────────────────────────────────────────────────
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
   // ── NOVOS: Atalhos (templates) ───────────────────────────────────────────────
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [templates, setTemplates]         = useState([]);
@@ -678,6 +682,28 @@ export default function Inbox() {
     finally { setCreating(false); }
   };
 
+  // ── Limpar todas as conversas ──────────────────────────────────────────────
+  const handleClearConversations = async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      const convIds = conversations.map((c) => c.id);
+      if (convIds.length > 0) {
+        await base44.entities.Message.deleteMany({ conversation_id: { $in: convIds } });
+        await base44.entities.Conversation.deleteMany({ id: { $in: convIds } });
+      }
+      setConversations([]);
+      setMessages([]);
+      setSelectedId(null);
+      setShowClearModal(false);
+      toast({ title: `${convIds.length} conversa(s) removida(s)` });
+    } catch {
+      toast({ title: "Erro ao limpar conversas", variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   // ── Integrações rápidas (painel direito) ──────────────────────────────────
   const handleQuickIntegration = async (service) => {
     if (!selected) return;
@@ -809,6 +835,11 @@ export default function Inbox() {
             <button onClick={() => setShowNewConversation(true)}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               <CirclePlus className="h-4 w-4" /> Nova conversa
+            </button>
+            <button onClick={() => setShowClearModal(true)}
+              disabled={conversations.length === 0}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-red-300 px-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40">
+              <X className="h-4 w-4" /> Limpar
             </button>
           </div>
         </div>
@@ -1324,6 +1355,37 @@ export default function Inbox() {
                 className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
                 {finalizing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 {finalizing ? "Finalizando..." : "Finalizar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Limpar contatos ────────────────────────────────────────────── */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !clearing && setShowClearModal(false)}>
+          <div onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600" /> Limpar Conversas
+                </h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Todas as <strong>{conversations.length}</strong> conversa(s) e suas mensagens serão removidas permanentemente.
+                </p>
+              </div>
+              <button onClick={() => !clearing && setShowClearModal(false)} className="rounded-lg p-2 hover:bg-muted">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setShowClearModal(false)} disabled={clearing}
+                className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50">Cancelar</button>
+              <button onClick={handleClearConversations} disabled={clearing}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {clearing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                {clearing ? "Limpando..." : "Limpar tudo"}
               </button>
             </div>
           </div>
