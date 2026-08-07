@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
       if (!number || !textContent) return Response.json({ error: 'phone e message são obrigatórios' }, { status: 400 });
       const r = await evoFetch(`${base}/message/sendText/${encodeURIComponent(instanceName)}`, {
         method: 'POST', headers: jsonHeaders,
-        body: JSON.stringify({ number, textMessage: { text: textContent }, delay: body.delay ?? 500 }),
+        body: JSON.stringify({ number, text: textContent, textMessage: { text: textContent }, delay: body.delay ?? 500 }),
       });
       if (!r.ok) { await log('send_message', 'falha', JSON.stringify(r.data)); return Response.json({ success: false, error: 'Falha ao enviar mensagem', details: r.data }, { status: r.status || 502 }); }
       const waId = extractMessageId(r.data);
