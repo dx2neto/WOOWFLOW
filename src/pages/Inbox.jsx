@@ -4,7 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useConversations, useMessages, useEntityList, useEntityCreate, useEntityUpdate, useEntityBulkCreate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { useEvolutionInbox } from "@/hooks/useEvolutionInbox";
-import { MessageCircle, Headphones, Clock3, CheckCircle, Star, AlertCircle } from "lucide-react";
+import { useInboxDerived } from "@/hooks/useInboxDerived";
+import { useInboxActions } from "@/hooks/useInboxActions";
 import { channelTabs, defaultForm, sameMsg } from "@/components/inbox/inboxConstants";
 import InboxHeader from "@/components/inbox/InboxHeader";
 import ConversationList from "@/components/inbox/ConversationList";
@@ -52,15 +53,6 @@ export default function Inbox() {
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [creating, setCreating] = useState(false);
-  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
-  const [finalizing, setFinalizing] = useState(false);
-  const [finalizeNote, setFinalizeNote] = useState("");
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferring, setTransferring] = useState(false);
-  const [transferSector, setTransferSector] = useState("");
-  const [transferAttendant, setTransferAttendant] = useState("");
-  const [showClearModal, setShowClearModal] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
 
@@ -69,6 +61,13 @@ export default function Inbox() {
   const messagesEndRef = useRef(null);
 
   const selected = conversations.find((c) => c.id === selectedId);
+
+  // ── Ações de conversa (finalizar, transferir, limpar) extraídas para hook ───
+  const {
+    showFinalizeModal, setShowFinalizeModal, finalizeNote, setFinalizeNote, finalizing, handleFinalize,
+    showTransferModal, setShowTransferModal, transferSector, setTransferSector, transferAttendant, setTransferAttendant, transferring, handleTransfer,
+    showClearModal, setShowClearModal, clearing, handleClearConversations,
+  } = useInboxActions({ selected, conversations, setSelectedId, convUpdate, msgCreate, convCreate, convDeleteMany, users });
 
   const configs = useMemo(() => {
     const map = {};
@@ -201,52 +200,6 @@ export default function Inbox() {
     window.open(`https://wa.me/${selected.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer");
   }, [selected]);
 
-  // ── FINALIZAR conversa ─────────────────────────────────────────────────────
-  const handleFinalize = async () => {
-    if (!selected || finalizing) return;
-    setFinalizing(true);
-    try {
-      const now = new Date().toISOString();
-      await convUpdate.mutateAsync({ id: selected.id, data: { status: "finalizado", resolved_at: now } });
-      if (finalizeNote.trim()) {
-        await msgCreate.mutateAsync({
-          conversation_id: selected.id, content: `[Encerrado] ${finalizeNote.trim()}`,
-          direction: "internal", type: "system", timestamp: now, sender_name: "Sistema",
-        });
-      }
-      setShowFinalizeModal(false);
-      setFinalizeNote("");
-      toast({ title: "Atendimento finalizado com sucesso!" });
-    } catch { toast({ title: "Erro ao finalizar", variant: "destructive" }); }
-    finally { setFinalizing(false); }
-  };
-
-  // ── TRANSFERIR conversa ────────────────────────────────────────────────────
-  const handleTransfer = async () => {
-    if (!selected || !transferSector || transferring) return;
-    setTransferring(true);
-    try {
-      const now = new Date().toISOString();
-      const attendantName = users.find((u) => u.id === transferAttendant)?.full_name || "";
-      await convUpdate.mutateAsync({
-        id: selected.id,
-        data: {
-          sector: transferSector, status: "aguardando_atendimento",
-          ...(attendantName ? { attendant_name: attendantName, assigned_user_id: transferAttendant } : { attendant_name: null, assigned_user_id: null }),
-        },
-      });
-      await msgCreate.mutateAsync({
-        conversation_id: selected.id,
-        content: `[Transferido para setor: ${transferSector}${attendantName ? ` · Atendente: ${attendantName}` : ""}]`,
-        direction: "internal", type: "system", timestamp: now, sender_name: "Sistema",
-      });
-      setShowTransferModal(false);
-      setTransferSector(""); setTransferAttendant("");
-      toast({ title: `Conversa transferida para ${transferSector}` });
-    } catch { toast({ title: "Erro ao transferer", variant: "destructive" }); }
-    finally { setTransferring(false); }
-  };
-
   // ── Nova conversa manual ──────────────────────────────────────────────────
   const createConversation = async (event) => {
     event.preventDefault();
@@ -266,23 +219,6 @@ export default function Inbox() {
       toast({ title: "Conversa criada" });
     } catch { toast({ title: "Erro ao criar conversa", variant: "destructive" }); }
     finally { setCreating(false); }
-  };
-
-  // ── Limpar todas as conversas ──────────────────────────────────────────────
-  const handleClearConversations = async () => {
-    if (clearing) return;
-    setClearing(true);
-    try {
-      const convIds = conversations.map((c) => c.id);
-      if (convIds.length > 0) {
-        await base44.entities.Message.deleteMany({ conversation_id: { $in: convIds } });
-        await convDeleteMany.mutateAsync({ id: { $in: convIds } });
-      }
-      setSelectedId(null);
-      setShowClearModal(false);
-      toast({ title: `${convIds.length} conversa(s) removida(s)` });
-    } catch { toast({ title: "Erro ao limpar conversas", variant: "destructive" }); }
-    finally { setClearing(false); }
   };
 
   // ── Integrações rápidas ────────────────────────────────────────────────────
@@ -315,52 +251,10 @@ export default function Inbox() {
     finally { setActionLoading(null); }
   };
 
-  // ── Dados derivados ────────────────────────────────────────────────────────
-  const channelCounts = useMemo(() => {
-    const counts = { all: conversations.length };
-    for (const c of conversations) counts[c.channel] = (counts[c.channel] || 0) + 1;
-    return counts;
-  }, [conversations]);
-
-  const metrics = useMemo(() => {
-    const active   = conversations.filter((c) => c.status === "em_atendimento").length;
-    const waiting  = conversations.filter((c) => ["novo","aguardando_atendimento","aguardando_setor"].includes(c.status)).length;
-    const resolved = conversations.filter((c) => ["resolvido","finalizado"].includes(c.status)).length;
-    const unread   = conversations.filter((c) => c.unread).length;
-    const scores   = conversations.map((c) => Number(c.satisfaction_score)).filter(Boolean);
-    const sat      = scores.length ? (scores.reduce((s, v) => s + v, 0) / scores.length).toFixed(1) : "—";
-    return [
-      { label: "Total",         value: conversations.length, icon: MessageCircle },
-      { label: "Em atendimento",value: active,               icon: Headphones    },
-      { label: "Na fila",       value: waiting,              icon: Clock3        },
-      { label: "Resolvidas",    value: resolved,             icon: CheckCircle   },
-      { label: "Satisfação",    value: sat,                  icon: Star          },
-      ...(unread > 0 ? [{ label: "Não lidos", value: unread, icon: AlertCircle }] : []),
-    ];
-  }, [conversations]);
-
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return conversations.filter((conv) => {
-      if (channel !== "all" && conv.channel !== channel) return false;
-      if (channel === "whatsapp" && selectedInstance && conv.instance && conv.instance !== selectedInstance) return false;
-      if (statusFilter !== "all" && conv.status !== statusFilter) return false;
-      if (term && ![conv.customer_name, conv.phone, conv.protocol, conv.last_message, conv.city].filter(Boolean).some((v) => String(v).toLowerCase().includes(term))) return false;
-      return true;
-    });
-  }, [channel, conversations, query, statusFilter, selectedInstance]);
-
-  const filteredTemplates = useMemo(() => {
-    if (!templateSearch.trim()) return templates;
-    const t = templateSearch.toLowerCase();
-    return templates.filter((tp) => (tp.name || "").toLowerCase().includes(t) || (tp.content || "").toLowerCase().includes(t));
-  }, [templates, templateSearch]);
-
-  const availableSectors = useMemo(() => {
-    const fromConvs = [...new Set(conversations.map((c) => c.sector).filter(Boolean))];
-    const defaults  = ["Atendimento","Suporte Técnico","Financeiro","Comercial","Cobrança","Retenção","NOC"];
-    return [...new Set([...fromConvs, ...defaults])];
-  }, [conversations]);
+  // ── Dados derivados (extraídos para hook) ───────────────────────────────────
+  const { channelCounts, metrics, filtered, filteredTemplates, availableSectors } = useInboxDerived({
+    conversations, templates, query, channel, statusFilter, selectedInstance, templateSearch,
+  });
 
   return (
     <div className="h-full overflow-hidden bg-background flex flex-col">
@@ -434,7 +328,7 @@ export default function Inbox() {
         sector={transferSector} setSector={setTransferSector}
         attendant={transferAttendant} setAttendant={setTransferAttendant}
         users={users} availableSectors={availableSectors}
-        onConfirm={handleTransfer} onClose={() => setShowTransferModal(false)}
+        onConfirm={() => handleTransfer(availableSectors)} onClose={() => setShowTransferModal(false)}
         transferring={transferring}
       />
     </div>
