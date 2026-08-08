@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Webhook handler para a Evolution API oficial (Baileys).
 // Formato do evento: { event: "messages.upsert", instance: "nome", data: { key, message, messageTimestamp, pushName } }
@@ -204,9 +205,7 @@ Deno.serve(async (req) => {
     // ── Outros eventos ──────────────────────────────────────────────────────
     return Response.json({ success: true, ignored: true, event });
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({
-      function_name: 'evolutionWebhook', error_message: (error as Error).message,
-    }).catch(() => {});
+    await logError(base44, 'evolutionWebhook', error, { action: event || 'unknown', severity: 'alta' });
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

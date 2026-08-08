@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Evolution API (oficial, Baileys) — https://docs.evolutionfoundation.com.br
@@ -320,7 +321,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ error: `Action inválida: ${action}` }, { status: 400 });
   } catch (error) {
-    await b44.asServiceRole.entities.ErrorLog.create({ function_name: 'evolutionApi', error_message: (error as Error).message }).catch(() => {});
+    await logError(b44, 'evolutionApi', error, { action: action || 'unknown', severity: 'alta' });
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

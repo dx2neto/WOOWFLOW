@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Normaliza a resposta do ValidaCadastro/Serasa em um status interno padronizado.
 function normalizeStatus(data: Record<string, unknown>): string {
@@ -72,7 +73,7 @@ Deno.serve(async (req) => {
     });
     return Response.json({ success: true, status: normalized, result: data });
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'serasaApi', error_message: (error as Error).message }).catch(() => {});
+    await logError(base44, 'serasaApi', error, { action: action || 'validate_document', severity: 'alta' });
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });
