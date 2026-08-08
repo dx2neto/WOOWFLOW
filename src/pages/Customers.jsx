@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
-import { Plus, Search, MoreVertical, Filter } from "lucide-react";
+import { Plus, Search, MoreVertical, Filter, X } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 import { useNavigate } from "react-router-dom";
 
@@ -11,6 +11,9 @@ export default function Customers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [error, setError] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [cityFilter, setCityFilter] = useState("all");
 
   useEffect(() => { loadContacts(); }, []);
   useEffect(() => {
@@ -53,7 +56,29 @@ export default function Customers() {
     }
   };
 
-  const filtered = customers;
+  const cities = useMemo(() => {
+    const set = new Set(customers.map((c) => c.city).filter(Boolean));
+    return Array.from(set).sort();
+  }, [customers]);
+
+  const filtered = useMemo(() => {
+    return customers.filter((c) => {
+      if (statusFilter !== "all") {
+        const isActive = c.contract_status === "ativo";
+        if (statusFilter === "ativo" && !isActive) return false;
+        if (statusFilter === "cancelado" && isActive) return false;
+      }
+      if (cityFilter !== "all" && c.city !== cityFilter) return false;
+      return true;
+    });
+  }, [customers, statusFilter, cityFilter]);
+
+  const activeFilters = statusFilter !== "all" || cityFilter !== "all";
+
+  const clearFilters = () => {
+    setStatusFilter("all");
+    setCityFilter("all");
+  };
 
 
 
@@ -62,7 +87,7 @@ export default function Customers() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold font-heading">Clientes</h2>
-          <p className="text-sm text-muted-foreground">{customers.length} clientes cadastrados</p>
+          <p className="text-sm text-muted-foreground">{activeFilters ? `${filtered.length} de ${customers.length} clientes` : `${customers.length} clientes cadastrados`}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Novo Cliente
@@ -85,10 +110,45 @@ export default function Customers() {
               className="w-full h-10 pl-9 pr-4 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
             />
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-muted">
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm hover:bg-muted ${activeFilters ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+          >
             <Filter className="w-4 h-4" /> Filtros
+            {activeFilters && <span className="ml-1 w-2 h-2 rounded-full bg-primary" />}
           </button>
         </div>
+
+        {showFilters && (
+          <div className="px-4 py-3 border-b border-border bg-muted/20 flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-muted-foreground uppercase">Filtrar por:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 px-3 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="all">Todos os status</option>
+              <option value="ativo">Ativo</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+            <select
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="h-9 px-3 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="all">Todas as cidades</option>
+              {cities.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground ml-auto">{filtered.length} de {customers.length} clientes</span>
+            {activeFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+                <X className="w-3 h-3" /> Limpar
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-sm">
