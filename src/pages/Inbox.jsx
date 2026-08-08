@@ -60,7 +60,7 @@ export default function Inbox() {
   const {
     showFinalizeModal, setShowFinalizeModal, finalizeNote, setFinalizeNote, finalizing, handleFinalize,
     showTransferModal, setShowTransferModal, transferSector, setTransferSector, transferAttendant, setTransferAttendant, transferring, handleTransfer,
-    showClearModal, setShowClearModal, clearing, handleClearConversations,
+    showClearModal, setShowClearModal, clearing, handleClearConversations, handleClearAllConversations,
   } = useInboxActions({ selected, conversations, setSelectedId, convUpdate, msgCreate, convCreate, convDeleteMany, users });
 
   const configs = useMemo(() => {
@@ -197,8 +197,8 @@ export default function Inbox() {
       />
       <ClearConversationsModal
         show={showClearModal} count={conversations.length}
-        onConfirm={handleClearConversations} onClose={() => setShowClearModal(false)}
-        clearing={clearing}
+        onConfirm={handleClearConversations} onConfirmAll={handleClearAllConversations}
+        onClose={() => setShowClearModal(false)} clearing={clearing}
       />
       <TransferModal
         show={showTransferModal} selected={selected}

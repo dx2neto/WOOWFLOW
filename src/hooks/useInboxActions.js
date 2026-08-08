@@ -107,6 +107,20 @@ export function useInboxActions({
     finally { setClearing(false); }
   };
 
+  // ── Limpar TODAS as conversas e contatos ──────────────────────────────────
+  const handleClearAllConversations = async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      await base44.entities.Message.deleteMany({});
+      await base44.entities.Conversation.deleteMany({});
+      setSelectedId(null);
+      setShowClearModal(false);
+      toast({ title: "Todas as conversas e contatos foram removidos" });
+    } catch { toast({ title: "Erro ao limpar conversas", variant: "destructive" }); }
+    finally { setClearing(false); }
+  };
+
   return {
     // Finalize
     showFinalizeModal, setShowFinalizeModal,
@@ -119,6 +133,6 @@ export function useInboxActions({
     transferring, handleTransfer,
     // Clear
     showClearModal, setShowClearModal,
-    clearing, handleClearConversations,
+    clearing, handleClearConversations, handleClearAllConversations,
   };
 }
