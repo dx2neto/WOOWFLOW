@@ -1,0 +1,45 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "signature_reminder_24h",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_reminders": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendSignatureReminders",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar lembretes de assinatura pendente",
+            "description": "Envia lembrete via WhatsApp para contratos no ZapSign pendentes h\u00e1 mais de 24h"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Lembrete de Assinatura ZapSign 24h",
+  "description": "A cada hora, verifica assinaturas pendentes no ZapSign h\u00e1 mais de 24h e envia lembrete autom\u00e1tico via WhatsApp com o link de assinatura",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 1,
+      "interval_unit": "hours",
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
