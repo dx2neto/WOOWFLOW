@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { PageContainer, Card, StatCard } from "@/components/ui/app-card";
 import { RefreshCw, History, CheckCircle2, XCircle } from "lucide-react";
 import SyncLogRow from "@/components/evolutionlogs/SyncLogRow";
-import { useEntityList } from "@/hooks/useEntityQueries";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 
 const actionLabels = {
   sync_history: "Histórico",
@@ -14,7 +14,7 @@ const actionLabels = {
 };
 
 export default function EvolutionSyncLogs() {
-  const { data: logs = [], isLoading: loading, refetch } = useEntityList("IntegrationLog", "-created_date", 300, { integration: "evolutionApi" });
+  const { data: logs = [], isLoading: loading, refetch } = useEntityFilter("IntegrationLog", { integration: "evolutionApi" }, "-created_date", 300);
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);

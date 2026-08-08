@@ -2,13 +2,13 @@ import React, { useState, useMemo } from "react";
 import { StatCard, Card } from "@/components/ui/app-card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { BarChart3, CheckCircle2, ArrowRightCircle, MessagesSquare } from "lucide-react";
-import { useEntityList } from "@/hooks/useEntityQueries";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 
 const RESOLVED_STATUSES = ["resolvido", "finalizado"];
 const ESCALATED_STATUSES = ["aguardando_atendimento", "em_atendimento"];
 
 export default function LaraReports() {
-  const { data: conversations = [], isLoading: loading } = useEntityList("Conversation", "-last_message_time", 1000, { is_ai: true });
+  const { data: conversations = [], isLoading: loading } = useEntityFilter("Conversation", { is_ai: true }, "-last_message_time", 1000);
 
   const stats = useMemo(() => {
     const total = conversations.length;
