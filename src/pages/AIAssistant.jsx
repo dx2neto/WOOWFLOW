@@ -18,6 +18,7 @@ export default function AIAssistant() {
     { role: "assistant", content: "Olá! Sou a Lara, sua assistente virtual. Como posso ajudar você hoje? 😊" },
   ]);
   const [input, setInput] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const endRef = useRef(null);
@@ -34,7 +35,7 @@ export default function AIAssistant() {
     try {
       const res = await aiOrchestrator({
         message: userMsg.content,
-        phone: null,
+        phone: phone.replace(/\D/g, "") || null,
         conversation_history: messages.map((m) => ({
           direction: m.role === "user" ? "in" : "out",
           content: m.content,
@@ -65,9 +66,18 @@ export default function AIAssistant() {
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white">
               <Bot className="w-5 h-5" />
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold font-heading">Lara — Assistente Virtual</h3>
               <p className="text-xs text-muted-foreground">Powered by AI Orchestrator</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Telefone:</label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                className="w-40 h-9 px-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+              />
             </div>
           </div>
 
