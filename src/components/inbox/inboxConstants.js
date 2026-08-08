@@ -75,6 +75,7 @@ export function sameMsg(a, b) {
 
 export const rightTabs = [
   { key: "dados",     label: "Dados"     },
+  { key: "ixc",       label: "IXC"       },
   { key: "historico", label: "Histórico" },
   { key: "acordo",    label: "Acordo"    },
   { key: "modelos",   label: "Modelos"   },

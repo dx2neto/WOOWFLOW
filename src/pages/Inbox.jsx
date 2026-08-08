@@ -9,6 +9,7 @@ import { useInboxMessaging } from "@/hooks/useInboxMessaging";
 import { useInboxRealtime } from "@/hooks/useInboxRealtime";
 import { useInboxQuickActions } from "@/hooks/useInboxQuickActions";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useIxcPreAnalysis } from "@/hooks/useIxcPreAnalysis";
 import { channelTabs, defaultForm } from "@/components/inbox/inboxConstants";
 import InboxHeader from "@/components/inbox/InboxHeader";
 import ConversationList from "@/components/inbox/ConversationList";
@@ -97,6 +98,9 @@ export default function Inbox() {
   // ── Hook: gravação de áudio no navegador ───────────────────────────────────
   const audioRecorder = useAudioRecorder();
 
+  // ── Hook: pré-análise automática do cliente no IXCSoft ─────────────────────
+  const { data: ixcAnalysis, loading: ixcLoading, refetch: refetchIxc } = useIxcPreAnalysis(selected);
+
   // ── Hook: efeitos de realtime e sincronização ─────────────────────────────
   useInboxRealtime({
     qc, conversations, selectedId, selected, selectedInstance,
@@ -184,6 +188,7 @@ export default function Inbox() {
           onFinalize={() => setShowFinalizeModal(true)} onTransfer={() => setShowTransferModal(true)}
           onSend={sendMessageContent} sending={sending}
           onSelect={setSelectedId}
+          ixcAnalysis={ixcAnalysis} ixcLoading={ixcLoading} onRefetchIxc={refetchIxc}
         />
       </div>
 

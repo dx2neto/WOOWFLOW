@@ -1,11 +1,12 @@
 import React from "react";
-import { UserCheck, Tag, CheckCircle, ArrowRightLeft } from "lucide-react";
+import { UserCheck, Tag, CheckCircle, ArrowRightLeft, Building2 } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/Badges";
 import { initials, statusTone, statusLabel, integrations, rightTabs, channelTabs } from "./inboxConstants";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
 import CustomerHistoryPanel from "@/components/inbox/CustomerHistoryPanel";
 import ContractTemplatePicker from "@/components/inbox/ContractTemplatePicker";
+import IxcPreAnalysisCard from "@/components/inbox/IxcPreAnalysisCard";
 
 export default function RightPanel({
   selected, rightTab, setRightTab, configs, selectedInstanceState,
@@ -13,6 +14,7 @@ export default function RightPanel({
   onFinalize, onTransfer,
   onSend, sending,
   onSelect,
+  ixcAnalysis, ixcLoading, onRefetchIxc,
 }) {
   return (
     <aside className="hidden min-h-0 border-l border-border bg-card xl:flex xl:flex-col">
@@ -39,9 +41,20 @@ export default function RightPanel({
             <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
               <AgreementCheckPanel conversation={selected} instance={selectedInstanceState} />
             </div>
+          ) : rightTab === "ixc" ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
+              <div className="mb-3 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Pré-análise IXCSoft</p>
+              </div>
+              <IxcPreAnalysisCard data={ixcAnalysis} loading={ixcLoading} onRefetch={onRefetchIxc} />
+            </div>
           ) : (
             /* ABA: DADOS */
             <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin space-y-4">
+              {/* Pré-análise IXC (auto) */}
+              <IxcPreAnalysisCard data={ixcAnalysis} loading={ixcLoading} onRefetch={onRefetchIxc} />
+
               {/* Card de perfil */}
               <div className="rounded-xl border border-border bg-background p-4 text-center">
                 <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold text-white">

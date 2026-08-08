@@ -628,6 +628,87 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, data: { risk, overdue_count: vencidas.length }, message: 'OK' });
     }
 
+    // ── PRÉ-ANÁLISE DO CLIENTE (busca por telefone, agrega tudo) ───────────────
+    if (action === 'pre_analise' || action === 'pre_analysis') {
+      const rawPhone = String(search || bodyData?.phone || '').replace(/\D/g, '');
+      if (!rawPhone || rawPhone.length < 8) return Response.json({ success: false, error: 'Telefone inválido para pré-análise' }, { status: 400 });
+
+      // Tenta buscar por telefone_celular e por fone (com e sem DDI 55)
+      const phoneVariants = [rawPhone, rawPhone.replace(/^55/, '')];
+      let clienteRaw: any = null;
+      for (const variant of phoneVariants) {
+        for (const field of ['cliente.telefone_celular', 'cliente.fone']) {
+          const { res, data } = await ixcPost('cliente', { qtype: field, query: variant, oper: 'L', page: '1', rp: '5', sortname: 'cliente.id', sortorder: 'desc' });
+          if (res.ok && (data.registros || []).length > 0) { clienteRaw = data.registros[0]; break; }
+        }
+        if (clienteRaw) break;
+      }
+
+      if (!clienteRaw) return Response.json({ success: true, data: { found: false, message: 'Cliente não encontrado na base do IXC' } });
+
+      const clientId = String(clienteRaw.id);
+      const { mapa: cidadesById } = await carregarMapaCidades();
+      const cliente = {
+        id: clienteRaw.id,
+        name: clienteRaw.razao || clienteRaw.fantasia || `Cliente #${clienteRaw.id}`,
+        cpf_cnpj: clienteRaw.cnpj_cpf || '',
+        phone: clienteRaw.telefone_celular || clienteRaw.fone || '',
+        email: clienteRaw.email || '',
+        city: cidadesById[String(clienteRaw.cidade)] || clienteRaw.cidade_nome || '',
+        address: [clienteRaw.endereco, clienteRaw.numero, clienteRaw.bairro].filter(Boolean).join(', ') || '',
+        is_active: clienteRaw.ativo === 'S',
+      };
+
+      // Contratos
+      const { res: contratosRes, data: contratosData } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id_cliente', query: clientId, oper: '=', sortname: 'cliente_contrato.data_ativacao', sortorder: 'desc', page: '1', rp: '50' });
+      const contratos = (contratosRes.ok ? contratosData.registros || [] : []).map((r: any) => ({
+        id: r.id, plan_name: r.descricao_plano || r.plano || '', status: r.status === 'A' ? 'ativo' : 'cancelado',
+        internet_status: r.status_internet || '', start_date: r.data_ativacao || '', end_date: r.data_vencimento_contrato || r.data_expiracao || '',
+        download: r.velocidade_down || r.download || '', upload: r.velocidade_up || r.upload || '',
+        ip: r.ip || '', mac: r.mac || '', olt: r.nome_olt || r.olt || '', cto: r.nome_cto || r.cto || '',
+        address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', ') || '',
+      }));
+
+      // Faturas em aberto
+      const { res: fatRes, data: fatData } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_cliente', query: clientId, oper: '=', sortname: 'fn_areceber.data_vencimento', sortorder: 'asc', page: '1', rp: '100' });
+      const hoje = new Date().setHours(0, 0, 0, 0);
+      const allFaturas = fatRes.ok ? fatData.registros || [] : [];
+      const faturasAbertas = allFaturas.filter((r: any) => r.status === 'A');
+      const faturasVencidas = faturasAbertas.filter((r: any) => r.data_vencimento && new Date(r.data_vencimento).getTime() < hoje);
+      const totalDevido = faturasVencidas.reduce((s: number, r: any) => s + parseFloat(r.valor_aberto || r.valor || '0'), 0);
+      const financial_risk = faturasVencidas.length === 0 ? 'baixo' : faturasVencidas.length <= 2 ? 'medio' : 'alto';
+
+      // PPPoE
+      const { res: pppoeRes, data: pppoeData } = await ixcPost('radusuarios', { qtype: 'radusuarios.id_cliente', query: clientId, oper: '=', page: '1', rp: '10' });
+      const pppoe = (pppoeRes.ok ? pppoeData.registros || [] : []).map((r: any) => ({
+        login: r.login || '', password: r.senha || '', ip: r.ip || '', status: r.ativo === 'S' ? 'online' : 'offline',
+      }));
+
+      // Tickets/protocolos recentes
+      const { res: tickRes, data: tickData } = await ixcPost('atendimento', { qtype: 'atendimento.id_cliente', query: clientId, oper: '=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: '1', rp: '10' });
+      const tickets = (tickRes.ok ? tickData.registros || [] : []).map((r: any) => ({
+        id: r.id, subject: r.assunto || r.titulo || '', status: r.status || '', date: r.data_abertura || '',
+      }));
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'pre_analise', status: 'sucesso', details: `cliente ${clientId}` });
+      return Response.json({
+        success: true,
+        data: {
+          found: true, cliente, contratos, faturas: { abertas: faturasAbertas.length, vencidas: faturasVencidas.length, total_devido: totalDevido, risk: financial_risk },
+          pppoe, tickets, summary: {
+            is_active: cliente.is_active,
+            has_overdue: faturasVencidas.length > 0,
+            overdue_count: faturasVencidas.length,
+            total_devido: totalDevido,
+            financial_risk,
+            contracts_count: contratos.length,
+            active_contracts: contratos.filter((c) => c.status === 'ativo').length,
+            tickets_count: tickets.length,
+          },
+        },
+      });
+    }
+
     // ── CONTRATO POR ID ────────────────────────────────────────────────────────
     if (action === 'contrato_por_id') {
       if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });

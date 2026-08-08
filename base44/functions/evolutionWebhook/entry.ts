@@ -144,6 +144,27 @@ Deno.serve(async (req) => {
               provider_contact_id: chat, status: 'novo', last_message: content, last_message_time: timestamp, unread: !fromMe,
             }) as AnyRecord;
             convMap.set(phone, conversation);
+            // Pré-vinculação automática com IXCSoft (busca cliente por telefone)
+            try {
+              const ixcBase = Deno.env.get('IXC_API_URL') || '';
+              const ixcToken = Deno.env.get('IXC_API_TOKEN') || '';
+              if (ixcBase && ixcToken) {
+                const phoneClean = phone.replace(/^55/, '');
+                const ixcRes = await fetch(ixcBase.replace(/\/$/, '') + '/cliente', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Basic ${ixcToken}`, ixcsoft: 'listar' },
+                  body: JSON.stringify({ qtype: 'cliente.telefone_celular', query: phoneClean, oper: 'L', page: '1', rp: '1' }),
+                });
+                const ixcData = await ixcRes.json().catch(() => ({}));
+                const ixcClient = (ixcData.registros || [])[0];
+                if (ixcClient) {
+                  const realName = ixcClient.razao || ixcClient.fantasia || pushName;
+                  await base44.asServiceRole.entities.Conversation.update(conversation.id as string, {
+                    customer_name: realName, city: ixcClient.cidade_nome || '',
+                  }).catch(() => {});
+                }
+              }
+            } catch { /* não bloqueia o fluxo principal */ }
           } else {
             await base44.asServiceRole.entities.Conversation.update(conversation.id as string, {
               instance: instanceId || conversation.instance, provider: 'evolution_api',
