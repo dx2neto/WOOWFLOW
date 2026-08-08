@@ -8,6 +8,8 @@
 // Body: { number, text, textMessage: { text }, delay }
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { fetchWithRetry } from './fetchWithRetry.ts';
+
 interface SendWhatsAppParams {
   base: string;           // EVOLUTION_API_URL (without trailing slash)
   apiKey: string;         // EVOLUTION_API_KEY (global)
@@ -35,7 +37,7 @@ export async function sendWhatsAppMessage(params: SendWhatsAppParams): Promise<S
   const url = `${base.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(instanceName)}`;
 
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       method: 'POST',
       headers: { apikey: apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ number, text, textMessage: { text }, delay }),
