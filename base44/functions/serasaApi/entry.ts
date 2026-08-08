@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { logError } from '../../shared/errorLogger.ts';
+import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
 // Normaliza a resposta do ValidaCadastro/Serasa em um status interno padronizado.
 function normalizeStatus(data: Record<string, unknown>): string {
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
       WebHook: { UrlCallBack: '' },
     };
 
-    const res = await fetch(apiUrl, {
+    const res = await fetchWithRetry(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

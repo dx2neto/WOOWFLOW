@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { logError } from '../../shared/errorLogger.ts';
+import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Evolution API (oficial, Baileys) — https://docs.evolutionfoundation.com.br
@@ -12,7 +13,7 @@ type AnyRecord = Record<string, unknown>;
 
 async function evoFetch(url: string, opts: RequestInit = {}) {
   try {
-    const res = await fetch(url, opts);
+    const res = await fetchWithRetry(url, opts);
     const text = await res.text();
     let data: unknown;
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
