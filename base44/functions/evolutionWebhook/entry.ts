@@ -20,6 +20,20 @@ function extractText(msgBody: AnyRecord): string {
   );
 }
 
+function extractMediaInfo(msgBody: AnyRecord): { url: string | null; mimeType: string | null; fileName: string | null } {
+  const img = asRecord(msgBody.imageMessage);
+  const aud = asRecord(msgBody.audioMessage);
+  const vid = asRecord(msgBody.videoMessage);
+  const doc = asRecord(msgBody.documentMessage);
+  const stc = asRecord(msgBody.stickerMessage);
+  if (img.url || img.jpegThumbnail) return { url: String(img.url || ''), mimeType: String(img.mimetype || img.mime_type || 'image/jpeg'), fileName: null };
+  if (aud.url) return { url: String(aud.url), mimeType: String(aud.mimetype || aud.mime_type || 'audio/ogg'), fileName: null };
+  if (vid.url) return { url: String(vid.url), mimeType: String(vid.mimetype || vid.mime_type || 'video/mp4'), fileName: null };
+  if (doc.url) return { url: String(doc.url), mimeType: String(doc.mimetype || doc.mime_type || 'application/octet-stream'), fileName: String(doc.fileName || doc.title || 'documento') };
+  if (stc.url) return { url: String(stc.url), mimeType: String(stc.mimetype || 'image/webp'), fileName: null };
+  return { url: null, mimeType: null, fileName: null };
+}
+
 function normalizeTimestamp(value: unknown): string {
   if (!value) return new Date().toISOString();
   if (typeof value === 'number') return new Date(value > 9999999999 ? value : value * 1000).toISOString();
@@ -117,6 +131,7 @@ Deno.serve(async (req) => {
           const textContent = extractText(msgBody);
           const content = textContent || `[${msgType}]`;
           const timestamp = normalizeTimestamp(msg.messageTimestamp || key.Timestamp || msg.Timestamp);
+          const mediaInfo = extractMediaInfo(msgBody);
 
           // Deduplicação (batch)
           if (waId && existingMsgIds.has(waId)) { skipped++; continue; }

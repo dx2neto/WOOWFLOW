@@ -3,6 +3,11 @@ import { base44 } from "@/api/base44Client";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
 
+async function uploadFile(file) {
+  const { file_url } = await base44.integrations.Core.UploadFile({ file });
+  return file_url;
+}
+
 /**
  * Hook que encapsula toda a lógica de Evolution API no Inbox:
  * - Gestão de instâncias (lista, seleção, persistência em localStorage)
@@ -210,15 +215,10 @@ export function useEvolutionInbox({
     }
     setSendingMedia(true);
     try {
-      const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(String(reader.result || "").split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
       const type = mediaType || (file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : "document");
+      const fileUrl = await uploadFile(file);
       const resp = await evolutionApi({
-        action: "send_media", phone: selected.phone, url: base64, type,
+        action: "send_media", phone: selected.phone, url: fileUrl, type,
         filename: file.name, caption: file.name, instance: selectedInstance,
       });
       if (resp?.data?.error || !resp?.data?.success) {
@@ -228,13 +228,12 @@ export function useEvolutionInbox({
       const now = new Date().toISOString();
       const pid = resp?.data?.wa_message_id || resp?.data?.provider_message_id || null;
       await msgCreate.mutateAsync({
-        conversation_id: selected.id, content: `[${type}] ${file.name}`, direction: "out", type,
+        conversation_id: selected.id, content: type === "image" ? file.name : `[${type}] ${file.name}`, direction: "out", type,
         status: "sent", timestamp: now, sender_name: "Atendente", provider: "evolution_api",
         phone: selected.phone, chat_jid: `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net`,
         instance_id: selectedInstance || selected.instance || undefined,
         assigned_user_id: selected.assigned_user_id || null,
-        file_name: file.name, mime_type: file.type, caption: file.name,
-        ...(type === "image" && base64 ? { media_base64: base64 } : {}),
+        file_name: file.name, mime_type: file.type, caption: file.name, media_url: fileUrl,
         ...(pid ? { wa_message_id: pid, provider_message_id: pid } : {}),
       });
       await convUpdate.mutateAsync({
