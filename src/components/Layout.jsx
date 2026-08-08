@@ -1,13 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Bell, Menu, Moon, Sun } from "lucide-react";
 import Sidebar from "./Sidebar";
 import GlobalSearch from "./layout/GlobalSearch";
+import { useAuth } from "@/lib/AuthContext";
 
 const pageTitles = {
   "/dashboard": "Dashboard",
   "/inbox": "Caixa de Entrada",
+  "/work-queue": "Fila de Trabalho",
   "/crm": "CRM Comercial",
+  "/crm-automations": "Automações CRM",
   "/customers": "Clientes",
   "/charges": "Cobranças",
   "/campaigns": "Campanhas WhatsApp",
@@ -17,15 +20,34 @@ const pageTitles = {
   "/knowledge": "Base de Conhecimento",
   "/reports": "Relatórios",
   "/integrations": "Integrações",
+  "/users": "Usuários",
+  "/tags-queues": "Tags e Filas",
+  "/holidays": "Feriados",
+  "/audit-logs": "Logs de Auditoria",
+  "/system-logs": "Logs do Sistema",
+  "/evolution-sync-logs": "Sincronização WhatsApp",
   "/settings": "Configurações",
+  "/telephony": "Telefonia / PABX",
+  "/contracts": "Contratos",
+  "/plans": "Planos",
+  "/financial": "Financeiro",
+  "/work-orders": "Ordens de Serviço",
+  "/noc": "NOC",
+  "/vendors": "Fornecedores",
+  "/agreements": "Verificação de Acordos",
+  "/agreements/settings": "Configurações de Acordos",
 };
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
 
-  const title = pageTitles[location.pathname] || "Atendimento 360 ISP";
+  const title = pageTitles[location.pathname] || "ConnectFlow Hub";
+  const userInitials = (user?.full_name || user?.email || "U")
+    .split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+  const roleLabel = user?.role === "admin" ? "Administrador" : "Atendente";
 
   return (
     <div className={`flex h-screen overflow-hidden ${dark ? "dark" : ""}`}>
@@ -60,18 +82,24 @@ export default function Layout() {
 
             <div className="flex items-center gap-3 pl-3 border-l border-border">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm">
-                OP
+                {userInitials}
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold leading-tight">Operador WOOW</p>
-                <p className="text-xs text-muted-foreground">Atendente</p>
+                <p className="text-sm font-semibold leading-tight">{user?.full_name || user?.email || "Usuário"}</p>
+                <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
             </div>
           </div>
         </header>
 
         <main className="flex-1 overflow-hidden">
-          <Outlet />
+          <Suspense fallback={
+            <div className="flex h-full items-center justify-center">
+              <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+            </div>
+          }>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
