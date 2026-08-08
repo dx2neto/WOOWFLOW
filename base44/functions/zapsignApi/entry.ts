@@ -61,10 +61,13 @@ async function updateSignatureAndRelated(
     ...(signersData !== undefined ? { signers: signersData } : {}),
   });
 
-  // Quando assinado, atualiza acordos vinculados ao mesmo cliente IXC
+  // Quando assinado, atualiza acordos e contrato do cliente
   if (newStatus === 'assinado') {
     const doc = await b44.asServiceRole.entities.SignatureRequest.get(docId).catch(() => null);
-    if (doc?.ixc_customer_id) {
+    if (!doc) return;
+
+    // Acordos vinculados ao mesmo cliente IXC
+    if (doc.ixc_customer_id) {
       const agreements = await b44.asServiceRole.entities.Agreement
         .filter({ ixc_customer_id: doc.ixc_customer_id }).catch(() => []);
       for (const ag of (agreements || [])) {
@@ -72,6 +75,18 @@ async function updateSignatureAndRelated(
           status: 'active',
           zapsign_status: 'signed',
           zapsign_signed_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Cadastro do cliente — atualiza status do contrato para "ativo"
+    if (doc.phone) {
+      const customers = await b44.asServiceRole.entities.Customer
+        .filter({ phone: doc.phone }).catch(() => []);
+      for (const cust of (customers || [])) {
+        await b44.asServiceRole.entities.Customer.update(cust.id, {
+          contract_status: 'ativo',
+          financial_status: cust.financial_status === 'inadimplente' ? 'negociando' : cust.financial_status,
         });
       }
     }
