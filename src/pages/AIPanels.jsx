@@ -2,13 +2,15 @@ import React, { useState, useMemo } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Zap, ShoppingBag, Bot, AlertTriangle, RefreshCw, Search, User, Phone, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { TrendingUp, Zap, ShoppingBag, Bot, AlertTriangle, RefreshCw, Search, User, Phone, Clock, CheckCircle2, XCircle, HeartCrack } from "lucide-react";
 import SpecialistDataView from "@/components/ai/SpecialistDataView";
 
 const SPECIALISTS = [
-  { key: "finance", label: "Financeiro", icon: TrendingUp, color: "green", headerBg: "from-green-500 to-emerald-600" },
-  { key: "tech",    label: "Suporte Técnico", icon: Zap, color: "purple", headerBg: "from-purple-500 to-violet-600" },
-  { key: "sales",   label: "Vendas", icon: ShoppingBag, color: "orange", headerBg: "from-orange-500 to-amber-600" },
+  { key: "finance",   label: "Financeiro",     icon: TrendingUp,   color: "green",   headerBg: "from-green-500 to-emerald-600" },
+  { key: "tech",      label: "Suporte Técnico", icon: Zap,          color: "purple",  headerBg: "from-purple-500 to-violet-600" },
+  { key: "sales",     label: "Vendas",         icon: ShoppingBag,  color: "orange",  headerBg: "from-orange-500 to-amber-600" },
+  { key: "retention", label: "Retenção",       icon: HeartCrack,   color: "red",     headerBg: "from-rose-500 to-red-600" },
+  { key: "general",   label: "Geral",           icon: Bot,          color: "blue",    headerBg: "from-blue-500 to-indigo-600" },
 ];
 
 const SENTIMENT_COLORS = {
@@ -276,7 +278,7 @@ export default function AIPanels() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {SPECIALISTS.map((s) => (
           <SpecialistPanel
             key={s.key}
