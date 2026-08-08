@@ -109,7 +109,8 @@ export function useInboxActions({
   };
 
   // ── Limpar TODAS as conversas e contatos ──────────────────────────────────
-  const handleClearAllConversations = async () => {
+  // Se onAfterClear for passado, executa o callback em vez de mostrar o toast.
+  const handleClearAllConversations = async (onAfterClear) => {
     if (clearing) return;
     setClearing(true);
     try {
@@ -117,7 +118,11 @@ export function useInboxActions({
       await base44.entities.Conversation.deleteMany({});
       setSelectedId(null);
       setShowClearModal(false);
-      toast({ title: "Todas as conversas e contatos foram removidos" });
+      if (onAfterClear) {
+        await onAfterClear();
+      } else {
+        toast({ title: "Todas as conversas e contatos foram removidos" });
+      }
     } catch { toast({ title: "Erro ao limpar conversas", variant: "destructive" }); }
     finally { setClearing(false); }
   };

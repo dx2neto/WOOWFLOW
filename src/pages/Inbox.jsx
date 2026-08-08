@@ -84,6 +84,13 @@ export default function Inbox() {
     convCreate, convUpdate, convBulkCreate, msgCreate,
   });
 
+  // ── Limpar tudo e importar conversas do WhatsApp (Evolution API) ─────────
+  const handleClearAndImportEvolution = () => handleClearAllConversations(async () => {
+    qc.invalidateQueries({ queryKey: ["conversations"] });
+    qc.invalidateQueries({ queryKey: ["Conversation"] });
+    await handleLoadWhatsAppConversations({ forceImport: true });
+  });
+
   // ── Hook: envio de mensagens e chamada WhatsApp ───────────────────────────
   const {
     message, setMessage, sending, messageMode, setMessageMode,
@@ -208,6 +215,7 @@ export default function Inbox() {
       <ClearConversationsModal
         show={showClearModal} count={conversations.length}
         onConfirm={handleClearConversations} onConfirmAll={handleClearAllConversations}
+        onClearAndImport={handleClearAndImportEvolution}
         onClose={() => setShowClearModal(false)} clearing={clearing}
       />
       <TransferModal

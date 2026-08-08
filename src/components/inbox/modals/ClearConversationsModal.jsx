@@ -1,7 +1,7 @@
 import React from "react";
 import { AlertCircle, RefreshCw, X } from "lucide-react";
 
-export default function ClearConversationsModal({ show, count, onConfirm, onConfirmAll, onClose, clearing }) {
+export default function ClearConversationsModal({ show, count, onConfirm, onConfirmAll, onClearAndImport, onClose, clearing }) {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !clearing && onClose()}>
@@ -35,6 +35,13 @@ export default function ClearConversationsModal({ show, count, onConfirm, onConf
             {clearing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
             {clearing ? "Limpando..." : "Limpar tudo (todas conversas e contatos)"}
           </button>
+          {onClearAndImport && (
+            <button onClick={onClearAndImport} disabled={clearing}
+              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50">
+              {clearing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {clearing ? "Processando..." : "Limpar e importar do WhatsApp"}
+            </button>
+          )}
           <button onClick={onClose} disabled={clearing}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50">Cancelar</button>
         </div>

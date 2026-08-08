@@ -97,7 +97,7 @@ export function useEvolutionInbox({
   }, [selectedInstance, toast]);
 
   // ── Importar conversas do WhatsApp ─────────────────────────────────────────
-  const handleLoadWhatsAppConversations = useCallback(async () => {
+  const handleLoadWhatsAppConversations = useCallback(async ({ forceImport = false } = {}) => {
     if (!selectedInstance || loadingConvsFromWa) return;
     setLoadingConvsFromWa(true);
     try {
@@ -127,7 +127,7 @@ export function useEvolutionInbox({
           })
           .filter((e) => e.jid.includes("@s.whatsapp.net"));
       }
-      const existingPhones = new Set(conversations.map((c) => c.phone));
+      const existingPhones = forceImport ? new Set() : new Set(conversations.map((c) => c.phone));
       const toCreate = entries
         .filter((e) => e.phone && !existingPhones.has(e.phone))
         .map((e) => ({
