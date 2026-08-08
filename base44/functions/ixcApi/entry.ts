@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { logError } from '../../shared/errorLogger.ts';
+import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -36,11 +37,10 @@ Deno.serve(async (req) => {
     // Helper de fetch POST ao IXCSoft
     const ixcPost = async (endpoint, body) => {
       const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
-      const res = await fetch(url, {
+      const res = await fetchWithRetry(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
       });
       return { res, data: await res.json().catch(() => ({})) };
     };
@@ -48,11 +48,10 @@ Deno.serve(async (req) => {
     // Helper de PUT/PATCH ao IXCSoft (criar/atualizar recursos)
     const ixcWrite = async (endpoint, body, method = 'POST') => {
       const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
-      const res = await fetch(url, {
+      const res = await fetchWithRetry(url, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}` },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
       });
       return { res, data: await res.json().catch(() => ({})) };
     };
@@ -63,7 +62,7 @@ Deno.serve(async (req) => {
       let all = [];
       let total = Infinity;
       while (all.length < total && all.length < maxRecords) {
-        const res = await fetch(url, {
+        const res = await fetchWithRetry(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
           body: JSON.stringify({ ...baseBody, page: String(page), rp: String(rp) }),

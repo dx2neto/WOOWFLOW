@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
 import { logError } from '../../shared/errorLogger.ts';
 import { normalizePhoneBR } from '../../shared/salesUtils.ts';
+import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const ZAP_BASE = 'https://api.zapsign.com.br/api/v1';
@@ -11,7 +12,7 @@ function zapHeaders(token: string) {
 }
 
 async function zapFetch(token: string, path: string, opts: RequestInit = {}) {
-  const res = await fetch(`${ZAP_BASE}${path}`, {
+  const res = await fetchWithRetry(`${ZAP_BASE}${path}`, {
     ...opts,
     headers: { ...zapHeaders(token), ...(opts.headers || {}) },
   });
@@ -35,7 +36,7 @@ function ixcHeaders(ixcToken: string) {
 
 async function ixcFetch(baseUrl: string, token: string, endpoint: string, body = {}) {
   const url = `${baseUrl.replace(/\/$/, '')}/${endpoint}`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: ixcHeaders(token),
     body: JSON.stringify({ ...body, limit: '1', start: '0' }),
