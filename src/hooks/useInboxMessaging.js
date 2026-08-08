@@ -61,7 +61,13 @@ export function useInboxMessaging({ selected, selectedInstance, msgCreate, convU
 
   const handleWhatsAppCall = useCallback(() => {
     if (!selected?.phone) return;
-    window.open(`https://wa.me/${selected.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer");
+    const phone = selected.phone.replace(/\D/g, "");
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = `whatsapp://send?phone=${phone}`;
+    } else {
+      window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
+    }
   }, [selected]);
 
   return {

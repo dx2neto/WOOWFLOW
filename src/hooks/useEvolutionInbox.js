@@ -217,8 +217,9 @@ export function useEvolutionInbox({
     try {
       const type = mediaType || (file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : "document");
       const fileUrl = await uploadFile(file);
+      const action = type === "audio" ? "send_audio" : "send_media";
       const resp = await evolutionApi({
-        action: "send_media", phone: selected.phone, url: fileUrl, type,
+        action, phone: selected.phone, url: fileUrl, type,
         filename: file.name, caption: file.name, instance: selectedInstance,
       });
       if (resp?.data?.error || !resp?.data?.success) {

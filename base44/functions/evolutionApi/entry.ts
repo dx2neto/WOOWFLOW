@@ -234,6 +234,22 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result: r.data, wa_message_id: extractMessageId(r.data) });
     }
 
+    // ── send_audio (PTT — push to talk) ──────────────────────────────────────
+    // POST /message/sendWhatsAppAudio/{instanceName}  body: { number, audio: { audio: url }, delay }
+    if (action === 'send_audio' || action === 'send_ptt') {
+      const { phone, url, caption } = body;
+      const number = String(phone || '').replace(/\D/g, '');
+      if (!number || !url) return Response.json({ error: 'phone e url são obrigatórios' }, { status: 400 });
+      const r = await evoFetch(`${base}/message/sendWhatsAppAudio/${encodeURIComponent(instanceName)}`, {
+        method: 'POST', headers: jsonHeaders,
+        body: JSON.stringify({ number, audio: { audio: url }, delay: body.delay ?? 500 }),
+      });
+      if (!r.ok) { await log('send_audio', 'falha', JSON.stringify(r.data)); return Response.json({ success: false, error: 'Falha ao enviar áudio', details: r.data }, { status: r.status || 502 }); }
+      const waId = extractMessageId(r.data);
+      await log('send_audio', 'sucesso', waId ? `wa_id: ${waId}` : '');
+      return Response.json({ success: true, result: r.data, wa_message_id: waId, provider_message_id: waId });
+    }
+
     // ── get_contacts ────────────────────────────────────────────────────────
     // GET /chat/findContacts/{instanceName}
     if (action === 'get_contacts') {

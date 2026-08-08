@@ -8,6 +8,7 @@ import { useInboxActions } from "@/hooks/useInboxActions";
 import { useInboxMessaging } from "@/hooks/useInboxMessaging";
 import { useInboxRealtime } from "@/hooks/useInboxRealtime";
 import { useInboxQuickActions } from "@/hooks/useInboxQuickActions";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { channelTabs, defaultForm } from "@/components/inbox/inboxConstants";
 import InboxHeader from "@/components/inbox/InboxHeader";
 import ConversationList from "@/components/inbox/ConversationList";
@@ -93,6 +94,9 @@ export default function Inbox() {
     selected, syncEvolutionHistory, handleLoadWhatsAppConversations,
   });
 
+  // ── Hook: gravação de áudio no navegador ───────────────────────────────────
+  const audioRecorder = useAudioRecorder();
+
   // ── Hook: efeitos de realtime e sincronização ─────────────────────────────
   useInboxRealtime({
     qc, conversations, selectedId, selected, selectedInstance,
@@ -170,6 +174,7 @@ export default function Inbox() {
           showShortcuts={showShortcuts} setShowShortcuts={setShowShortcuts}
           templates={templates} filteredTemplates={filteredTemplates}
           templateSearch={templateSearch} setTemplateSearch={setTemplateSearch}
+          audioRecorder={audioRecorder}
         />
 
         <RightPanel
@@ -196,8 +201,8 @@ export default function Inbox() {
         finalizing={finalizing}
       />
       <ClearConversationsModal
-        show={showClearModal} count={filtered.length}
-        onConfirm={() => handleClearConversations(filtered)} onConfirmAll={handleClearAllConversations}
+        show={showClearModal} count={conversations.length}
+        onConfirm={handleClearConversations} onConfirmAll={handleClearAllConversations}
         onClose={() => setShowClearModal(false)} clearing={clearing}
       />
       <TransferModal

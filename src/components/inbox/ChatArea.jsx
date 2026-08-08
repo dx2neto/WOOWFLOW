@@ -1,5 +1,5 @@
-import React from "react";
-import { MessageCircle, RefreshCw, Phone, ArrowRightLeft, CheckCircle, MoreHorizontal, Sparkles, Paperclip, Mic, Send, Zap, ChevronDown, StickyNote } from "lucide-react";
+import React, { useState } from "react";
+import { MessageCircle, RefreshCw, Phone, ArrowRightLeft, CheckCircle, MoreHorizontal, Sparkles, Paperclip, Mic, Send, Zap, ChevronDown, StickyNote, Square, Trash2 } from "lucide-react";
 import { ChannelBadge, StatusBadge } from "@/components/Badges";
 import { initials, formatDate, formatTime, channelTabs } from "./inboxConstants";
 import MessageBubble from "@/components/inbox/MessageBubble";
@@ -11,7 +11,10 @@ export default function ChatArea({
   onAttachClick, onAudioClick, onFileChange, onAudioChange,
   fileInputRef, audioInputRef, messagesEndRef,
   showShortcuts, setShowShortcuts, templates, filteredTemplates, templateSearch, setTemplateSearch,
+  audioRecorder,
 }) {
+  const { isRecording, recordingSeconds, startRecording, stopRecording, cancelRecording, formatTime: formatRecTime } = audioRecorder || {};
+
   if (!selected) {
     return (
       <section className="min-h-0 flex flex-col bg-muted/20">
@@ -25,6 +28,18 @@ export default function ChatArea({
       </section>
     );
   }
+
+  const handleMicClick = async () => {
+    if (isRecording) {
+      const file = await stopRecording();
+      if (file) {
+        const fakeEvent = { target: { files: [file], value: "" } };
+        onAudioChange(fakeEvent);
+      }
+    } else {
+      startRecording();
+    }
+  };
 
   return (
     <section className="min-h-0 flex flex-col bg-muted/20">
@@ -52,13 +67,13 @@ export default function ChatArea({
               <RefreshCw className={`h-4 w-4 text-muted-foreground ${syncingHistory ? "animate-spin" : ""}`} />
             </button>
           )}
-          <button onClick={onWhatsAppCall} className="rounded-lg p-2 hover:bg-muted" title="Ligar via WhatsApp">
+          <button onClick={onWhatsAppCall} className="rounded-lg p-2 hover:bg-green-50 hover:text-green-700" title="Ligar via WhatsApp">
             <Phone className="h-4 w-4 text-muted-foreground" />
           </button>
           <button onClick={() => setShowShortcuts(false)} className="rounded-lg p-2 hover:bg-muted" title="Transferir conversa">
             <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
           </button>
-          <button className="rounded-lg p-2 hover:bg-green-50 hover:text-green-700" title="Finalizar atendimento">
+          <button className="rounded-lg p-2 hover:bg-muted" title="Finalizar atendimento">
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </button>
           <button className="rounded-lg p-2 hover:bg-muted" title="Mais ações">
@@ -133,21 +148,40 @@ export default function ChatArea({
             )}
           </div>
 
+          {/* Barra de gravação de áudio */}
+          {isRecording && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+              <span className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-semibold text-red-700">Gravando áudio...</span>
+              <span className="text-sm text-red-600 font-mono">{formatRecTime(recordingSeconds)}</span>
+              <div className="flex-1" />
+              <button onClick={cancelRecording} className="rounded-md p-1.5 text-red-600 hover:bg-red-100" title="Cancelar gravação">
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button onClick={handleMicClick} className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700" title="Parar e enviar">
+                <Square className="h-3.5 w-3.5 fill-current" />
+                <span>Parar e enviar</span>
+              </button>
+            </div>
+          )}
+
           {/* Input + botões */}
           <div className="flex items-center gap-1.5">
-            <button onClick={onAttachClick} disabled={sendingMedia || selected?.channel !== "whatsapp"}
-              title="Anexar arquivo" className="rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-40">
+            <button onClick={onAttachClick} disabled={sendingMedia || selected?.channel !== "whatsapp" || isRecording}
+              title="Anexar arquivo ou foto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-40">
               {sendingMedia ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
             </button>
-            <button onClick={onAudioClick} disabled={sendingMedia || selected?.channel !== "whatsapp"}
-              title="Enviar áudio" className="rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-40">
-              <Mic className="h-5 w-5" />
+            <button onClick={handleMicClick} disabled={sendingMedia || selected?.channel !== "whatsapp" || messageMode === "internal"}
+              title={isRecording ? "Parar gravação" : "Gravar áudio"}
+              className={`rounded-lg p-2 transition-colors disabled:opacity-40 ${isRecording ? "bg-red-100 text-red-600" : "text-muted-foreground hover:bg-muted"}`}>
+              {isRecording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-5 w-5" />}
             </button>
 
             <input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && onSend()}
-              placeholder={messageMode === "internal" ? "Nota interna (não enviada ao cliente)..." : "Digite sua mensagem..."}
-              className={`h-10 flex-1 bg-transparent px-2 text-sm outline-none ${messageMode === "internal" ? "placeholder:text-amber-400" : ""}`} />
+              disabled={isRecording}
+              placeholder={messageMode === "internal" ? "Nota interna (não enviada ao cliente)..." : isRecording ? "Gravando áudio..." : "Digite sua mensagem..."}
+              className={`h-10 flex-1 bg-transparent px-2 text-sm outline-none disabled:opacity-50 ${messageMode === "internal" ? "placeholder:text-amber-400" : ""}`} />
 
             {/* Atalhos (templates) */}
             <div className="relative" data-shortcuts-panel>
@@ -184,7 +218,7 @@ export default function ChatArea({
               )}
             </div>
 
-            <button onClick={onSend} disabled={sending || !message.trim()}
+            <button onClick={onSend} disabled={sending || !message.trim() || isRecording}
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-50 ${messageMode === "internal" ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"}`}>
               {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               <span>{messageMode === "internal" ? "Salvar nota" : "Enviar"}</span>
