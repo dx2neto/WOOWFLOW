@@ -52,12 +52,16 @@ export function useEvolutionInbox({
       const response = await evolutionApi({ action: "list_instances" });
       const list = response?.data?.instances || [];
       setInstances(list);
-      if (list.length > 0 && !selectedInstance) {
-        const connected = list.find((i) => ["connected", "open"].includes(i.state));
-        const name = (connected || list[0])?.name || "";
-        if (name) {
-          setSelectedInstance(name);
-          localStorage.setItem("evolution_instance", name);
+      if (list.length > 0) {
+        // Valida se a instância selecionada (do localStorage) ainda existe na lista
+        const storedExists = list.some((i) => i.name === selectedInstance);
+        if (!storedExists) {
+          const connected = list.find((i) => ["connected", "open"].includes(i.state));
+          const name = (connected || list[0])?.name || "";
+          if (name) {
+            setSelectedInstance(name);
+            localStorage.setItem("evolution_instance", name);
+          }
         }
       }
     } catch {

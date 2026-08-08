@@ -283,12 +283,22 @@ Deno.serve(async (req) => {
     if (action === 'sync_history') {
       const phone = String(body.phone || '').replace(/\D/g, '');
       if (!phone) return Response.json({ error: 'phone é obrigatório' }, { status: 400 });
-      const r = await evoFetch(`${base}/chat/findMessages/${encodeURIComponent(instanceName)}`, {
+
+      // Se a instância informada não existir, tenta encontrar uma conectada
+      let instName = instanceName;
+      if (instName === defaultInst) {
+        const instList = await evoFetch(`${base}/instance/fetchInstances`, { headers: authHeaders });
+        const instances = normalizeInstanceList(instList.data);
+        const connected = instances.find((i) => i.state === 'connected');
+        if (connected) instName = connected.name;
+      }
+
+      const r = await evoFetch(`${base}/chat/findMessages/${encodeURIComponent(instName)}`, {
         method: 'POST', headers: jsonHeaders,
         body: JSON.stringify({ where: { id: `${phone}@s.whatsapp.net` }, limit: Number(body.limit ?? 50) }),
       }).catch(() => ({ ok: false, status: 501, data: { message: 'Endpoint de histórico não disponível nesta versão.' } }));
-      await log('sync_history', r.ok ? 'sucesso' : 'falha', `phone: ${phone}`);
-      return Response.json({ success: r.ok, created: 0, requested: r.ok, note: 'Mensagens antigas chegam via webhook.', details: r.data });
+      await log('sync_history', r.ok ? 'sucesso' : 'falha', `phone: ${phone}, instance: ${instName}`);
+      return Response.json({ success: r.ok, created: 0, requested: r.ok, note: 'Mensagens antigas chegam via webhook.', details: r.data, instance: instName });
     }
 
     // ── mark_read ───────────────────────────────────────────────────────────
