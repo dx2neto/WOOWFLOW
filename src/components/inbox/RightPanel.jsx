@@ -7,6 +7,7 @@ import QuickReplyPanel from "@/components/inbox/QuickReplyPanel";
 import CustomerHistoryPanel from "@/components/inbox/CustomerHistoryPanel";
 import ContractTemplatePicker from "@/components/inbox/ContractTemplatePicker";
 import IxcPreAnalysisCard from "@/components/inbox/IxcPreAnalysisCard";
+import SignatureAlertBanner from "@/components/inbox/SignatureAlertBanner";
 
 export default function RightPanel({
   selected, rightTab, setRightTab, configs, selectedInstanceState,
@@ -48,10 +49,14 @@ export default function RightPanel({
                 <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Pré-análise IXCSoft</p>
               </div>
               <IxcPreAnalysisCard data={ixcAnalysis} loading={ixcLoading} onRefetch={onRefetchIxc} />
+              <SignatureAlertBanner phone={selected.phone} />
             </div>
           ) : (
             /* ABA: DADOS */
             <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin space-y-4">
+              {/* Alerta de assinatura ZapSign */}
+              <SignatureAlertBanner phone={selected.phone} />
+
               {/* Pré-análise IXC (auto) */}
               <IxcPreAnalysisCard data={ixcAnalysis} loading={ixcLoading} onRefetch={onRefetchIxc} />
 

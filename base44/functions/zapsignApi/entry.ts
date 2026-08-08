@@ -99,6 +99,15 @@ async function updateSignatureAndRelated(
         });
       }
     }
+
+    // Propagar status para o contrato no IXCSoft
+    if (doc.ixc_contract_id) {
+      await b44.functions.invoke('ixcApi', {
+        action: 'update_contract',
+        contratoId: doc.ixc_contract_id,
+        data: { status: 'A', status_internet: 'A' },
+      }).catch(() => {});
+    }
   }
 }
 

@@ -442,6 +442,15 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, data, message: 'Contrato criado com sucesso' });
     }
 
+    if (action === 'update_contract') {
+      if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
+      if (!bodyData) return Response.json({ success: false, error: 'Dados do contrato são obrigatórios' }, { status: 400 });
+      const { res, data } = await ixcWrite(`cliente_contrato/${contratoId}`, bodyData, 'PUT');
+      if (!res.ok) return Response.json({ success: false, error: 'Falha ao atualizar contrato no IXC', details: data }, { status: res.status });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'update_contract', status: 'sucesso', details: `contrato ${contratoId}` });
+      return Response.json({ success: true, data, message: 'Contrato atualizado com sucesso' });
+    }
+
     if (action === 'update_customer') {
       if (!clientId || !bodyData) return Response.json({ success: false, error: 'clientId e dados são obrigatórios' }, { status: 400 });
       const { res, data } = await ixcWrite(`cliente/${clientId}`, bodyData, 'PUT');
