@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/utils";
+import { cn } from "@/lib/utils";
 
 const channelConfig = {
   whatsapp: { label: "WhatsApp", color: "bg-green-100 text-green-700" },
