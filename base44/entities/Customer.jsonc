@@ -6,7 +6,12 @@
       "type": "string"
     },
     "cpf_cnpj": {
-      "type": "string"
+      "type": "string",
+      "description": "Documento do cliente (CPF ou CNPJ) \u2014 armazenado cifrado (AES-GCM)"
+    },
+    "cpf_cnpj_masked": {
+      "type": "string",
+      "description": "CPF/CNPJ mascarado para exibi\u00e7\u00e3o (LGPD): ***.***.***-45"
     },
     "phone": {
       "type": "string"
