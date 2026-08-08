@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 import { Search, Send, MessageSquareText } from "lucide-react";
 
 const categoryLabels = {
@@ -13,18 +13,9 @@ const categoryLabels = {
 };
 
 export default function QuickReplyPanel({ onSend, sending }) {
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: templates = [], isLoading: loading } = useEntityFilter("MessageTemplate", { active: true }, "-created_date", 200);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-
-  useEffect(() => {
-    (async () => {
-      const data = await base44.entities.MessageTemplate.filter({ active: true }, "-created_date", 200);
-      setTemplates(data);
-      setLoading(false);
-    })();
-  }, []);
 
   const categories = ["all", ...Object.keys(categoryLabels).filter((c) => templates.some((t) => t.category === c))];
 
