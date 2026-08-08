@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -30,6 +31,7 @@ export function useInboxActions({
   users = [],
 }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   // ── Estados de modal ──────────────────────────────────────────────────────
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
@@ -103,6 +105,8 @@ export function useInboxActions({
       }
       setSelectedId(null);
       setShowClearModal(false);
+      qc.invalidateQueries({ queryKey: ["Conversation"] });
+      qc.invalidateQueries({ queryKey: ["Message"] });
       toast({ title: `${convIds.length} conversa(s) removida(s)` });
     } catch { toast({ title: "Erro ao limpar conversas", variant: "destructive" }); }
     finally { setClearing(false); }
@@ -118,6 +122,8 @@ export function useInboxActions({
       await base44.entities.Conversation.deleteMany({});
       setSelectedId(null);
       setShowClearModal(false);
+      qc.invalidateQueries({ queryKey: ["Conversation"] });
+      qc.invalidateQueries({ queryKey: ["Message"] });
       if (onAfterClear) {
         await onAfterClear();
       } else {
