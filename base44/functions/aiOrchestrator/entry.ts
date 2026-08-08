@@ -61,6 +61,60 @@ const SYSTEM_GUARD = `REGRAS DE SEGURANÇA OBRIGATÓRIAS:
 - Se a API estiver indisponível, informe honestamente.`;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// KEYWORD ROUTING — roteamento determinístico por palavras-chave
+// Executado ANTES da classificação por LLM para respostas instantâneas e corretas
+// ═══════════════════════════════════════════════════════════════════════════
+
+const KEYWORD_ROUTES: { specialist: string; keywords: string[]; intent: string }[] = [
+  {
+    specialist: 'finance',
+    intent: 'segunda_via',
+    keywords: ['boleto', 'fatura', '2ª via', 'segunda via', 'vencimento', 'pix', 'linha digitável', 'carnê', 'pagamento', 'débito', 'debito', 'cobrança', 'cobranca', 'conta', 'mensalidade', 'em aberto', 'negociar', 'negociacao', 'negociação', 'parcelar', 'desbloqueio financeiro', 'reabertura de contrato'],
+  },
+  {
+    specialist: 'tech',
+    intent: 'suporte_tecnico',
+    keywords: ['conexão', 'conexao', 'conectado', 'conectada', 'internet', 'online', 'offline', 'sem net', 'sem internet', 'caiu', 'caindo', 'lento', 'lenta', 'lentidão', 'lentidao', 'wifi', 'wi-fi', 'roteador', 'modem', 'onu', 'fibra', 'sinal', 'lojando', 'lag', 'travando', 'trava', 'ping', 'velocidade', 'velocímetro', 'luz', 'reset', 'reiniciar', 'piscando', 'vermelho', 'pppoe', 'ppp', 'ip', 'dns', 'vlan'],
+  },
+  {
+    specialist: 'sales',
+    intent: 'contratar_plano',
+    keywords: ['plano novo', 'novo plano', 'contratar', 'upgrade', 'mudar de plano', 'trocar de plano', 'cobertura', 'disponibilidade', 'promocao', 'promoção', 'desconto na adesão', 'instalação', 'instalacao', 'instalar', 'agendar instalação', 'novo cliente', 'quero contratar'],
+  },
+  {
+    specialist: 'retention',
+    intent: 'cancelamento',
+    keywords: ['cancelar', 'cancelamento', 'cancela', 'não quero mais', 'nao quero mais', 'vou cancelar', 'concorrente', 'competidor', 'caro', 'muito caro', 'vou trocar', 'trocar de provedor', 'reclamação', 'reclamacao', 'ouvidoria', 'procon', 'institucional', 'reclame aqui', 'insatisfeito', 'insatisfeita'],
+  },
+];
+
+function routeByKeywords(message: string): { specialist: string; intent: string; confidence: number } | null {
+  const msg = message.toLowerCase();
+  const scores: Record<string, { count: number; intent: string }> = {};
+
+  for (const route of KEYWORD_ROUTES) {
+    let count = 0;
+    for (const kw of route.keywords) {
+      if (msg.includes(kw.toLowerCase())) count++;
+    }
+    if (count > 0) {
+      scores[route.specialist] = { count, intent: route.intent };
+    }
+  }
+
+  // Determina o especialista com mais matches
+  const entries = Object.entries(scores);
+  if (entries.length === 0) return null;
+
+  entries.sort((a, b) => b[1].count - a[1].count);
+  const [best, data] = entries[0];
+
+  // Confiança: 2+ matches = alta (0.95), 1 match = média (0.8)
+  const confidence = data.count >= 2 ? 0.95 : 0.8;
+  return { specialist: best, intent: data.intent, confidence };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SPECIALIST DATA FETCHERS — buscam dados REAIS no IXC por especialista
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -235,71 +289,90 @@ Deno.serve(async (req) => {
         ? `Telefone do cliente: ${phone}. Cliente não identificado na base IXC (ou pré-análise não executada).`
         : 'Cliente não identificado. Nenhum telefone fornecido.';
 
-    // ── Passo 1: Classifica intenção ──────────────────────────────────────────
+    // ── Passo 1: Classifica intenção (palavras-chave → LLM fallback) ─────────
     let specialist = specialist_override;
     let classification = null;
 
     if (!specialist) {
-      const classifyPrompt = [
-        SYSTEM_GUARD,
-        '',
-        'Você é o orquestrador central de IA de um provedor de internet.',
-        'Analise a mensagem do cliente e classifique-a para roteamento automático.',
-        '',
-        'Contexto do cliente:',
-        customerInfo,
-        '',
-        'Histórico recente da conversa:',
-        historyText,
-        '',
-        'Mensagem atual do cliente:',
-        `"${message}"`,
-        '',
-        'Responda em JSON:',
-        '{',
-        '  "intent": "segunda_via|pix|boleto|internet_sem_funcionar|internet_lenta|wifi_ruim|trocar_senha|alterar_vencimento|mudanca_endereco|contratar_plano|upgrade|novo_cliente|cancelamento|negociacao|desbloqueio|instalacao|agendamento|suporte_tecnico|problema_financeiro|falar_atendente|elogio|reclamacao|queda_regional|equipamento_problema|saudacao|outro",',
-        '  "specialist": "general|finance|tech|sales|retention",',
-        '  "sentiment": "positivo|neutro|irritado|muito_irritado",',
-        '  "urgency": "baixa|media|alta|urgente",',
-        '  "confidence": 0.0-1.0,',
-        '  "summary": "Resumo breve da intenção em uma frase",',
-        '  "escalation_needed": true|false,',
-        '  "escalation_reason": "Motivo (se aplicável)"',
-        '}',
-        '',
-        'Regras de roteamento:',
-        '- "segunda via", "pix", "boleto", "fatura", "vencimento" → finance',
-        '- "sem internet", "caiu", "offline", "não conecta", "lenta", "wifi" → tech',
-        '- "plano novo", "upgrade", "contratar", "cobertura" → sales',
-        '- "cancelar", "cancelamento", "concorrente", "caro", "vou trocar" → retention',
-        '- "reclamação", "ouvidoria", "procon" → retention + escalation_needed: true',
-        '- Saudações simples → general',
-        '- Se confidence < 0.6, definir escalation_needed: true',
-      ].join('\n');
+      // 1a. Roteamento determinístico por palavras-chave (instantâneo, sem LLM)
+      const keywordRoute = routeByKeywords(message);
+      if (keywordRoute) {
+        specialist = keywordRoute.specialist;
+        classification = {
+          intent: keywordRoute.intent,
+          specialist: keywordRoute.specialist,
+          sentiment: 'neutro',
+          urgency: 'media',
+          confidence: keywordRoute.confidence,
+          summary: `Roteado por palavra-chave para especialista ${keywordRoute.specialist}`,
+          escalation_needed: false,
+          escalation_reason: '',
+        };
+      }
 
-      const classifyResult = await base44.integrations.Core.InvokeLLM({
-        prompt: classifyPrompt,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            intent: { type: 'string' },
-            specialist: { type: 'string' },
-            sentiment: { type: 'string' },
-            urgency: { type: 'string' },
-            confidence: { type: 'number' },
-            summary: { type: 'string' },
-            escalation_needed: { type: 'boolean' },
-            escalation_reason: { type: 'string' },
+      // 1b. Se palavra-chave não encontrou, usa LLM para classificar
+      if (!specialist) {
+        const classifyPrompt = [
+          SYSTEM_GUARD,
+          '',
+          'Você é o orquestrador central de IA de um provedor de internet.',
+          'Analise a mensagem do cliente e classifique-a para roteamento automático.',
+          '',
+          'Contexto do cliente:',
+          customerInfo,
+          '',
+          'Histórico recente da conversa:',
+          historyText,
+          '',
+          'Mensagem atual do cliente:',
+          `"${message}"`,
+          '',
+          'Responda em JSON:',
+          '{',
+          '  "intent": "segunda_via|pix|boleto|internet_sem_funcionar|internet_lenta|wifi_ruim|trocar_senha|alterar_vencimento|mudanca_endereco|contratar_plano|upgrade|novo_cliente|cancelamento|negociacao|desbloqueio|instalacao|agendamento|suporte_tecnico|problema_financeiro|falar_atendente|elogio|reclamacao|queda_regional|equipamento_problema|saudacao|outro",',
+          '  "specialist": "general|finance|tech|sales|retention",',
+          '  "sentiment": "positivo|neutro|irritado|muito_irritado",',
+          '  "urgency": "baixa|media|alta|urgente",',
+          '  "confidence": 0.0-1.0,',
+          '  "summary": "Resumo breve da intenção em uma frase",',
+          '  "escalation_needed": true|false,',
+          '  "escalation_reason": "Motivo (se aplicável)"',
+          '}',
+          '',
+          'Regras de roteamento:',
+          '- "segunda via", "pix", "boleto", "fatura", "vencimento" → finance',
+          '- "sem internet", "caiu", "offline", "não conecta", "lenta", "wifi" → tech',
+          '- "plano novo", "upgrade", "contratar", "cobertura" → sales',
+          '- "cancelar", "cancelamento", "concorrente", "caro", "vou trocar" → retention',
+          '- "reclamação", "ouvidoria", "procon" → retention + escalation_needed: true',
+          '- Saudações simples → general',
+          '- Se confidence < 0.6, definir escalation_needed: true',
+        ].join('\n');
+
+        const classifyResult = await base44.integrations.Core.InvokeLLM({
+          prompt: classifyPrompt,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              intent: { type: 'string' },
+              specialist: { type: 'string' },
+              sentiment: { type: 'string' },
+              urgency: { type: 'string' },
+              confidence: { type: 'number' },
+              summary: { type: 'string' },
+              escalation_needed: { type: 'boolean' },
+              escalation_reason: { type: 'string' },
+            },
           },
-        },
-      });
+        });
 
-      classification = classifyResult;
-      specialist = classifyResult.specialist || 'general';
+        classification = classifyResult;
+        specialist = classifyResult.specialist || 'general';
 
-      if ((classifyResult.confidence || 0) < 0.6 && !classifyResult.escalation_needed) {
-        classifyResult.escalation_needed = true;
-        classifyResult.escalation_reason = 'Confiança baixa na classificação de intenção';
+        if ((classifyResult.confidence || 0) < 0.6 && !classifyResult.escalation_needed) {
+          classifyResult.escalation_needed = true;
+          classifyResult.escalation_reason = 'Confiança baixa na classificação de intenção';
+        }
       }
     }
 
