@@ -196,6 +196,7 @@ export default function Inbox() {
           onSend={sendMessageContent} sending={sending}
           onSelect={setSelectedId}
           ixcAnalysis={ixcAnalysis} ixcLoading={ixcLoading} onRefetchIxc={refetchIxc}
+          convUpdate={convUpdate}
         />
       </div>
 

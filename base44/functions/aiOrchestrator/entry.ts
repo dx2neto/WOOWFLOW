@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
       : 'Sem histórico.';
 
     const customerInfo = customer_context
-      ? `Cliente identificado: ${customer_context.name || customer_context.customer_name || 'N/A'}\nTelefone: ${customer_context.phone || phone || 'N/A'}\nStatus IXC: ${customer_context.is_active ? 'Ativo' : 'Inativo'}\nRisco financeiro: ${customer_context.financial_risk || 'N/A'}\nFaturas vencidas: ${customer_context.overdue_count ?? 'N/A'}\nCidade: ${customer_context.city || 'N/A'}`
+      ? `Cliente identificado: ${customer_context.name || customer_context.customer_name || 'N/A'}\nTelefone: ${customer_context.phone || phone || 'N/A'}\nStatus IXC: ${customer_context.is_active ? 'Ativo' : 'Inativo'}\nRisco financeiro: ${customer_context.financial_risk || 'N/A'}\nFaturas vencidas: ${customer_context.overdue_count ?? 'N/A'}\nCidade: ${customer_context.city || 'N/A'}\nSaudação por horário: ${customer_context.greeting || 'N/A'}\nUse a saudação por horário seguida do nome do cliente no início da resposta.`
       : phone
         ? `Telefone do cliente: ${phone}. Cliente não identificado na base IXC (ou pré-análise não executada).`
         : 'Cliente não identificado. Nenhum telefone fornecido.';

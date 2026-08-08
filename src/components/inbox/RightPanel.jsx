@@ -1,5 +1,5 @@
-import React from "react";
-import { UserCheck, Tag, CheckCircle, ArrowRightLeft, Building2 } from "lucide-react";
+import React, { useState } from "react";
+import { UserCheck, Tag, CheckCircle, ArrowRightLeft, Building2, Bot, Loader2 } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/Badges";
 import { initials, statusTone, statusLabel, integrations, rightTabs, channelTabs } from "./inboxConstants";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
@@ -16,7 +16,21 @@ export default function RightPanel({
   onSend, sending,
   onSelect,
   ixcAnalysis, ixcLoading, onRefetchIxc,
+  convUpdate,
 }) {
+  const [togglingAI, setTogglingAI] = useState(false);
+
+  const handleToggleAI = async (enabled) => {
+    if (!selected || togglingAI) return;
+    setTogglingAI(true);
+    try {
+      await convUpdate.mutateAsync({
+        id: selected.id,
+        data: { ai_enabled: enabled, ai_mode: enabled ? "auto" : "off", is_ai: enabled },
+      });
+    } catch { /* ignore */ }
+    finally { setTogglingAI(false); }
+  };
   return (
     <aside className="hidden min-h-0 border-l border-border bg-card xl:flex xl:flex-col">
       {selected ? (
@@ -59,6 +73,52 @@ export default function RightPanel({
 
               {/* Pré-análise IXC (auto) */}
               <IxcPreAnalysisCard data={ixcAnalysis} loading={ixcLoading} onRefetch={onRefetchIxc} />
+
+              {/* Toggle IA — auto-atendimento */}
+              <div className={`rounded-xl border p-4 ${selected.ai_enabled ? "border-primary bg-primary/5" : "border-border bg-background"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selected.ai_enabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                      <Bot className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">IA — Auto-atender</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selected.ai_enabled ? "Lara respondendo automaticamente" : "IA desativada"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleToggleAI(!selected.ai_enabled)}
+                    disabled={togglingAI}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${selected.ai_enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                  >
+                    {togglingAI ? (
+                      <Loader2 className="w-3.5 h-3.5 absolute top-1 left-1 animate-spin text-white" />
+                    ) : (
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${selected.ai_enabled ? "translate-x-5" : "translate-x-0.5"}`} />
+                    )}
+                  </button>
+                </div>
+                {selected.ai_enabled && ixcAnalysis?.found && (
+                  <div className="mt-3 pt-3 border-t border-border/50 space-y-1 text-xs">
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">Cliente identificado:</span> {ixcAnalysis.cliente?.name || "—"}
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">Status:</span> {ixcAnalysis.cliente?.is_active ? "Ativo" : "Inativo"}
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">Contratos:</span> {(ixcAnalysis.contratos || []).length}
+                    </p>
+                    {ixcAnalysis.faturas && (
+                      <p className="text-muted-foreground">
+                        <span className="font-semibold text-foreground">Faturas vencidas:</span> {ixcAnalysis.faturas.vencidas || 0}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Card de perfil */}
               <div className="rounded-xl border border-border bg-background p-4 text-center">

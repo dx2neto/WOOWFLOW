@@ -234,8 +234,90 @@ Deno.serve(async (req) => {
             } catch { /* não bloqueia o fluxo principal */ }
           }
           saved++;
-        } catch { errors++; /* uma mensagem com erro não derruba o batch */ }
-      }
+         } catch { errors++; /* uma mensagem com erro não derruba o batch */ }
+       }
+
+      // ── Auto-resposta via IA (orquestrador) ──────────────────────────────────
+      // Para cada mensagem recebida (incoming) onde a conversa tem ai_enabled,
+      // chama o orquestrador com contexto do cliente (nome, IXC, horário) e envia
+      // a resposta automaticamente via Evolution API.
+      try {
+        const evoBase = Deno.env.get('EVOLUTION_API_URL') || '';
+        const evoKey = Deno.env.get('EVOLUTION_API_KEY') || '';
+        const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || instanceId;
+
+        for (const msg of batch) {
+          const key = asRecord(msg.key || msg.Key);
+          const fromMe = !!(key.fromMe ?? key.FromMe ?? key.IsFromMe);
+          if (fromMe) continue;
+          const phone = String(key.remoteJid || key.RemoteJid || key.Chat || '').replace(/@.*$/, '');
+          if (!phone) continue;
+          const conversation = convMap.get(phone) as AnyRecord | undefined;
+          if (!conversation || !(conversation.ai_enabled)) continue;
+
+          const textContent = extractText(asRecord(msg.message || msg.Message || {}));
+          if (!textContent) continue;
+
+          // Busca mensagens recentes para contexto da conversa
+          const recentMsgs = await base44.asServiceRole.entities.Message.filter({ conversation_id: conversation.id }).catch(() => []);
+          const history = (recentMsgs as AnyRecord[])
+            .sort((a, b) => new Date((a.timestamp as string) || 0).getTime() - new Date((b.timestamp as string) || 0).getTime())
+            .slice(-10)
+            .map((m) => ({ direction: (m.direction as string) === 'in' ? 'in' : 'out', content: String(m.content || '') }));
+
+          // Determina saudação por horário
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+          const customerName = (conversation.customer_name as string) || phone;
+
+          // Chama o orquestrador de IA
+          const orchResp = await base44.asServiceRole.functions.invoke('aiOrchestrator', {
+            message: textContent,
+            phone,
+            customer_name: customerName,
+            conversation_history: history,
+            customer_context: {
+              name: customerName,
+              phone,
+              city: (conversation.city as string) || null,
+              greeting,
+            },
+            mode: 'auto',
+          }) as AnyRecord;
+
+          const reply = (orchResp?.orchestrator as AnyRecord)?.response && typeof (orchResp.orchestrator as AnyRecord).response === 'object'
+            ? ((orchResp.orchestrator as AnyRecord).response as AnyRecord).reply as string
+            : undefined;
+
+          if (reply && evoBase && evoKey) {
+            // Envia a resposta via Evolution API
+            const { sendWhatsAppMessage } = await import('../../shared/evolutionSend.ts');
+            const sendResult = await sendWhatsAppMessage({ base: evoBase, apiKey: evoKey, instanceName, number: phone, text: reply });
+
+            // Salva a resposta da IA como mensagem
+            const nowIso = new Date().toISOString();
+            await base44.asServiceRole.entities.Message.create({
+              conversation_id: conversation.id,
+              content: reply,
+              direction: 'ai',
+              type: 'text',
+              status: sendResult.success ? 'sent' : 'failed',
+              timestamp: nowIso,
+              sender_name: 'IA Lara',
+              phone,
+              assigned_user_id: (conversation.assigned_user_id as string) || null,
+              ...(sendResult.wa_message_id ? { wa_message_id: sendResult.wa_message_id } : {}),
+            });
+
+            // Atualiza última mensagem da conversa
+            await base44.asServiceRole.entities.Conversation.update(conversation.id as string, {
+              last_message: reply,
+              last_message_time: nowIso,
+              is_ai: true,
+            }).catch(() => {});
+          }
+        }
+      } catch { /* não bloqueia o fluxo principal do webhook */ }
 
       await base44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionWebhook', action: event, status: 'sucesso',
