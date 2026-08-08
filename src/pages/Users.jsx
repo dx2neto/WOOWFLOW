@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { UserCog, Users as UsersIcon, ShieldCheck, Plus, Pencil, UserCheck } from "lucide-react";
@@ -6,40 +6,27 @@ import InviteUserModal from "@/components/users/InviteUserModal";
 import EditUserModal from "@/components/users/EditUserModal";
 import ProfileForm from "@/components/users/ProfileForm";
 import ProfileCard from "@/components/users/ProfileCard";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 export default function Users() {
   const [tab, setTab] = useState("users");
-  const [users, setUsers] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loadingUsers } = useEntityList("User", "-created_date", 100);
+  const { data: profiles = [], isLoading: loadingProfiles } = useEntityList("Profile", "-created_date", 100);
+  const loading = loadingUsers || loadingProfiles;
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [editingProfile, setEditingProfile] = useState(null);
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    try {
-      const [usersData, profilesData] = await Promise.all([
-        base44.entities.User.list("-created_date", 100),
-        base44.entities.Profile.list(),
-      ]);
-      setUsers(usersData);
-      setProfiles(profilesData);
-    } catch {
-      setUsers([]);
-      setProfiles([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const userUpdate = useEntityUpdate("User");
+  const profileCreate = useEntityCreate("Profile");
+  const profileUpdate = useEntityUpdate("Profile");
+  const profileDelete = useEntityDelete("Profile");
 
   const handleInvite = async (email, role) => {
     try {
       await /** @type {any} */ (base44).users.inviteUser(email, role);
       setShowInvite(false);
-      await loadData();
     } catch (e) {
       console.error("Erro ao convidar usuário:", e);
     }
@@ -47,9 +34,8 @@ export default function Users() {
 
   const handleSaveUser = async (userId, data) => {
     try {
-      await base44.entities.User.update(userId, data);
+      await userUpdate.mutateAsync({ id: userId, data });
       setEditingUser(null);
-      await loadData();
     } catch (e) {
       console.error("Erro ao atualizar usuário:", e);
     }
@@ -58,13 +44,12 @@ export default function Users() {
   const handleSaveProfile = async (data) => {
     try {
       if (editingProfile) {
-        await base44.entities.Profile.update(editingProfile.id, data);
+        await profileUpdate.mutateAsync({ id: editingProfile.id, data });
       } else {
-        await base44.entities.Profile.create(data);
+        await profileCreate.mutateAsync(data);
       }
       setShowProfileForm(false);
       setEditingProfile(null);
-      await loadData();
     } catch (e) {
       console.error("Erro ao salvar perfil:", e);
     }
@@ -72,8 +57,7 @@ export default function Users() {
 
   const handleDeleteProfile = async (profileId) => {
     try {
-      await base44.entities.Profile.delete(profileId);
-      await loadData();
+      await profileDelete.mutateAsync(profileId);
     } catch (e) {
       console.error("Erro ao excluir perfil:", e);
     }
