@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { aiOrchestrator } from "@/functions/aiOrchestrator";
 import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import SpecialistDataView from "@/components/ai/SpecialistDataView";
 
 const SPECIALIST_META = {
   general:   { label: "Atendimento Geral", color: "bg-blue-100 text-blue-700",     icon: Bot },
@@ -192,6 +193,14 @@ export default function AIAssistant() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* Specialist Data — dados REAIS do IXC */}
+              {lastResult.specialist_data && lastResult.specialist_data.fetched && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase font-semibold mb-2">{lastResult.specialist_data.label}</p>
+                  <SpecialistDataView specialist={lastResult.specialist} data={lastResult.specialist_data.data} />
+                </div>
               )}
 
               {/* Response metadata */}
