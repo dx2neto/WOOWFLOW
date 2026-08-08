@@ -262,11 +262,14 @@ Deno.serve(async (req) => {
         contratoBaseBody.query = String(clientId);
         contratoBaseBody.oper = '=';
       }
-      const { ok, data: dataContratos, registros: rawRegistros } = await fetchAllPages(contratoUrl, contratoBaseBody);
-      if (!ok) {
+      const { res, data: dataContratos } = await ixcPost('cliente_contrato', { ...contratoBaseBody, page: String(page), rp: String(limit) });
+      if (!res.ok) {
         await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'falha', details: JSON.stringify(dataContratos).slice(0, 500) });
         return Response.json({ error: 'Falha ao buscar contratos do IXC Provedor', details: dataContratos }, { status: 500 });
       }
+
+      const rawRegistros = dataContratos.registros || [];
+      const totalCount = parseInt(dataContratos.total || '0', 10) || rawRegistros.length;
 
       const clientIds = [...new Set(rawRegistros.map((r: any) => r.id_cliente).filter(Boolean))];
       let clientsById: Record<string, any> = {};
@@ -309,8 +312,8 @@ Deno.serve(async (req) => {
         };
       });
 
-      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'sucesso', details: `${contratos.length} registros carregados` });
-      return Response.json({ success: true, result: { total: contratos.length, registros: contratos } });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'sucesso', details: `${contratos.length} registros (página ${page}/${Math.ceil(totalCount / limit) || 1})` });
+      return Response.json({ success: true, result: { registros: contratos, pagination: { page: Number(page), limit: Number(limit), total: totalCount } } });
     }
 
     if (action === 'clientes') {

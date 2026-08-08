@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { ixcApi } from "@/functions/ixcApi";
-import { Search, FileText, CheckCircle, XCircle, Download, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { Search, FileText, CheckCircle, XCircle, Download, RefreshCw, Wifi, WifiOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
 import ZapSignStatusPanel from "@/components/contracts/ZapSignStatusPanel";
+
+const PAGE_SIZE = 50;
 
 const STATUS_MAP = {
   ativo:     { label: "Ativo",     color: "bg-green-100 text-green-700" },
@@ -25,17 +27,23 @@ export default function Contracts() {
   const [error, setError]         = useState(null);
   const [search, setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage]           = useState(1);
+  const [total, setTotal]         = useState(0);
 
-  const load = useCallback(async (st = statusFilter) => {
+  const load = useCallback(async (pg = 1, st = statusFilter) => {
     setLoading(true);
     setError(null);
     try {
       const res = await ixcApi({
         action: "contratos",
         status: st !== "all" ? st : undefined,
+        page: pg,
+        limit: PAGE_SIZE,
       });
       if (res?.data?.error) { setError(res.data.error); setContracts([]); return; }
       setContracts(res?.data?.result?.registros || []);
+      setTotal(res?.data?.result?.pagination?.total || 0);
+      setPage(pg);
     } catch {
       setError("Não foi possível carregar os contratos do IXC Provedor.");
       setContracts([]);
@@ -44,7 +52,7 @@ export default function Contracts() {
     }
   }, [statusFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(1); }, [load]);
 
   const filtered = contracts.filter((c) => {
     const q = search.toLowerCase();
@@ -66,10 +74,10 @@ export default function Contracts() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold font-heading">Contratos</h2>
-          <p className="text-sm text-muted-foreground">{contracts.length} contratos carregados</p>
+          <p className="text-sm text-muted-foreground">{total} contratos cadastrados</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => load(statusFilter)} className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-muted">
+          <button onClick={() => load(1, statusFilter)} className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-muted">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
@@ -117,7 +125,7 @@ export default function Contracts() {
             {[["all", "Todos"], ["A", "Ativos"], ["CA", "Cancelados"]].map(([k, l]) => (
               <button
                 key={k}
-                onClick={() => { setStatusFilter(k); load(k); }}
+                onClick={() => { setStatusFilter(k); load(1, k); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
               >
                 {l}
@@ -185,10 +193,18 @@ export default function Contracts() {
           </table>
         </div>
 
-        <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground flex items-center gap-4">
-          <span>Exibindo {filtered.length} de {contracts.length} contrato(s)</span>
-          {suspensos.length > 0 && (
-            <span className="text-amber-600 font-medium">• {suspensos.length} suspenso(s)</span>
+        <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span>Exibindo {filtered.length} de {contracts.length} contrato(s) {total > PAGE_SIZE && `— Página ${page} de ${Math.ceil(total / PAGE_SIZE)}`}</span>
+            {suspensos.length > 0 && (
+              <span className="text-amber-600 font-medium">• {suspensos.length} suspenso(s)</span>
+            )}
+          </div>
+          {total > PAGE_SIZE && (
+            <div className="flex gap-2">
+              <button disabled={page <= 1 || loading} onClick={() => load(page - 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
+              <button disabled={page >= Math.ceil(total / PAGE_SIZE) || loading} onClick={() => load(page + 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+            </div>
           )}
         </div>
       </Card>
