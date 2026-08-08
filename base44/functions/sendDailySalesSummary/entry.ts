@@ -54,22 +54,36 @@ export default async function (req: Request): Promise<Response> {
     // ── Build summary message ────────────────────────────────────────────────
     const fmtBRL = (v: number) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    let msg = `📊 *RESUMO DIÁRIO DE VENDAS*\n📅 ${todayBR}\n`;
-    msg += `━━━━━━━━━━━━━━━\n`;
+    const directSales = todaySales.filter((s: { sale_type: string }) => s.sale_type !== 'revenda').length;
+    const conversionRate = todaySales.length > 0 ? ((signed / todaySales.length) * 100).toFixed(1) : '0.0';
+    const approvalRate = todaySales.length > 0 ? ((approved / todaySales.length) * 100).toFixed(1) : '0.0';
+    const avgTicket = todaySales.length > 0 ? totalValue / todaySales.length : 0;
+    const pendingCredit = todaySales.filter((s: { stage: string }) => ['consulta_credito', 'analise_debitos', 'analise_manual'].includes(s.stage)).length;
+
+    let msg = `📊 *RESUMO DIÁRIO DE VENDAS*\n📅 ${todayBR}\n\n`;
+
+    msg += `📈 *Funil de Vendas*\n`;
     msg += `🆕 Novos leads: *${todaySales.length}*\n`;
-    msg += `✅ Aprovados (crédito): *${approved}*\n`;
+    msg += `⏳ Em análise de crédito: *${pendingCredit}*\n`;
+    msg += `✅ Aprovados: *${approved}* (${approvalRate}%)\n`;
     msg += `📄 Contratos gerados: *${contractsGenerated}*\n`;
-    msg += `📝 Contratos assinados hoje: *${todaySigned.length}*\n`;
-    msg += `⏳ Aguardando assinatura: *${pendingSigs}*\n`;
+    msg += `📝 Assinados hoje: *${todaySigned.length}*\n`;
     msg += `❌ Perdidos: *${lost}*\n`;
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `💰 MRR estimado: *${fmtBRL(totalValue)}*\n`;
+    msg += `🔄 Taxa de conversão: *${conversionRate}%*\n\n`;
+
+    msg += `📋 *Contratos & Assinaturas*\n`;
+    msg += `⏳ Aguardando assinatura: *${pendingSigs}*\n`;
+    msg += `📝 Assinados hoje: *${todaySigned.length}*\n\n`;
+
+    msg += `💰 *Financeiro*\n`;
+    msg += `💵 MRR estimado: *${fmtBRL(totalValue)}*\n`;
+    msg += `📊 Ticket médio: *${fmtBRL(avgTicket)}*\n`;
     if (resellerCount > 0) {
-      msg += `🤝 Vendas via revenda: *${resellerCount}*\n`;
-      msg += `💵 Comissões a pagar: *${fmtBRL(resellerCommission)}*\n`;
+      msg += `\n🤝 *Revendedores*\n`;
+      msg += `Vendas via revenda: *${resellerCount}* de *${directSales}* diretas\n`;
+      msg += `Comissões a pagar: *${fmtBRL(resellerCommission)}*\n`;
     }
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `🔗 Acesse o painel para detalhes.`;
+    msg += `\n🔗 Acesse o painel para detalhes.`;
 
     // ── Send via WhatsApp to commercial manager ───────────────────────────────
     let whatsappSent = false;
