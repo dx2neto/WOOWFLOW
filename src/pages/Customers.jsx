@@ -19,7 +19,6 @@ export default function Customers() {
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 50;
 
-  useEffect(() => { loadContacts(); }, []);
   useEffect(() => {
     const timeout = setTimeout(() => loadCustomers(search, 1), 400);
     return () => clearTimeout(timeout);
@@ -46,9 +45,11 @@ export default function Customers() {
     }
   };
 
-  const loadContacts = async () => {
+  // Busca contatos apenas para os clientes da página atual (deferido, não bloqueia a lista)
+  const loadContacts = async (clientIds) => {
+    if (!clientIds || clientIds.length === 0) return;
     try {
-      const response = await ixcApi({ action: "contatos" });
+      const response = await ixcApi({ action: "contatos", data: { clientIds } });
       const registros = response?.data?.result?.registros || [];
       const grouped = {};
       registros.forEach((ct) => {
@@ -61,6 +62,13 @@ export default function Customers() {
       setContactsByClient({});
     }
   };
+
+  useEffect(() => {
+    if (loading || customers.length === 0) return;
+    const ids = customers.map((c) => String(c.id)).filter(Boolean);
+    const t = setTimeout(() => loadContacts(ids), 300);
+    return () => clearTimeout(t);
+  }, [loading, customers]);
 
   const cities = useMemo(() => {
     const set = new Set(customers.map((c) => c.city).filter(Boolean));

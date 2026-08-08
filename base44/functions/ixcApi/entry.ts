@@ -365,6 +365,32 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'contatos') {
+      // Se clientIds for fornecido (lista de IDs da página atual), busca apenas
+      // os contatos daqueles clientes via operador IN — muito mais rápido que
+      // fetchAllPages. Caso contrário, mantém comportamento legado (todos).
+      const idsParam = Array.isArray(bodyData?.clientIds) ? bodyData.clientIds : null;
+      if (idsParam && idsParam.length > 0) {
+        const { res, data } = await ixcPost('cliente_contato', {
+          qtype: 'cliente_contato.id_cliente',
+          query: idsParam.join(','),
+          oper: 'IN',
+          sortname: 'cliente_contato.id',
+          sortorder: 'desc',
+          page: '1',
+          rp: String(Math.min(idsParam.length * 5, 200)),
+        });
+        if (!res.ok) {
+          return Response.json({ success: true, result: { total: 0, registros: [] } });
+        }
+        const contatos = (data.registros || []).map((c) => ({
+          id: c.id, client_id: c.id_cliente,
+          name: c.contato || c.nome || '',
+          phone: c.telefone || c.celular || '',
+          email: c.email || '',
+        }));
+        return Response.json({ success: true, result: { total: contatos.length, registros: contatos } });
+      }
+
       const contatosUrl = baseUrl.replace(/\/$/, '') + '/cliente_contato';
       const baseBody = { qtype: 'cliente_contato.id', query: '1', oper: '>=', sortname: 'cliente_contato.id', sortorder: 'desc' };
       const { ok, data, registros: rawRegistros } = await fetchAllPages(contatosUrl, baseBody);
