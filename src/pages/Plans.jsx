@@ -3,6 +3,8 @@ import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { ixcApi } from "@/functions/ixcApi";
 import { Search, Wifi, DollarSign, CheckCircle } from "lucide-react";
 
+// Plans page — IXCSoft planos list
+
 export default function Plans() {
   const [plans, setPlans]     = useState([]);
   const [loading, setLoading] = useState(true);
