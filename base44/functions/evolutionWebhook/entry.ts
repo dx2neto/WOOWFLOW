@@ -349,6 +349,17 @@ Deno.serve(async (req) => {
               last_message_time: nowIso,
               is_ai: true,
             }).catch(() => {});
+
+            // Log de sincronização da resposta da IA
+            await base44.asServiceRole.entities.MessageSyncLog.create({
+              phone, wa_message_id: sendResult?.wa_message_id || null,
+              conversation_id: conversation.id as string, instance: instanceName,
+              direction: 'ai', sync_status: sendResult?.success ? 'synced' : 'error',
+              action: 'ai_response',
+              message_preview: reply.slice(0, 100),
+              error_message: sendResult?.success ? null : sendResult?.error || null,
+              event_type: event, batch_id: batchId,
+            }).catch(() => {});
           }
         }
       } catch { /* não bloqueia o fluxo principal do webhook */ }
