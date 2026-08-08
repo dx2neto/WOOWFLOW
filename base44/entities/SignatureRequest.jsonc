@@ -35,7 +35,7 @@
     },
     "ixc_data_snapshot": {
       "type": "string",
-      "description": "JSON snapshot dos dados do contrato IXC no momento da geração"
+      "description": "JSON snapshot dos dados do contrato IXC no momento da gera\u00e7\u00e3o"
     },
     "template_id": {
       "type": "string",
@@ -46,7 +46,7 @@
     },
     "variables_used": {
       "type": "string",
-      "description": "JSON das variáveis preenchidas no template"
+      "description": "JSON das vari\u00e1veis preenchidas no template"
     },
     "document_type": {
       "type": "string",
@@ -73,7 +73,7 @@
     },
     "zapsign_doc_token": {
       "type": "string",
-      "description": "Token único do documento no ZapSign",
+      "description": "Token \u00fanico do documento no ZapSign",
       "rls": {
         "read": {
           "user_condition": {
@@ -93,7 +93,7 @@
     },
     "document_url": {
       "type": "string",
-      "description": "URL pública do documento para visualização/download"
+      "description": "URL p\u00fablica do documento para visualiza\u00e7\u00e3o/download"
     },
     "sign_url": {
       "type": "string",
@@ -101,7 +101,7 @@
     },
     "signers": {
       "type": "string",
-      "description": "JSON array com dados dos signatários (nome, email, token, status)"
+      "description": "JSON array com dados dos signat\u00e1rios (nome, email, token, status)"
     },
     "signed_date": {
       "type": "string",
@@ -173,13 +173,14 @@
     "update": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
-          }
+          "data.sent_by_user_id": "{{user.id}}"
+        },
+        {
+          "created_by_id": "{{user.id}}"
         },
         {
           "user_condition": {
-            "role": "user"
+            "role": "admin"
           }
         }
       ]
