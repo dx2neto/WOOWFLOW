@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { Card } from "@/components/ui/app-card";
 import { ChannelBadge, PriorityBadge } from "@/components/Badges";
 import {
-  Search, MessageCircle, ArrowRight, RefreshCw, AlertCircle,
+  Search, MessageCircle, RefreshCw,
   Clock, ChevronRight, CheckCircle,
 } from "lucide-react";
 
@@ -22,69 +24,41 @@ function formatTimeAgo(dateStr) {
 
 export default function UnansweredTab({ instance }) {
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: conversations = [], isLoading: loading, refetch } = useEntityList("Conversation", "-last_message_time", 100);
   const [search, setSearch] = useState("");
   const [selectedInstance, setSelectedInstance] = useState(instance || "");
 
-  const loadConversations = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Busca conversas de WhatsApp não finalizadas com mensagens não lidas
-      const data = await base44.entities.Conversation.list("-last_message_time", 100);
-      const unanswered = data.filter((c) =>
-        c.channel === "whatsapp" &&
-        c.unread === true &&
-        !["resolvido", "finalizado", "perdido"].includes(c.status)
-      );
-      setConversations(unanswered);
-    } catch { setConversations([]); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { loadConversations(); }, [loadConversations]);
-
-  // Realtime: atualiza quando conversas mudam
+  // Realtime: invalida cache quando conversas mudam
   useEffect(() => {
-    const unsub = base44.entities.Conversation.subscribe((event) => {
-      setConversations((prev) => {
-        if (event.type === "create") {
-          const c = event.data;
-          if (c.channel === "whatsapp" && c.unread && !["resolvido", "finalizado", "perdido"].includes(c.status)) {
-            return [c, ...prev.filter((p) => p.id !== c.id)];
-          }
-          return prev;
-        }
-        if (event.type === "update") {
-          const c = event.data;
-          if (!c.unread || ["resolvido", "finalizado", "perdido"].includes(c.status)) {
-            return prev.filter((p) => p.id !== c.id);
-          }
-          return prev.map((p) => p.id === c.id ? c : p);
-        }
-        if (event.type === "delete") return prev.filter((p) => p.id !== event.data.id);
-        return prev;
-      });
+    const unsub = base44.entities.Conversation.subscribe(() => {
+      qc.invalidateQueries({ queryKey: ["Conversation"] });
     });
     return unsub;
-  }, []);
+  }, [qc]);
+
+  const unanswered = conversations.filter((c) =>
+    c.channel === "whatsapp" &&
+    c.unread === true &&
+    !["resolvido", "finalizado", "perdido"].includes(c.status)
+  );
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return conversations;
-    return conversations.filter((c) =>
+    if (!term) return unanswered;
+    return unanswered.filter((c) =>
       [c.customer_name, c.phone, c.last_message].filter(Boolean).some((v) => v.toLowerCase().includes(term))
     );
-  }, [conversations, search]);
+  }, [unanswered, search]);
 
-  const urgent = conversations.filter((c) => c.priority === "urgente" || c.priority === "alta").length;
+  const urgent = unanswered.filter((c) => c.priority === "urgente" || c.priority === "alta").length;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Não respondidas</p>
-          <p className="mt-1 text-2xl font-black">{conversations.length}</p>
+          <p className="mt-1 text-2xl font-black">{unanswered.length}</p>
         </Card>
         <Card className="p-4 border-red-200">
           <p className="text-xs font-semibold uppercase text-red-700">Prioridade alta</p>
@@ -107,7 +81,7 @@ export default function UnansweredTab({ instance }) {
             className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
-        <button onClick={loadConversations} className="rounded-lg border border-border p-2 hover:bg-muted" title="Recarregar">
+        <button onClick={() => refetch()} className="rounded-lg border border-border p-2 hover:bg-muted" title="Recarregar">
           <RefreshCw className={`h-4 w-4 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>

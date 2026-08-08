@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { Card } from "@/components/ui/app-card";
-import { ChannelBadge, PriorityBadge } from "@/components/Badges";
 import { format, isPast, isToday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Search, Phone, MapPin, DollarSign, Clock, AlertTriangle,
-  CheckCircle, MessageCircle, ArrowRight, RefreshCw, User,
+  CheckCircle, MessageCircle, RefreshCw, User,
 } from "lucide-react";
 
 const stageLabels = {
@@ -44,30 +45,22 @@ function slaStatus(nextContact) {
 
 export default function ContactsTab({ user }) {
   const navigate = useNavigate();
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: allLeads = [], isLoading: loading, refetch } = useEntityList("Lead", "-created_date", 200);
   const [search, setSearch] = useState("");
 
-  const loadLeads = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await base44.entities.Lead.list("-created_date", 200);
-      // Filtra leads do vendedor atual (ou todos se admin)
-      const filtered = user?.role === "admin"
-        ? data
-        : data.filter((l) => l.vendor === user?.full_name || !l.vendor);
-      setLeads(filtered);
-    } catch { setLeads([]); }
-    finally { setLoading(false); }
-  }, [user]);
-
-  useEffect(() => { loadLeads(); }, [loadLeads]);
-
-  // Realtime: atualiza quando um lead é criado/atualizado
+  // Realtime: invalida cache quando leads mudam
   useEffect(() => {
-    const unsub = base44.entities.Lead.subscribe(() => { loadLeads(); });
+    const unsub = base44.entities.Lead.subscribe(() => {
+      qc.invalidateQueries({ queryKey: ["Lead"] });
+    });
     return unsub;
-  }, [loadLeads]);
+  }, [qc]);
+
+  // Filtra leads do vendedor atual (ou todos se admin)
+  const leads = user?.role === "admin"
+    ? allLeads
+    : allLeads.filter((l) => l.vendor === user?.full_name || !l.vendor);
 
   const activeLeads = leads.filter((l) => l.stage !== "venda_fechada" && l.stage !== "venda_perdida");
   const filtered = activeLeads.filter((l) => {
@@ -112,7 +105,7 @@ export default function ContactsTab({ user }) {
             className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
-        <button onClick={loadLeads} className="rounded-lg border border-border p-2 hover:bg-muted" title="Recarregar">
+        <button onClick={() => refetch()} className="rounded-lg border border-border p-2 hover:bg-muted" title="Recarregar">
           <RefreshCw className={`h-4 w-4 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
