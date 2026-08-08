@@ -8,7 +8,7 @@ import {
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
   FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
-  Shield, History, ShieldCheck
+  Shield, History, ShieldCheck, Store, GitBranch
 } from "lucide-react";
 
 // ── Hook: contagem de conversas não lidas em tempo real ───────────────────────
@@ -60,6 +60,13 @@ const menuGroups = [
       { label: "Ordens de Serviço",          path: "/work-orders", icon: Wrench },
       { label: "NOC",                        path: "/noc",         icon: WifiOff },
       { label: "Teste IXCSoft",              path: "/ixc-test",    icon: TestTube2 },
+    ],
+  },
+  {
+    label: "Vendas",
+    items: [
+      { label: "Esteira de Vendas", path: "/sales-pipeline", icon: GitBranch },
+      { label: "Revendedores",      path: "/resellers",      icon: Store },
     ],
   },
   {

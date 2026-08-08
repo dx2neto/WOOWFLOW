@@ -56,6 +56,8 @@ const AgreementDetail = lazy(() => import('@/pages/AgreementDetail'));
 const AgreementSettings = lazy(() => import('@/pages/AgreementSettings'));
 const SystemAudit = lazy(() => import('@/pages/SystemAudit'));
 const AuditCenter = lazy(() => import('@/pages/AuditCenter'));
+const SalesPipeline = lazy(() => import('@/pages/SalesPipeline'));
+const Resellers = lazy(() => import('@/pages/Resellers'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -146,6 +148,10 @@ const AuthenticatedApp = () => {
             <Route path="/system-audit" element={<SystemAudit />} />
             <Route path="/audit-center" element={<AuditCenter />} />
           </Route>
+
+          {/* Módulo de Vendas */}
+          <Route path="/sales-pipeline" element={<SalesPipeline />} />
+          <Route path="/resellers" element={<Resellers />} />
         </Route>
       </Route>
 
