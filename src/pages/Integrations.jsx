@@ -33,6 +33,7 @@ import { aiOmnichannelApi } from "@/functions/aiOmnichannelApi";
 import { omnichannelApi } from "@/functions/omnichannelApi";
 import InstanceManagerModal from "@/components/integrations/InstanceManagerModal";
 import EvolutionQrCodeModal from "@/components/integrations/EvolutionQrCodeModal";
+import EvolutionErrorPanel from "@/components/integrations/EvolutionErrorPanel";
 
 const integrationActions = {
   erp_provider: ixcApi,
@@ -525,6 +526,10 @@ export default function Integrations() {
 
       {showInstanceManager && <InstanceManagerModal onClose={() => setShowInstanceManager(false)} />}
       {showQrCode && <EvolutionQrCodeModal onClose={() => setShowQrCode(false)} />}
+
+      <div className="mt-6">
+        <EvolutionErrorPanel />
+      </div>
     </PageContainer>
   );
 }

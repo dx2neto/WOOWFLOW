@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useConversations, useMessages, useEntityList, useEntityCreate, useEntityUpdate, useEntityBulkCreate, useEntityDelete } from "@/hooks/useEntityQueries";
+import { useEvolutionInbox } from "@/hooks/useEvolutionInbox";
 import { MessageCircle, Headphones, Clock3, CheckCircle, Star, AlertCircle } from "lucide-react";
 import { channelTabs, defaultForm, sameMsg } from "@/components/inbox/inboxConstants";
 import InboxHeader from "@/components/inbox/InboxHeader";
@@ -43,20 +44,9 @@ export default function Inbox() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [messageMode, setMessageMode] = useState("reply");
-  const [channel, setChannel] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [query, setQuery] = useState("");
   const [rightTab, setRightTab] = useState("dados");
   const [actionLoading, setActionLoading] = useState(null);
-
-  // Evolution GO
-  const [instances, setInstances] = useState([]);
-  const [selectedInstance, setSelectedInstance] = useState(() => localStorage.getItem("evolution_instance") || "");
-  const [syncingHistory, setSyncingHistory] = useState(false);
-  const [sendingMedia, setSendingMedia] = useState(false);
-  const [waResults, setWaResults] = useState([]);
-  const [searchingWa, setSearchingWa] = useState(false);
-  const [loadingConvsFromWa, setLoadingConvsFromWa] = useState(false);
 
   // Modais
   const [showNewConversation, setShowNewConversation] = useState(false);
@@ -85,6 +75,19 @@ export default function Inbox() {
     configList.forEach((item) => { map[item.service] = item; });
     return map;
   }, [configList]);
+
+  // ── Hook: toda a lógica de Evolution API encapsulada ──────────────────────
+  const {
+    instances, selectedInstance, syncingHistory, sendingMedia,
+    waResults, searchingWa, loadingConvsFromWa, selectedInstanceState,
+    query, channel, setQuery, setChannel,
+    setSelectedInstance: handleInstanceChange,
+    loadInstances, syncEvolutionHistory, handleLoadWhatsAppConversations,
+    startConversationFromWa, handleSendFile,
+  } = useEvolutionInbox({
+    conversations, selected, selectedId, setSelectedId,
+    convCreate, convUpdate, convBulkCreate, msgCreate,
+  });
 
   // ── Realtime: invalida cache de conversas ─────────────────────────────────
   useEffect(() => {
@@ -148,130 +151,6 @@ export default function Inbox() {
     return () => document.removeEventListener("mousedown", handler);
   }, [showShortcuts]);
 
-  // ── Carregar instâncias Evolution Go ──────────────────────────────────────
-  const loadInstances = useCallback(async () => {
-    try {
-      const response = await evolutionApi({ action: "list_instances" });
-      const list = response?.data?.instances || [];
-      setInstances(list);
-      if (list.length > 0 && !selectedInstance) {
-        const connected = list.find((i) => ["connected", "open"].includes(i.state));
-        const name = (connected || list[0])?.name || "";
-        if (name) { setSelectedInstance(name); localStorage.setItem("evolution_instance", name); }
-      }
-    } catch { setInstances([]); }
-  }, [selectedInstance]);
-
-  useEffect(() => { loadInstances(); }, []);
-
-  const handleInstanceChange = (name) => {
-    setSelectedInstance(name);
-    localStorage.setItem("evolution_instance", name);
-  };
-
-  // ── Sincronizar histórico Evolution Go ────────────────────────────────────
-  const syncEvolutionHistory = useCallback(async (conv, showToast = true) => {
-    if (!conv?.phone) return;
-    try {
-      const response = await evolutionApi({
-        action: "sync_history", phone: conv.phone, conversation_id: conv.id,
-        instance: selectedInstance || conv.instance, limit: 100,
-      });
-      const data = response?.data || {};
-      if (showToast) {
-        if (!data.success) toast({ title: "Erro ao solicitar histórico", description: data.error, variant: "destructive" });
-        else if (data.requested) toast({ title: "Histórico solicitado", description: "Mensagens chegarão via webhook em instantes." });
-        else toast({ title: data.note || "Histórico já disponível localmente" });
-      }
-    } catch {
-      if (showToast) toast({ title: "Erro ao sincronizar histórico", variant: "destructive" });
-    }
-  }, [selectedInstance, toast]);
-
-  // ── Importar conversas do WhatsApp ─────────────────────────────────────────
-  const handleLoadWhatsAppConversations = async () => {
-    if (!selectedInstance || loadingConvsFromWa) return;
-    setLoadingConvsFromWa(true);
-    try {
-      let entries = [];
-      const chatsResp = await evolutionApi({ action: "get_chats", instance: selectedInstance });
-      if (chatsResp?.data?.success && Array.isArray(chatsResp.data.chats) && chatsResp.data.chats.length > 0) {
-        entries = chatsResp.data.chats.map((c) => ({ jid: c.jid, phone: c.phone, name: c.name, last_message: c.last_message, last_message_time: c.last_message_time }));
-      } else {
-        const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
-        if (response?.data?.error) {
-          toast({ title: "Falha ao carregar conversas", description: response.data.error, variant: "destructive" });
-          return;
-        }
-        const raw = response?.data?.contacts || {};
-        const rawEntries = Array.isArray(raw) ? raw : Object.entries(raw).map(([jid, info]) => ({ jid, ...info }));
-        entries = rawEntries
-          .map((e) => {
-            const jid = e.jid || e.JID || e.Jid || e.id || "";
-            return { jid, phone: jid.split("@")[0], name: e.FullName || e.PushName || e.BusinessName || e.name, last_message: null, last_message_time: null };
-          })
-          .filter((e) => e.jid.includes("@s.whatsapp.net"));
-      }
-      const existingPhones = new Set(conversations.map((c) => c.phone));
-      const toCreate = entries
-        .filter((e) => e.phone && !existingPhones.has(e.phone))
-        .map((e) => ({
-          customer_name: e.name || e.phone, phone: e.phone,
-          channel: "whatsapp", instance: selectedInstance, status: "novo", sector: "Atendimento",
-          last_message: e.last_message || null,
-          last_message_time: e.last_message_time || new Date().toISOString(),
-        }));
-      if (toCreate.length === 0) { toast({ title: "Nenhuma conversa nova encontrada" }); return; }
-      await convBulkCreate.mutateAsync(toCreate);
-      toast({ title: `${toCreate.length} conversa(s) importada(s) do WhatsApp` });
-    } catch {
-      toast({ title: "Erro ao carregar conversas", variant: "destructive" });
-    } finally { setLoadingConvsFromWa(false); }
-  };
-
-  // ── Busca de contatos no WhatsApp ──────────────────────────────────────────
-  useEffect(() => {
-    const term = query.trim().toLowerCase();
-    if (!term || !selectedInstance || ["instagram","facebook","telefone","email"].includes(channel)) {
-      setWaResults([]); return;
-    }
-    const timeout = setTimeout(async () => {
-      setSearchingWa(true);
-      try {
-        const response = await evolutionApi({ action: "get_contacts", instance: selectedInstance });
-        const raw = response?.data?.contacts || {};
-        const entries = Array.isArray(raw) ? raw : Object.entries(raw).map(([jid, info]) => ({ jid, ...info }));
-        const existingPhones = new Set(conversations.map((c) => c.phone));
-        const matches = [];
-        for (const e of entries) {
-          const jid = e.jid || e.JID || e.Jid || e.id || "";
-          if (!jid?.includes("@s.whatsapp.net")) continue;
-          const phone = jid.split("@")[0];
-          if (!phone || existingPhones.has(phone)) continue;
-          const name = e.FullName || e.PushName || e.BusinessName || e.name || phone;
-          if (!name.toLowerCase().includes(term) && !phone.includes(term)) continue;
-          matches.push({ phone, name });
-        }
-        setWaResults(matches.slice(0, 20));
-      } catch { setWaResults([]); }
-      finally   { setSearchingWa(false); }
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [query, channel, selectedInstance, conversations]);
-
-  const startConversationFromWa = async (contact) => {
-    try {
-      const now = new Date().toISOString();
-      const created = await convCreate.mutateAsync({
-        customer_name: contact.name, phone: contact.phone,
-        channel: "whatsapp", instance: selectedInstance, status: "novo", sector: "Atendimento",
-        last_message: "Conversa iniciada via busca Evolution Go", last_message_time: now,
-      });
-      setSelectedId(created.id);
-      setQuery(""); setWaResults([]);
-    } catch { toast({ title: "Erro ao iniciar conversa", variant: "destructive" }); }
-  };
-
   // ── Enviar mensagem ────────────────────────────────────────────────────────
   const sendMessageContent = async (content) => {
     if (!content?.trim() || !selected || sending) return;
@@ -311,39 +190,6 @@ export default function Inbox() {
     await sendMessageContent(content);
   };
 
-  // ── Enviar mídia ───────────────────────────────────────────────────────────
-  const handleSendFile = useCallback(async (file, mediaType) => {
-    if (!file || !selected) return;
-    if (selected.channel !== "whatsapp") { toast({ title: "Envio de mídia disponível apenas para WhatsApp", variant: "destructive" }); return; }
-    if (!selectedInstance) { toast({ title: "Nenhuma instância WhatsApp selecionada", variant: "destructive" }); return; }
-    setSendingMedia(true);
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload  = () => res(String(reader.result || "").split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const type = mediaType || (file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : "document");
-      const resp = await evolutionApi({ action: "send_media", phone: selected.phone, url: base64, type, filename: file.name, caption: file.name, instance: selectedInstance });
-      if (resp?.data?.error || !resp?.data?.success) { toast({ title: "Falha ao enviar arquivo", description: resp?.data?.error, variant: "destructive" }); return; }
-      const now = new Date().toISOString();
-      const pid = resp?.data?.wa_message_id || resp?.data?.provider_message_id || null;
-      await msgCreate.mutateAsync({
-        conversation_id: selected.id, content: `[${type}] ${file.name}`, direction: "out", type,
-        status: "sent", timestamp: now, sender_name: "Atendente", provider: "evolution_api",
-        phone: selected.phone, chat_jid: `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net`,
-        instance_id: selectedInstance || selected.instance || undefined,
-        file_name: file.name, mime_type: file.type, caption: file.name,
-        ...(type === "image" && base64 ? { media_base64: base64 } : {}),
-        ...(pid ? { wa_message_id: pid, provider_message_id: pid } : {}),
-      });
-      await convUpdate.mutateAsync({ id: selected.id, data: { last_message: `[${type}] ${file.name}`, last_message_time: now, status: "em_atendimento", unread: false } });
-      toast({ title: "Arquivo enviado!" });
-    } catch { toast({ title: "Erro ao enviar arquivo", variant: "destructive" }); }
-    finally { setSendingMedia(false); }
-  }, [selected, selectedInstance, toast, msgCreate, convUpdate]);
-
   const handleAttachClick = () => fileInputRef.current?.click();
   const handleAudioClick  = () => audioInputRef.current?.click();
   const handleFileChange  = (e) => { const f = e.target.files?.[0]; if (f) handleSendFile(f); e.target.value = ""; };
@@ -353,19 +199,6 @@ export default function Inbox() {
     if (!selected?.phone) return;
     window.open(`https://wa.me/${selected.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer");
   }, [selected]);
-
-  const handleSyncHistoryOnly = useCallback(async () => {
-    if (!selected?.phone || syncingHistory) return;
-    setSyncingHistory(true);
-    try {
-      const resp = await evolutionApi({ action: "sync_history", phone: selected.phone, conversation_id: selected.id, instance: selectedInstance || selected.instance, limit: 100 });
-      const d = resp?.data || {};
-      if (d.requested) toast({ title: "Histórico solicitado", description: "Mensagens chegarão em instantes via webhook." });
-      else if (d.error) toast({ title: "Erro ao solicitar histórico", description: d.error, variant: "destructive" });
-      else toast({ title: d.note || "Histórico já disponível localmente" });
-    } catch { toast({ title: "Erro ao sincronizar histórico", variant: "destructive" }); }
-    finally { setSyncingHistory(false); }
-  }, [selected, selectedInstance, syncingHistory, toast]);
 
   // ── FINALIZAR conversa ─────────────────────────────────────────────────────
   const handleFinalize = async () => {
@@ -409,7 +242,7 @@ export default function Inbox() {
       setShowTransferModal(false);
       setTransferSector(""); setTransferAttendant("");
       toast({ title: `Conversa transferida para ${transferSector}` });
-    } catch { toast({ title: "Erro ao transferir", variant: "destructive" }); }
+    } catch { toast({ title: "Erro ao transferer", variant: "destructive" }); }
     finally { setTransferring(false); }
   };
 
@@ -527,12 +360,6 @@ export default function Inbox() {
     const defaults  = ["Atendimento","Suporte Técnico","Financeiro","Comercial","Cobrança","Retenção","NOC"];
     return [...new Set([...fromConvs, ...defaults])];
   }, [conversations]);
-
-  const selectedInstanceState = useMemo(() => {
-    const inst = instances.find((i) => i.name === selectedInstance) || instances[0];
-    if (!inst) return "disconnected";
-    return ["connected","open"].includes(inst.state) ? "connected" : inst.state === "connecting" ? "pending" : instances.length > 0 ? "error" : "disconnected";
-  }, [instances, selectedInstance]);
 
   return (
     <div className="h-full overflow-hidden bg-background flex flex-col">
