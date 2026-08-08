@@ -48,6 +48,36 @@ function fmtBRL(v?: number | string) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Atualiza status da assinatura e propaga para acordos/contratos relacionados
+async function updateSignatureAndRelated(
+  b44: ReturnType<typeof createClientFromRequest>,
+  docId: string,
+  newStatus: string,
+  signersData?: string,
+) {
+  await b44.asServiceRole.entities.SignatureRequest.update(docId, {
+    status: newStatus,
+    signed_date: newStatus === 'assinado' ? new Date().toISOString().split('T')[0] : undefined,
+    ...(signersData !== undefined ? { signers: signersData } : {}),
+  });
+
+  // Quando assinado, atualiza acordos vinculados ao mesmo cliente IXC
+  if (newStatus === 'assinado') {
+    const doc = await b44.asServiceRole.entities.SignatureRequest.get(docId).catch(() => null);
+    if (doc?.ixc_customer_id) {
+      const agreements = await b44.asServiceRole.entities.Agreement
+        .filter({ ixc_customer_id: doc.ixc_customer_id }).catch(() => []);
+      for (const ag of (agreements || [])) {
+        await b44.asServiceRole.entities.Agreement.update(ag.id, {
+          status: 'active',
+          zapsign_status: 'signed',
+          zapsign_signed_at: new Date().toISOString(),
+        });
+      }
+    }
+  }
+}
+
 // Preenche variáveis do template com dados do contrato IXC
 function fillVariables(
   variables: { key: string; source: string; default?: string }[],
@@ -749,11 +779,10 @@ Deno.serve(async (req) => {
           : (event === 'doc_refused' || zapStatus === 'refused') ? 'cancelado'
           : 'pendente';
 
-        await b44.asServiceRole.entities.SignatureRequest.update(doc.id, {
-          status: newStatus,
-          signed_date: newStatus === 'assinado' ? new Date().toISOString().split('T')[0] : undefined,
-          signers: body.signers ? JSON.stringify(body.signers) : doc.signers,
-        });
+        await updateSignatureAndRelated(
+          b44, doc.id, newStatus,
+          body.signers ? JSON.stringify(body.signers) : doc.signers,
+        );
 
         await b44.asServiceRole.entities.IntegrationLog.create({
           integration: 'zapsignApi', action: 'webhook', status: 'sucesso',
@@ -778,11 +807,10 @@ Deno.serve(async (req) => {
         const zd = zr.data as Record<string, unknown>;
         const newStatus = zd.status === 'finished' ? 'assinado' : zd.status === 'expired' ? 'expirado' : null;
         if (newStatus) {
-          await b44.asServiceRole.entities.SignatureRequest.update(doc.id, {
-            status: newStatus,
-            signed_date: newStatus === 'assinado' ? new Date().toISOString().split('T')[0] : undefined,
-            signers: JSON.stringify(zd.signers || []),
-          });
+          await updateSignatureAndRelated(
+            b44, doc.id, newStatus,
+            JSON.stringify(zd.signers || []),
+          );
           updated++;
         }
       }
