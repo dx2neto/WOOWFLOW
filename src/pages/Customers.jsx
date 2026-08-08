@@ -15,23 +15,28 @@ export default function Customers() {
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [cityFilter, setCityFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
 
   useEffect(() => { loadContacts(); }, []);
   useEffect(() => {
-    const timeout = setTimeout(() => loadCustomers(search), 400);
+    const timeout = setTimeout(() => loadCustomers(search, 1), 400);
     return () => clearTimeout(timeout);
   }, [search]);
 
-  const loadCustomers = async (searchTerm) => {
+  const loadCustomers = async (searchTerm, pageNum = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await ixcApi({ action: "clientes", search: searchTerm || undefined });
+      const response = await ixcApi({ action: "clientes", search: searchTerm || undefined, page: pageNum, limit: PAGE_SIZE });
       if (response?.data?.error) {
         setError(response.data.error);
         setCustomers([]);
       } else {
         setCustomers(response?.data?.result?.registros || []);
+        setTotal(response?.data?.result?.pagination?.total || response?.data?.result?.total || 0);
+        setPage(pageNum);
       }
     } catch {
       setError("Não foi possível carregar os clientes do IXC Provedor.");
@@ -88,7 +93,7 @@ export default function Customers() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold font-heading">Clientes</h2>
-          <p className="text-sm text-muted-foreground">{activeFilters ? `${filtered.length} de ${customers.length} clientes` : `${customers.length} clientes cadastrados`}</p>
+          <p className="text-sm text-muted-foreground">{activeFilters ? `${filtered.length} de ${customers.length} clientes` : `${total} clientes cadastrados`}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Novo Cliente
@@ -201,6 +206,30 @@ export default function Customers() {
             </tbody>
           </table>
         </div>
+
+        {total > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <span className="text-xs text-muted-foreground">
+              Página {page} de {Math.ceil(total / PAGE_SIZE)} — {total} clientes
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => loadCustomers(search, page - 1)}
+                disabled={page <= 1 || loading}
+                className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => loadCustomers(search, page + 1)}
+                disabled={page >= Math.ceil(total / PAGE_SIZE) || loading}
+                className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
     </PageContainer>
   );

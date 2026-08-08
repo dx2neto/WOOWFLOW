@@ -58,7 +58,7 @@ export default function SaleDetailPanel({ sale, onClose, onRefresh }) {
             <Info icon={User} label="Vendedor" value={sale.vendor_name || "—"} />
             <Info icon={MapPin} label="Cidade" value={sale.city || "—"} />
             <Info icon={DollarSign} label="Mensalidade" value={sale.monthly_fee ? `R$ ${sale.monthly_fee.toFixed(2)}` : "—"} />
-            <Info icon={Hash} label="CPF/CNPJ" value={sale.cpf_cnpj ? maskCpfCnpj(sale.cpf_cnpj) : "—"} />
+            <Info icon={Hash} label="CPF/CNPJ" value={sale.cpf_cnpj_masked || (sale.cpf_cnpj ? maskCpfCnpj(sale.cpf_cnpj) : "—")} />
             <Info icon={FileText} label="Plano" value={sale.plan_name || "—"} />
           </div>
 

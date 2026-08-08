@@ -3,6 +3,8 @@ import { secrets } from 'base44:runtime';
 import { logError } from '../../shared/errorLogger.ts';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
 import { normalizePhoneBR, maskDocument, generateCorrelationId, buildTimelineEntry } from '../../shared/salesUtils.ts';
+import { encrypt, decrypt, maskCpfCnpj } from '../../shared/crypto.ts';
+import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
 // ── Credit Check Provider Abstraction ─────────────────────────────────────
 // Provider atual: ValidaCadastro. A abstracao permite futura substituicao
@@ -39,11 +41,10 @@ async function runCreditCheck(cpfCnpj: string, saleId: string, correlationId: st
   };
 
   try {
-    const res = await fetch(apiUrl, {
+    const res = await fetchWithRetry(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30_000),
     });
     const data = await res.json().catch(() => ({}));
 
@@ -145,9 +146,13 @@ export default async function(req: Request): Promise<Response> {
       const fee = Number(monthly_fee) || 0;
       const commissionAmount = isReseller && finalCommissionRate > 0 ? Math.round(fee * finalCommissionRate) / 100 : 0;
 
+      const cpfCnpjClean = String(cpf_cnpj).replace(/\D/g, '');
+      const cpfCnpjEncrypted = await encrypt(cpfCnpjClean);
+      const cpfCnpjMasked = maskCpfCnpj(cpfCnpjClean);
+
       const sale = await base44.entities.Sale.create({
         correlation_id: correlationId,
-        customer_name, cpf_cnpj: String(cpf_cnpj).replace(/\D/g, ''), phone, email,
+        customer_name, cpf_cnpj: cpfCnpjEncrypted, cpf_cnpj_masked: cpfCnpjMasked, phone, email,
         plan_name, monthly_fee: fee, installation_address, city, neighborhood,
         reseller_id: isReseller ? reseller_id : undefined,
         reseller_name: isReseller ? finalResellerName : undefined,
@@ -174,7 +179,8 @@ export default async function(req: Request): Promise<Response> {
       if (stage) filter.stage = stage;
       if (reseller_id) filter.reseller_id = reseller_id;
       const sales = await base44.asServiceRole.entities.Sale.filter(filter, '-created_date', Number(limit));
-      return Response.json({ success: true, data: sales });
+      const safeSales = sales.map((s: any) => ({ ...s, cpf_cnpj: s.cpf_cnpj_masked || s.cpf_cnpj }));
+      return Response.json({ success: true, data: safeSales });
     }
 
     // ── GET SALE: detalhes completos de uma venda ──────────────────────────
@@ -183,7 +189,8 @@ export default async function(req: Request): Promise<Response> {
       if (!sale_id) return Response.json({ error: 'sale_id e obrigatorio' }, { status: 400 });
       const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
       if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
-      return Response.json({ success: true, data: sale });
+      const saleData = { ...sale, cpf_cnpj: (sale as any).cpf_cnpj_masked || (sale as any).cpf_cnpj };
+      return Response.json({ success: true, data: saleData });
     }
 
     // ── VALIDATE DOCUMENT: valida CPF/CNPJ ─────────────────────────────────
@@ -193,7 +200,7 @@ export default async function(req: Request): Promise<Response> {
       const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
       if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
 
-      const doc = String(sale.cpf_cnpj).replace(/\D/g, '');
+      const doc = (await decrypt(String(sale.cpf_cnpj))).replace(/\D/g, '');
       const isValid = doc.length === 11 || doc.length === 14;
       if (!isValid) return Response.json({ success: false, error: 'CPF/CNPJ invalido' }, { status: 400 });
 
@@ -214,7 +221,7 @@ export default async function(req: Request): Promise<Response> {
       // Chama o ixcApi existente para buscar cliente por documento
       const ixcResp = await base44.functions.invoke('ixcApi', {
         action: 'search_customer_by_document',
-        cpfCnpj: sale.cpf_cnpj,
+        cpfCnpj: await decrypt(String(sale.cpf_cnpj)),
       });
       const ixcData = ixcResp?.data || ixcResp;
       const customers = ixcData?.data || ixcData?.result?.registros || [];
@@ -265,16 +272,17 @@ export default async function(req: Request): Promise<Response> {
       const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
       if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
 
-      const creditResult = await runCreditCheck(sale.cpf_cnpj, sale_id, sale.correlation_id, user?.id || '', user?.full_name || 'Sistema');
+      const decryptedCpf = await decrypt(String(sale.cpf_cnpj));
+      const creditResult = await runCreditCheck(decryptedCpf, sale_id, sale.correlation_id, user?.id || '', user?.full_name || 'Sistema');
 
       // Cria CreditCheckLog (LGPD)
       const creditLog = await base44.asServiceRole.entities.CreditCheckLog.create({
         sale_id,
         correlation_id: sale.correlation_id,
-        cpf_cnpj_masked: maskDocument(sale.cpf_cnpj),
+        cpf_cnpj_masked: (sale as any).cpf_cnpj_masked || maskDocument(decryptedCpf),
         customer_name: sale.customer_name,
         provider: 'validocadastro',
-        tipo_pessoa: String(sale.cpf_cnpj).replace(/\D/g, '').length > 11 ? 'J' : 'F',
+        tipo_pessoa: decryptedCpf.replace(/\D/g, '').length > 11 ? 'J' : 'F',
         result_status: creditResult.status,
         decision: creditResult.status === 'error' ? 'manual_review' : creditResult.status,
         decision_reason: creditResult.raw_summary.slice(0, 200),

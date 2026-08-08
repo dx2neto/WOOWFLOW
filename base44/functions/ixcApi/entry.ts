@@ -335,8 +335,8 @@ Deno.serve(async (req) => {
         };
       }
 
-      const { ok, data, registros: rawRegistros } = await fetchAllPages(clientesUrl, baseBody);
-      if (!ok) {
+      const { res, data } = await ixcPost('cliente', { ...baseBody, page: String(page), rp: String(limit) });
+      if (!res.ok) {
         await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'falha', details: JSON.stringify(data).slice(0, 500) });
         return Response.json({ error: 'Falha ao buscar clientes do IXC Provedor', details: data }, { status: 500 });
       }
@@ -344,19 +344,21 @@ Deno.serve(async (req) => {
       // NOVO: carrega o mapa de cidades uma vez e resolve o nome por cliente.
       const { mapa: cidadesById } = await carregarMapaCidades();
 
+      const rawRegistros = data.registros || [];
+      const totalCount = parseInt(data.total || '0', 10) || rawRegistros.length;
+
       const clientes = rawRegistros.map((c) => ({
         id: c.id,
         name: c.razao || c.fantasia || `Cliente #${c.id}`,
         cpf_cnpj: c.cnpj_cpf,
         phone: c.telefone_celular || c.fone || '',
         email: c.email,
-        // antes: c.cidade_nome (vinha vazio). Agora resolvemos pelo ID da cidade.
         city: cidadesById[String(c.cidade)] || c.cidade_nome || '',
         contract_status: c.ativo === 'S' ? 'ativo' : 'cancelado',
       }));
 
-      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'sucesso', details: `${clientes.length} registros carregados` });
-      return Response.json({ success: true, result: { total: clientes.length, registros: clientes } });
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'clientes', status: 'sucesso', details: `${clientes.length} registros (página ${page}/${Math.ceil(totalCount / limit) || 1})` });
+      return Response.json({ success: true, result: { total: totalCount, registros: clientes, pagination: { page: Number(page), limit: Number(limit), total: totalCount } } });
     }
 
     if (action === 'contatos') {
