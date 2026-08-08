@@ -196,8 +196,8 @@ export default function Inbox() {
         finalizing={finalizing}
       />
       <ClearConversationsModal
-        show={showClearModal} count={conversations.length}
-        onConfirm={handleClearConversations} onConfirmAll={handleClearAllConversations}
+        show={showClearModal} count={filtered.length}
+        onConfirm={() => handleClearConversations(filtered)} onConfirmAll={handleClearAllConversations}
         onClose={() => setShowClearModal(false)} clearing={clearing}
       />
       <TransferModal

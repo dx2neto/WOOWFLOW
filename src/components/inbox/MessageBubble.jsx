@@ -1,6 +1,7 @@
 import React from "react";
 import {
   CheckCheck, CheckCircle, ImageIcon, Mic, Paperclip, StickyNote, Video,
+  Download, X,
 } from "lucide-react";
 
 function formatTime(value) {
@@ -14,12 +15,14 @@ export default function MessageBubble({ msg }) {
   const isOut = msg.direction === "out";
   const isInternal = msg.direction === "internal";
   const msgType = msg.type || "text";
-  const isImage = msgType === "image" || (msg.media_base64 && !["audio", "video", "document"].includes(msgType));
+  const isImage = msgType === "image" || (msg.media_url && msgType === "image");
   const isAudio = msgType === "audio";
   const isVideo = msgType === "video";
   const isDocument = msgType === "document";
   const hasMedia = isImage || isAudio || isVideo || isDocument;
   const imageSrc = msg.media_url || (msg.media_base64 ? `data:${msg.mime_type || "image/jpeg"};base64,${msg.media_base64}` : "");
+
+  const [lightbox, setLightbox] = React.useState(false);
 
   if (isInternal) {
     return (
@@ -49,52 +52,72 @@ export default function MessageBubble({ msg }) {
   };
 
   return (
-    <div className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-      <div className={bubbleClass}>
-        {isImage && imageSrc ? (
-          <img src={imageSrc} alt="imagem" className="mb-1 max-h-64 max-w-full rounded-xl object-cover cursor-pointer" />
-        ) : isImage ? (
-          <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
-            <ImageIcon className="h-5 w-5 shrink-0" /><span className="text-sm">Imagem</span>
+    <>
+      <div className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+        <div className={bubbleClass}>
+          {isImage && imageSrc ? (
+            <img src={imageSrc} alt="imagem" className="mb-1 max-h-64 max-w-full rounded-xl object-cover cursor-pointer" onClick={() => setLightbox(true)} />
+          ) : isImage ? (
+            <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+              <ImageIcon className="h-5 w-5 shrink-0" /><span className="text-sm">Imagem</span>
+            </div>
+          ) : null}
+
+          {isAudio && (msg.media_url ? (
+            <div className="mb-1 flex items-center gap-2">
+              <Mic className="h-5 w-5 shrink-0" />
+              <audio controls src={msg.media_url} className="max-w-[240px]" />
+            </div>
+          ) : (
+            <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+              <Mic className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Áudio"}</span>
+            </div>
+          ))}
+
+          {isVideo && (msg.media_url ? (
+            <video controls src={msg.media_url} className="mb-1 max-h-60 max-w-full rounded-xl" />
+          ) : (
+            <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+              <Video className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Vídeo"}</span>
+            </div>
+          ))}
+
+          {isDocument && (msg.media_url ? (
+            <a href={msg.media_url} target="_blank" rel="noreferrer" download={msg.file_name || undefined}
+              className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 hover:bg-black/20">
+              <Paperclip className="h-5 w-5 shrink-0" />
+              <span className="text-sm flex-1 truncate">{msg.file_name || "Documento"}</span>
+              <Download className="h-4 w-4 shrink-0" />
+            </a>
+          ) : (
+            <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
+              <Paperclip className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Documento"}</span>
+            </div>
+          ))}
+
+          {msg.content && !PLACEHOLDER_CONTENTS.includes(msg.content) && (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+          )}
+          {!hasMedia && !msg.content && (
+            <p className="italic text-sm opacity-60">[mensagem sem conteúdo]</p>
+          )}
+
+          <div className="mt-1 flex items-center justify-end gap-1">
+            {msg.sender_name && !isOut && <span className={metaClass}>{msg.sender_name} ·</span>}
+            <span className={metaClass}>{formatTime(msg.timestamp)}</span>
+            <DeliveryIcon />
           </div>
-        ) : null}
-
-        {isAudio && (msg.media_url ? (
-          <audio controls src={msg.media_url} className="mb-1 max-w-full" />
-        ) : (
-          <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
-            <Mic className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Áudio"}</span>
-          </div>
-        ))}
-
-        {isVideo && (msg.media_url ? (
-          <video controls src={msg.media_url} className="mb-1 max-h-60 max-w-full rounded-xl" />
-        ) : (
-          <div className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2">
-            <Video className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Vídeo"}</span>
-          </div>
-        ))}
-
-        {isDocument && (
-          <a href={msg.media_url || undefined} target={msg.media_url ? "_blank" : undefined} rel="noreferrer"
-            className="mb-1 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 hover:bg-black/20">
-            <Paperclip className="h-5 w-5 shrink-0" /><span className="text-sm">{msg.file_name || "Documento"}</span>
-          </a>
-        )}
-
-        {msg.content && !PLACEHOLDER_CONTENTS.includes(msg.content) && (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
-        )}
-        {!hasMedia && !msg.content && (
-          <p className="italic text-sm opacity-60">[mensagem sem conteúdo]</p>
-        )}
-
-        <div className="mt-1 flex items-center justify-end gap-1">
-          {msg.sender_name && !isOut && <span className={metaClass}>{msg.sender_name} ·</span>}
-          <span className={metaClass}>{formatTime(msg.timestamp)}</span>
-          <DeliveryIcon />
         </div>
       </div>
-    </div>
+
+      {lightbox && imageSrc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(false)}>
+          <button className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white hover:bg-white/30">
+            <X className="h-6 w-6" />
+          </button>
+          <img src={imageSrc} alt="imagem ampliada" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain" />
+        </div>
+      )}
+    </>
   );
 }

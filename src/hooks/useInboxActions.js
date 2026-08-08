@@ -90,12 +90,13 @@ export function useInboxActions({
     finally { setTransferring(false); }
   };
 
-  // ── Limpar conversas ──────────────────────────────────────────────────────
-  const handleClearConversations = async () => {
+  // ── Limpar conversas (apenas as filtradas/visíveis) ───────────────────────
+  const handleClearConversations = async (visibleConversations) => {
     if (clearing) return;
+    const list = Array.isArray(visibleConversations) ? visibleConversations : conversations;
     setClearing(true);
     try {
-      const convIds = conversations.map((c) => c.id);
+      const convIds = list.map((c) => c.id);
       if (convIds.length > 0) {
         await base44.entities.Message.deleteMany({ conversation_id: { $in: convIds } });
         await convDeleteMany.mutateAsync({ id: { $in: convIds } });

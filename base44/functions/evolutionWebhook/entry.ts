@@ -160,6 +160,9 @@ Deno.serve(async (req) => {
             instance_id: instanceId, contact_id: chat, phone, chat_jid: chat, is_group: false,
             sender_name: fromMe ? null : pushName, payload: body,
             assigned_user_id: (conversation.assigned_user_id as string) || null,
+            ...(mediaInfo.url ? { media_url: mediaInfo.url } : {}),
+            ...(mediaInfo.mimeType ? { mime_type: mediaInfo.mimeType } : {}),
+            ...(mediaInfo.fileName ? { file_name: mediaInfo.fileName } : {}),
           });
 
           // Auto-tag via IA (apenas mensagens recebidas com texto, tags disponíveis)
