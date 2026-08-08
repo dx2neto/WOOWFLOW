@@ -1,24 +1,42 @@
 {
-  "name": "Contrato Autom\u00e1tico p\u00f3s-Aprova\u00e7\u00e3o de Cr\u00e9dito",
-  "description": "Ap\u00f3s o ValidaCadastro aprovar o cr\u00e9dito do lead (venda direta), gera o contrato no IXCSoft e envia o link de assinatura ZapSign via WhatsApp",
+  "name": "Fluxo Autom\u00e1tico de Vendas \u2014 Revendedores",
+  "description": "Quando um novo lead de revenda entra, consulta cr\u00e9dito no ValidaCadastro, classifica o lead e, se aprovado, gera contrato no IXCSoft e envia assinatura ZapSign via WhatsApp",
   "trigger": {
     "config": {
       "trigger_type": "entity",
       "entity_name": "Sale",
       "events": [
-        "update"
+        "create"
       ]
     },
-    "condition": "${ (.trigger.changed_fields // []) | index(\"credit_decision\") != null and (.trigger.data.credit_decision == \"approved\" or .trigger.data.credit_decision == \"approved_with_warning\") and .trigger.data.sale_type != \"revenda\" }"
+    "condition": "${ .trigger.data.sale_type == \"revenda\" }"
   },
   "definition": {
     "document": {
       "dsl": "1.0.0",
-      "name": "auto_contract_after_credit_approval",
+      "name": "reseller_sales_flow",
       "version": "1.0",
       "namespace": "base44"
     },
     "do": [
+      {
+        "run_credit_check": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "run_credit_check",
+              "sale_id": "${ .trigger.entity_id }",
+              "lgpd_consent": true
+            }
+          },
+          "then": "make_decision",
+          "x-base44": {
+            "title": "Consultar cr\u00e9dito no ValidaCadastro",
+            "description": "Consulta cadastral autom\u00e1tica para venda de revenda"
+          }
+        }
+      },
       {
         "make_decision": {
           "call": "invoke_backend_function",
@@ -31,8 +49,8 @@
           },
           "then": "check_decision",
           "x-base44": {
-            "title": "Avaliar decis\u00e3o final",
-            "description": "Aplica motor de decis\u00e3o combinando cr\u00e9dito + risco IXC"
+            "title": "Classificar lead",
+            "description": "Motor de decis\u00e3o combina cr\u00e9dito + risco IXC"
           }
         }
       },
@@ -49,8 +67,8 @@
             }
           ],
           "x-base44": {
-            "title": "Decis\u00e3o aprovada?",
-            "description": "S\u00f3 prossegue se o cr\u00e9dito foi aprovado"
+            "title": "Cr\u00e9dito aprovado?",
+            "description": "S\u00f3 prossegue se aprovado ou aprovado com ressalvas"
           }
         }
       },
@@ -67,7 +85,7 @@
           "then": "send_signature",
           "x-base44": {
             "title": "Gerar contrato no IXCSoft",
-            "description": "Cria cliente e contrato no IXC"
+            "description": "Cria cliente e contrato no IXC para revenda"
           }
         }
       },
@@ -84,7 +102,7 @@
           "then": "end",
           "x-base44": {
             "title": "Enviar assinatura ZapSign",
-            "description": "Cria documento e envia link via WhatsApp"
+            "description": "Cria documento e envia link via WhatsApp ao cliente"
           }
         }
       }

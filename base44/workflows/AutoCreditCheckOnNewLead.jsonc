@@ -1,7 +1,7 @@
 {
-  "description": "Quando um novo lead entra na esteira de vendas, consulta automaticamente o cr\u00e9dito do cliente no ValidaCadastro (validacadastro.com.br) usando as credenciais cadastradas",
+  "description": "Quando um novo lead entra na esteira de vendas (venda direta), consulta automaticamente o cr\u00e9dito do cliente no ValidaCadastro (validacadastro.com.br) usando as credenciais cadastradas",
   "trigger": {
-    "condition": null,
+    "condition": "${ .trigger.data.sale_type != \"revenda\" }",
     "config": {
       "trigger_type": "entity",
       "events": [
