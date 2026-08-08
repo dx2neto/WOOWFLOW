@@ -59,9 +59,39 @@ function detectMsgType(key: AnyRecord, msgBody: AnyRecord): string {
   return 'text';
 }
 
+// ── Rate limiting em memória (janela deslizante de 60s) ─────────────────────
+// Limita a 120 requests por minuto por IP de origem. Evita sobrecarga por
+// replay de webhooks ou flood de uma instância mal configurada.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 120;
+const ipHits = new Map<string, number[]>();
+
+function rateLimitOk(ip: string): boolean {
+  const now = Date.now();
+  const hits = (ipHits.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (hits.length >= RATE_LIMIT_MAX) return false;
+  hits.push(now);
+  ipHits.set(ip, hits);
+  // Limpa entradas antigas periodicamente (evita memory leak)
+  if (ipHits.size > 1000) {
+    for (const [k, v] of ipHits) {
+      const fresh = v.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+      if (fresh.length === 0) ipHits.delete(k);
+      else ipHits.set(k, fresh);
+    }
+  }
+  return true;
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   try {
+    // ── Rate limiting por IP ────────────────────────────────────────────────
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+    if (!rateLimitOk(clientIp)) {
+      return Response.json({ error: 'Rate limit exceeded — too many webhook calls' }, { status: 429 });
+    }
+
     // ── Autenticação do webhook (fail-closed) ────────────────────────────────
     const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
     if (!apiKey) return Response.json({ error: 'Webhook secret not configured' }, { status: 500 });
