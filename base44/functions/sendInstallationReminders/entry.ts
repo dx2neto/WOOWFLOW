@@ -27,7 +27,10 @@ Deno.serve(async (req) => {
       headers: internalHeaders,
       body: JSON.stringify({ action: 'os', limit: 200 }),
     });
-    const osData = await osRes.json();
+    const osData = await osRes.json().catch(() => ({}));
+    if (!osRes.ok) {
+      await logError(base44, 'sendInstallationReminders', new Error('ixcApi os failed: ' + (osData?.error || osRes.status)), { action: 'fetch_os', severity: 'media' });
+    }
     const ordens = osData?.data || osData?.result?.registros || [];
 
     const today = new Date();
