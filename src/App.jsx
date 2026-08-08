@@ -55,6 +55,7 @@ const Agreements = lazy(() => import('@/pages/Agreements'));
 const AgreementDetail = lazy(() => import('@/pages/AgreementDetail'));
 const AgreementSettings = lazy(() => import('@/pages/AgreementSettings'));
 const SystemAudit = lazy(() => import('@/pages/SystemAudit'));
+const AuditCenter = lazy(() => import('@/pages/AuditCenter'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -143,6 +144,7 @@ const AuthenticatedApp = () => {
           {/* Painel de Auditoria do Sistema */}
           <Route element={<RequirePermission adminOnly />}>
             <Route path="/system-audit" element={<SystemAudit />} />
+            <Route path="/audit-center" element={<AuditCenter />} />
           </Route>
         </Route>
       </Route>

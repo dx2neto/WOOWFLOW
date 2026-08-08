@@ -81,6 +81,7 @@ const menuGroups = [
       { label: "Feriados e Horários",path: "/holidays",            icon: CalendarDays },
       { label: "Logs de Auditoria",  path: "/audit-logs",          icon: ScrollText },
       { label: "Logs do Sistema",    path: "/system-logs",         icon: AlertTriangle },
+      { label: "Central de Alertas",   path: "/audit-center",      icon: AlertTriangle },
       { label: "Auditoria do Sistema", path: "/system-audit",      icon: ShieldCheck },
       { label: "Logs Sync WhatsApp", path: "/evolution-sync-logs", icon: History },
       { label: "Configurações",      path: "/settings",            icon: Settings },
