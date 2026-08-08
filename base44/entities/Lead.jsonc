@@ -91,13 +91,22 @@
     "read": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
+          "data.assigned_user_id": "{{user.id}}"
+        },
+        {
+          "data.assigned_user_id": {
+            "$in": [
+              null,
+              ""
+            ]
           }
         },
         {
+          "created_by_id": "{{user.id}}"
+        },
+        {
           "user_condition": {
-            "role": "user"
+            "role": "admin"
           }
         }
       ]
