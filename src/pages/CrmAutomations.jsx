@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DragDropContext } from "@hello-pangea/dnd";
-import { base44 } from "@/api/base44Client";
+import { useEntityList, useEntityCreate, useEntityUpdate } from "@/hooks/useEntityQueries";
 import { PageContainer } from "@/components/ui/app-card";
 import AutomationColumn from "@/components/automations/AutomationColumn";
 
@@ -10,33 +10,39 @@ const TRIGGERS = [
 ];
 
 export default function CrmAutomations() {
+  const { data: allFlows = [], isLoading } = useEntityList("AutomationFlow", "-created_date", 50);
+  const flowCreate = useEntityCreate("AutomationFlow");
+  const flowUpdate = useEntityUpdate("AutomationFlow");
+
+  // Index flows by trigger
   const [flows, setFlows] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => { loadFlows(); }, []);
-
-  const loadFlows = async () => {
-    const result = {};
-    for (const t of TRIGGERS) {
-      const existing = await base44.entities.AutomationFlow.filter({ trigger: t.trigger });
-      if (existing[0]) {
-        result[t.trigger] = existing[0];
-      } else {
-        result[t.trigger] = await base44.entities.AutomationFlow.create({
-          name: t.title,
-          trigger: t.trigger,
-          active: true,
-          steps: [{ type: "avancar_crm", label: "Avançar CRM" }],
-        });
-      }
+  useEffect(() => {
+    if (isLoading || creating) return;
+    const map = {};
+    allFlows.forEach((f) => { map[f.trigger] = f; });
+    const missing = TRIGGERS.filter((t) => !map[t.trigger]);
+    if (missing.length > 0) {
+      setCreating(true);
+      Promise.all(
+        missing.map((t) =>
+          flowCreate.mutateAsync({
+            name: t.title,
+            trigger: t.trigger,
+            active: true,
+            steps: [{ type: "avancar_crm", label: "Avançar CRM" }],
+          })
+        )
+      ).finally(() => setCreating(false));
+    } else {
+      setFlows(map);
     }
-    setFlows(result);
-    setLoading(false);
-  };
+  }, [allFlows, isLoading]);
 
   const persist = async (trigger, steps) => {
     setFlows((prev) => ({ ...prev, [trigger]: { ...prev[trigger], steps } }));
-    await base44.entities.AutomationFlow.update(flows[trigger].id, { steps });
+    await flowUpdate.mutateAsync({ id: flows[trigger].id, data: { steps } });
   };
 
   const handleAddStep = (trigger, type) => {
@@ -64,7 +70,7 @@ export default function CrmAutomations() {
     persist(trigger, steps);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <PageContainer>
         <p className="text-center text-muted-foreground py-8">Carregando...</p>

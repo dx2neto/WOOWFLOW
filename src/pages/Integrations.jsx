@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useMemo, useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate } from "@/hooks/useEntityQueries";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import {
   Bot,
@@ -205,26 +205,20 @@ function formatSyncDate(value) {
 const categoryOrder = ["Todos", "Operação", "Atendimento", "Redes sociais", "Aquisição", "Vendas", "Receita", "Contratos", "IA"];
 
 export default function Integrations() {
-  const [configs, setConfigs] = useState({});
   const [busyService, setBusyService] = useState(null);
   const [showInstanceManager, setShowInstanceManager] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Todos");
 
-  useEffect(() => {
-    loadConfigs();
-  }, []);
+  const { data: configList = [] } = useEntityList("IntegrationConfig", "-updated_at", 200);
+  const configCreate = useEntityCreate("IntegrationConfig");
+  const configUpdate = useEntityUpdate("IntegrationConfig");
 
-  const loadConfigs = async () => {
-    try {
-      const data = await base44.entities.IntegrationConfig.list();
-      const map = {};
-      data.forEach((config) => { map[config.service] = config; });
-      setConfigs(map);
-    } catch {
-      setConfigs({});
-    }
-  };
+  const configs = useMemo(() => {
+    const map = {};
+    configList.forEach((config) => { map[config.service] = config; });
+    return map;
+  }, [configList]);
 
   const getConfig = (service) => {
     const keys = configAliases[service] || [service];
@@ -270,9 +264,8 @@ export default function Integrations() {
       created_at: existing?.created_at || now,
       ...patch,
     };
-    if (existing) await base44.entities.IntegrationConfig.update(existing.id, payload);
-    else await base44.entities.IntegrationConfig.create(payload);
-    await loadConfigs();
+    if (existing) await configUpdate.mutateAsync({ id: existing.id, data: payload });
+    else await configCreate.mutateAsync(payload);
   };
 
   const callIntegration = async (integration, action) => {
