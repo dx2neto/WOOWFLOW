@@ -46,6 +46,7 @@ export default function ContractTemplatePicker({ conversation }) {
         customerName: conversation.customer_name,
         customerPhone: conversation.phone,
         sendWhatsApp: true,
+        conversationId: conversation.id,
       });
       if (res?.data?.success) {
         toast({ title: res.data.data?.whatsapp_sent ? "Documento enviado por WhatsApp!" : "Documento criado com sucesso." });

@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
 import { logError } from '../../shared/errorLogger.ts';
+import { normalizePhoneBR } from '../../shared/salesUtils.ts';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const ZAP_BASE = 'https://api.zapsign.com.br/api/v1';
@@ -18,6 +19,14 @@ async function zapFetch(token: string, path: string, opts: RequestInit = {}) {
   let data: unknown;
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   return { ok: res.ok, status: res.status, data };
+}
+
+// Mapeia status ZapSign → status interno SignatureRequest
+function mapZapStatus(zapStatus: string): string | null {
+  if (zapStatus === 'finished') return 'assinado';
+  if (zapStatus === 'expired') return 'expirado';
+  if (zapStatus === 'refused' || zapStatus === 'canceled') return 'cancelado';
+  return null; // pendente ou desconhecido
 }
 
 function ixcHeaders(ixcToken: string) {
@@ -201,13 +210,12 @@ Deno.serve(async (req) => {
         if (zr.ok && zr.data) {
           const zd = zr.data as Record<string, unknown>;
           const zapStatus = zd.status as string;
-          const mapped = zapStatus === 'finished' ? 'assinado' : zapStatus === 'expired' ? 'expirado' : 'pendente';
-          if (mapped !== doc.status) {
-            await b44.asServiceRole.entities.SignatureRequest.update(id, {
-              status: mapped,
-              signed_date: mapped === 'assinado' ? new Date().toISOString().split('T')[0] : undefined,
-              signers: JSON.stringify(zd.signers || []),
-            });
+          const mapped = mapZapStatus(zapStatus);
+          if (mapped && mapped !== doc.status) {
+            await updateSignatureAndRelated(
+              b44, id, mapped,
+              JSON.stringify(zd.signers || []),
+            );
             doc.status = mapped;
           }
         }
@@ -308,7 +316,7 @@ Deno.serve(async (req) => {
         }, { status: 500 });
       }
 
-      const { ixcCustomerId, ixcContractId, templateId, manualVariables = {}, sendWhatsApp = true, whatsAppInstance = evoInst } = body;
+      const { ixcCustomerId, ixcContractId, templateId, manualVariables = {}, sendWhatsApp = true, whatsAppInstance = evoInst, conversationId } = body;
       if (!templateId) return Response.json({ error: 'templateId obrigatório' }, { status: 400 });
 
       // Buscar template
@@ -430,6 +438,7 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString().split('T')[0],
         sent_by_user_id: user.id,
         provider: 'ZapSign',
+        ...(conversationId ? { conversation_id: conversationId } : {}),
       });
 
       // Incrementar contador de uso do template
@@ -451,7 +460,7 @@ Deno.serve(async (req) => {
             .replace('{valor}', fmtBRL(Number(contract.valor || 0)))
             .replace('{tipo_doc}', template.document_type === 'contrato' ? 'contrato' : template.document_type);
 
-          const number = (customer.telefone_celular || customer.fone || '').replace(/\D/g, '');
+          const number = normalizePhoneBR(String(customer.telefone_celular || customer.fone || ''));
 
           const waResult = await sendWhatsAppMessage({
             base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number, text: msg,
@@ -488,7 +497,7 @@ Deno.serve(async (req) => {
         }, { status: 500 });
       }
 
-      const { templateId, customerName, customerEmail, customerPhone, cpfCnpj, manualVariables = {}, sendWhatsApp = true, whatsAppInstance = evoInst } = body;
+      const { templateId, customerName, customerEmail, customerPhone, cpfCnpj, manualVariables = {}, sendWhatsApp = true, whatsAppInstance = evoInst, conversationId } = body;
       if (!templateId || !customerName || !customerPhone) {
         return Response.json({ error: 'templateId, customerName e customerPhone são obrigatórios' }, { status: 400 });
       }
@@ -557,6 +566,7 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString().split('T')[0],
         sent_by_user_id: user.id,
         provider: 'ZapSign',
+        ...(conversationId ? { conversation_id: conversationId } : {}),
       });
 
       await b44.asServiceRole.entities.ContractTemplate.update(templateId, {
@@ -570,7 +580,7 @@ Deno.serve(async (req) => {
             .replace('{nome}', customerName)
             .replace('{link_assinatura}', signUrl);
 
-          const number = customerPhone.replace(/\D/g, '');
+          const number = normalizePhoneBR(customerPhone);
           const waResult = await sendWhatsAppMessage({
             base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number, text: msg,
           });
@@ -599,7 +609,7 @@ Deno.serve(async (req) => {
         }, { status: 500 });
       }
 
-      const { leadId } = body;
+      const { leadId, whatsAppInstance = evoInst } = body;
       if (!leadId) return Response.json({ error: 'leadId obrigatório' }, { status: 400 });
 
       const lead = await b44.asServiceRole.entities.Lead.get(leadId);
@@ -707,9 +717,9 @@ Deno.serve(async (req) => {
             .replace('{valor}', '')
             .replace('{tipo_doc}', template.document_type === 'contrato' ? 'contrato' : (template.document_type || 'documento'));
 
-          const number = lead.phone.replace(/\D/g, '');
+          const number = normalizePhoneBR(lead.phone);
           const waResult = await sendWhatsAppMessage({
-            base: evoBase, apiKey: evoKey, instanceName: evoInst, number, text: msg,
+            base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number, text: msg,
           });
           if (waResult.success) {
             whatsappSent = true;
@@ -742,7 +752,7 @@ Deno.serve(async (req) => {
       }
 
       const signUrl = doc.sign_url;
-      const phone = doc.phone?.replace(/\D/g, '');
+      const phone = normalizePhoneBR(doc.phone || '');
       if (!phone) return Response.json({ error: 'Telefone do cliente não cadastrado.' }, { status: 400 });
 
       const msg = `Olá, ${doc.customer_name}! Segue novamente o link para assinar seu ${doc.document_type || 'documento'}:\n${signUrl}`;
@@ -820,7 +830,7 @@ Deno.serve(async (req) => {
         const zr = await zapFetch(zapToken, `/docs/${doc.zapsign_doc_token}/`);
         if (!zr.ok) continue;
         const zd = zr.data as Record<string, unknown>;
-        const newStatus = zd.status === 'finished' ? 'assinado' : zd.status === 'expired' ? 'expirado' : null;
+        const newStatus = mapZapStatus(zd.status as string);
         if (newStatus) {
           await updateSignatureAndRelated(
             b44, doc.id, newStatus,
