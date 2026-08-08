@@ -1,0 +1,42 @@
+{
+  "description": "Quando um novo lead entra na esteira de vendas, consulta automaticamente o cr\u00e9dito do cliente no ValidaCadastro (validacadastro.com.br) usando as credenciais cadastradas",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "Sale"
+    }
+  },
+  "name": "Consulta de Cr\u00e9dito Autom\u00e1tica",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_credit_check_on_new_lead",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_credit_check": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "run_credit_check",
+              "sale_id": "${ .trigger.entity_id }",
+              "lgpd_consent": true
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Consultar cr\u00e9dito no ValidaCadastro",
+            "description": "Consulta cadastral autom\u00e1tica via provider"
+          }
+        }
+      }
+    ]
+  }
+}

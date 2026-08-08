@@ -10,7 +10,7 @@ export default function NewSaleModal({ show, onClose, onCreated, resellers = [] 
   const [form, setForm] = useState({
     customer_name: "", cpf_cnpj: "", phone: "", email: "",
     plan_name: "", monthly_fee: "", installation_address: "", city: "", neighborhood: "",
-    reseller_id: "", vendor_name: "", notes: "",
+    reseller_id: "", vendor_name: "", notes: "", sale_type: "direta", commission_rate: "",
   });
 
   if (!show) return null;
@@ -24,9 +24,12 @@ export default function NewSaleModal({ show, onClose, onCreated, resellers = [] 
     setCreating(true);
     try {
       const reseller = resellers.find(r => r.id === form.reseller_id);
+      const finalSaleType = form.sale_type === "revenda" || reseller ? "revenda" : "direta";
       const resp = await salesPipelineApi({
         action: "start_sale",
         ...form,
+        sale_type: finalSaleType,
+        commission_rate: form.commission_rate ? Number(form.commission_rate) : undefined,
         monthly_fee: form.monthly_fee ? Number(form.monthly_fee) : undefined,
         reseller_name: reseller?.name || "",
       });
@@ -34,7 +37,7 @@ export default function NewSaleModal({ show, onClose, onCreated, resellers = [] 
         toast({ title: "Erro ao criar venda", description: resp.data.error, variant: "destructive" });
       } else {
         toast({ title: "Venda criada com sucesso" });
-        setForm({ customer_name: "", cpf_cnpj: "", phone: "", email: "", plan_name: "", monthly_fee: "", installation_address: "", city: "", neighborhood: "", reseller_id: "", vendor_name: "", notes: "" });
+        setForm({ customer_name: "", cpf_cnpj: "", phone: "", email: "", plan_name: "", monthly_fee: "", installation_address: "", city: "", neighborhood: "", reseller_id: "", vendor_name: "", notes: "", sale_type: "direta", commission_rate: "" });
         onCreated();
       }
     } catch {
@@ -83,16 +86,29 @@ export default function NewSaleModal({ show, onClose, onCreated, resellers = [] 
             <input className="input-base" value={form.installation_address} onChange={e => setForm(f => ({ ...f, installation_address: e.target.value }))} placeholder="Rua, número" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Revendedor">
-              <select className="input-base" value={form.reseller_id} onChange={e => setForm(f => ({ ...f, reseller_id: e.target.value }))}>
-                <option value="">— Nenhum —</option>
-                {resellers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            <Field label="Tipo de Venda">
+              <select className="input-base" value={form.sale_type} onChange={e => setForm(f => ({ ...f, sale_type: e.target.value, reseller_id: e.target.value === "direta" ? "" : f.reseller_id }))}>
+                <option value="direta">Venda Direta</option>
+                <option value="revenda">Venda Revenda</option>
               </select>
             </Field>
             <Field label="Vendedor">
               <input className="input-base" value={form.vendor_name} onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))} placeholder="Nome do vendedor" />
             </Field>
           </div>
+          {form.sale_type === "revenda" && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Revendedor">
+                <select className="input-base" value={form.reseller_id} onChange={e => setForm(f => ({ ...f, reseller_id: e.target.value }))}>
+                  <option value="">— Selecionar —</option>
+                  {resellers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Comissão (%)">
+                <input className="input-base" type="number" step="0.1" value={form.commission_rate} onChange={e => setForm(f => ({ ...f, commission_rate: e.target.value }))} placeholder="10" />
+              </Field>
+            </div>
+          )}
           <Field label="Observações">
             <textarea className="input-base min-h-[60px]" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </Field>

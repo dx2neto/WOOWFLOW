@@ -123,19 +123,43 @@ export default async function(req: Request): Promise<Response> {
 
     // ── START SALE: cria uma nova venda com correlation_id ─────────────────
     if (action === 'start_sale') {
-      const { customer_name, cpf_cnpj, phone, email, plan_name, monthly_fee, installation_address, city, neighborhood, reseller_id, reseller_name, vendor_name, notes } = body;
+      const { customer_name, cpf_cnpj, phone, email, plan_name, monthly_fee, installation_address, city, neighborhood, reseller_id, reseller_name, vendor_name, notes, sale_type, commission_rate } = body;
       if (!customer_name || !cpf_cnpj || !phone) return Response.json({ error: 'customer_name, cpf_cnpj e phone sao obrigatorios' }, { status: 400 });
 
       const correlationId = generateCorrelationId();
+
+      // Determina tipo de venda e busca dados do revendedor se aplicavel
+      const isReseller = !!(reseller_id || sale_type === 'revenda');
+      const finalSaleType = isReseller ? 'revenda' : 'direta';
+      let finalResellerName = reseller_name || '';
+      let finalCommissionRate = Number(commission_rate) || 0;
+
+      if (isReseller && reseller_id) {
+        const reseller = await base44.asServiceRole.entities.Reseller.get(reseller_id).catch(() => null);
+        if (reseller) {
+          finalResellerName = reseller.name;
+          finalCommissionRate = finalCommissionRate || reseller.commission_rate || 0;
+        }
+      }
+
+      const fee = Number(monthly_fee) || 0;
+      const commissionAmount = isReseller && finalCommissionRate > 0 ? Math.round(fee * finalCommissionRate) / 100 : 0;
+
       const sale = await base44.entities.Sale.create({
         correlation_id: correlationId,
         customer_name, cpf_cnpj: String(cpf_cnpj).replace(/\D/g, ''), phone, email,
-        plan_name, monthly_fee, installation_address, city, neighborhood,
-        reseller_id, reseller_name, vendor_name, notes,
+        plan_name, monthly_fee: fee, installation_address, city, neighborhood,
+        reseller_id: isReseller ? reseller_id : undefined,
+        reseller_name: isReseller ? finalResellerName : undefined,
+        sale_type: finalSaleType,
+        commission_rate: finalCommissionRate,
+        commission_amount: commissionAmount,
+        commission_paid: false,
+        vendor_name, notes,
         stage: 'novo_lead',
         whatsapp_status: 'pending',
         credit_decision: 'pending',
-        timeline: [buildTimelineEntry('novo_lead', 'Venda criada')],
+        timeline: [buildTimelineEntry('novo_lead', isReseller ? 'Venda criada (Revenda: ' + finalResellerName + ')' : 'Venda criada (Direta)')],
         assigned_user_id: user?.id || undefined,
       });
 
@@ -427,12 +451,44 @@ export default async function(req: Request): Promise<Response> {
       const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
       if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
 
+      // Recalcula comissao se mensalidade mudou
+      let updateData: Record<string, unknown> = { stage };
+      if (notes) updateData.notes = notes;
+      if (sale.sale_type === 'revenda' && sale.commission_rate > 0 && sale.monthly_fee) {
+        updateData.commission_amount = Math.round(sale.monthly_fee * sale.commission_rate) / 100;
+      }
+
       await base44.asServiceRole.entities.Sale.update(sale_id, {
-        stage,
-        ...(notes ? { notes } : {}),
+        ...updateData,
         timeline: [...(sale.timeline || []), buildTimelineEntry(stage, 'Etapa atualizada manualmente')],
       });
       return Response.json({ success: true, message: 'Etapa atualizada' });
+    }
+
+    // ── MARK COMMISSION PAID: marca comissao como paga ─────────────────────
+    if (action === 'mark_commission_paid') {
+      const { sale_id, paid = true } = body;
+      if (!sale_id) return Response.json({ error: 'sale_id e obrigatorio' }, { status: 400 });
+      const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
+      if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
+      if (sale.sale_type !== 'revenda') return Response.json({ error: 'Venda nao e do tipo revenda' }, { status: 400 });
+
+      await base44.asServiceRole.entities.Sale.update(sale_id, {
+        commission_paid: paid,
+        timeline: [...(sale.timeline || []), buildTimelineEntry(sale.stage, paid ? 'Comissao marcada como paga' : 'Comissao marcada como pendente')],
+      });
+
+      // Atualiza totais do revendedor
+      if (sale.reseller_id) {
+        const allSales = await base44.asServiceRole.entities.Sale.filter({ reseller_id: sale.reseller_id }, '-created_date', 500);
+        const totalCommission = allSales.filter(s => s.commission_paid).reduce((sum, s) => sum + (s.commission_amount || 0), 0);
+        await base44.asServiceRole.entities.Reseller.update(sale.reseller_id, {
+          total_sales: allSales.length,
+          total_commission: totalCommission,
+        });
+      }
+
+      return Response.json({ success: true, message: paid ? 'Comissao marcada como paga' : 'Comissao marcada como pendente' });
     }
 
     // ── HEALTH CHECK: verifica todas as integracoes ────────────────────────

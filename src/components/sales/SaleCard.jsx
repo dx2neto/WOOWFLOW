@@ -1,5 +1,5 @@
 import React from "react";
-import { Phone, MapPin, User, AlertCircle, CheckCircle2, FileSignature, MessageCircle } from "lucide-react";
+import { Phone, MapPin, User, AlertCircle, CheckCircle2, FileSignature, MessageCircle, Store } from "lucide-react";
 
 export default function SaleCard({ sale, onClick, selected }) {
   return (
@@ -11,7 +11,10 @@ export default function SaleCard({ sale, onClick, selected }) {
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <p className="text-sm font-semibold text-foreground line-clamp-1">{sale.customer_name}</p>
-        {sale.whatsapp_sent && <MessageCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />}
+        <div className="flex items-center gap-1 shrink-0">
+          {sale.sale_type === "revenda" && <Store className="w-3.5 h-3.5 text-purple-500" />}
+          {sale.whatsapp_sent && <MessageCircle className="w-3.5 h-3.5 text-green-500" />}
+        </div>
       </div>
       <div className="space-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">

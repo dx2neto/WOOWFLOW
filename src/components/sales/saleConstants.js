@@ -35,3 +35,8 @@ export const RESELLER_STATUS = [
   { key: "pendente", label: "Pendente", color: "bg-amber-100 text-amber-700" },
   { key: "bloqueado", label: "Bloqueado", color: "bg-red-100 text-red-700" },
 ];
+
+export const SALE_TYPES = [
+  { key: "direta", label: "Venda Direta", color: "bg-blue-100 text-blue-700" },
+  { key: "revenda", label: "Venda Revenda", color: "bg-purple-100 text-purple-700" },
+];

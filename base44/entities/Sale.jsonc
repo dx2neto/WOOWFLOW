@@ -40,12 +40,36 @@
       ],
       "default": "novo_lead"
     },
+    "sale_type": {
+      "type": "string",
+      "enum": [
+        "direta",
+        "revenda"
+      ],
+      "default": "direta",
+      "description": "Tipo da venda: direta (cliente final) ou revenda (via revendedor parceiro)"
+    },
     "reseller_id": {
       "type": "string",
       "description": "ID do revendedor parceiro (entidade Reseller)"
     },
     "reseller_name": {
       "type": "string"
+    },
+    "commission_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Percentual de comiss\u00e3o do revendedor (ex: 10 = 10%)"
+    },
+    "commission_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor da comiss\u00e3o calculada (monthly_fee * commission_rate / 100)"
+    },
+    "commission_paid": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica se a comiss\u00e3o j\u00e1 foi paga ao revendedor"
     },
     "plan_name": {
       "type": "string"

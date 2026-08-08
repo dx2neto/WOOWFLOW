@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { X, ShieldCheck, FileText, Send, CheckCircle2, AlertTriangle, Clock, Phone, MapPin, DollarSign, User, Hash } from "lucide-react";
-import { SALE_STAGES } from "./saleConstants";
+import { X, ShieldCheck, FileText, Send, CheckCircle2, AlertTriangle, Clock, Phone, MapPin, DollarSign, User, Hash, Store } from "lucide-react";
+import { SALE_STAGES, SALE_TYPES } from "./saleConstants";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { salesPipelineApi } from "@/functions/salesPipelineApi";
@@ -101,6 +101,31 @@ export default function SaleDetailPanel({ sale, onClose, onRefresh }) {
                     {sale.whatsapp_sent ? "Enviado" : "Não enviado"}
                   </span>
                 } />
+              </div>
+            </Section>
+          )}
+
+          {/* Commission (only for revenda) */}
+          {sale.sale_type === "revenda" && (
+            <Section title="Comissão" icon={Store}>
+              <div className="space-y-1 text-sm">
+                <Row label="Revendedor" value={sale.reseller_name || "—"} />
+                <Row label="Taxa" value={`${sale.commission_rate || 0}%`} />
+                <Row label="Valor Comissão" value={
+                  <span className="font-semibold text-green-600">R$ {(sale.commission_amount || 0).toFixed(2)}</span>
+                } />
+                <Row label="Status" value={
+                  <span className={sale.commission_paid ? "text-green-600 font-semibold" : "text-amber-600 font-semibold"}>
+                    {sale.commission_paid ? "Paga" : "Pendente"}
+                  </span>
+                } />
+                <Button
+                  className="w-full mt-2" variant="outline" size="sm"
+                  disabled={actionLoading === "mark_commission_paid" || !sale.commission_amount}
+                  onClick={() => runAction("mark_commission_paid", "Marcar comissão", { paid: !sale.commission_paid })}
+                >
+                  <DollarSign className="w-4 h-4 mr-2" /> {sale.commission_paid ? "Marcar como pendente" : "Marcar como paga"}
+                </Button>
               </div>
             </Section>
           )}

@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Plus, RefreshCw, Activity, Search } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, RefreshCw, Search } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import SaleKanban from "@/components/sales/SaleKanban";
 import SaleDetailPanel from "@/components/sales/SaleDetailPanel";
 import NewSaleModal from "@/components/sales/NewSaleModal";
+import ResellerCommissionSummary from "@/components/sales/ResellerCommissionSummary";
 import { salesPipelineApi } from "@/functions/salesPipelineApi";
 
 export default function SalesPipeline() {
@@ -17,6 +18,7 @@ export default function SalesPipeline() {
   const [resellers, setResellers] = useState([]);
   const [search, setSearch] = useState("");
   const [healthStatus, setHealthStatus] = useState(null);
+  const [activeTab, setActiveTab] = useState("direta");
 
   const loadSales = useCallback(async () => {
     setLoading(true);
@@ -50,13 +52,18 @@ export default function SalesPipeline() {
     loadHealth();
   }, [loadSales, loadResellers, loadHealth]);
 
+  const directSales = useMemo(() => sales.filter(s => (s.sale_type || "direta") === "direta"), [sales]);
+  const resellerSales = useMemo(() => sales.filter(s => s.sale_type === "revenda"), [sales]);
+
+  const currentSales = activeTab === "direta" ? directSales : resellerSales;
+
   const filteredSales = search.trim()
-    ? sales.filter(s =>
+    ? currentSales.filter(s =>
         [s.customer_name, s.phone, s.cpf_cnpj, s.correlation_id]
           .filter(Boolean)
           .some(v => v.toLowerCase().includes(search.toLowerCase()))
       )
-    : sales;
+    : currentSales;
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -64,7 +71,9 @@ export default function SalesPipeline() {
       <div className="border-b border-border px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold font-heading">Esteira de Vendas</h1>
-          <p className="text-sm text-muted-foreground">{sales.length} venda(s) em andamento</p>
+          <p className="text-sm text-muted-foreground">
+            {directSales.length} venda(s) direta(s) · {resellerSales.length} venda(s) revenda
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {healthStatus && (
@@ -93,6 +102,37 @@ export default function SalesPipeline() {
           </Button>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="border-b border-border px-6 flex gap-1">
+        <button
+          onClick={() => setActiveTab("direta")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "direta"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Vendas Diretas ({directSales.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("revenda")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "revenda"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Vendas Revendedores ({resellerSales.length})
+        </button>
+      </div>
+
+      {/* Commission Summary (only for revenda tab) */}
+      {activeTab === "revenda" && (
+        <div className="px-4 pt-4">
+          <ResellerCommissionSummary resellerSales={resellerSales} resellers={resellers} />
+        </div>
+      )}
 
       {/* Kanban */}
       <div className="flex-1 p-4 overflow-hidden">
