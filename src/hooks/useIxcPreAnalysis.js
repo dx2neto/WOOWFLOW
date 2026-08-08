@@ -23,9 +23,8 @@ export function useIxcPreAnalysis(conversation) {
     ixcApi({ action: "pre_analise", search: phone })
       .then((resp) => {
         if (cancelled) return;
-        const d = resp?.data;
-        if (d?.success !== false && d?.data) setData(d.data);
-        else { setData(null); setError(d?.error || "Não encontrado"); }
+        if (resp?.success !== false && resp?.data) setData(resp.data);
+        else { setData(null); setError(resp?.error || "Não encontrado"); }
       })
       .catch(() => { if (!cancelled) { setData(null); setError("Falha ao consultar IXC"); } })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -37,9 +36,8 @@ export function useIxcPreAnalysis(conversation) {
     setLoading(true);
     ixcApi({ action: "pre_analise", search: phone })
       .then((resp) => {
-        const d = resp?.data;
-        if (d?.success !== false && d?.data) setData(d.data);
-        else { setData(null); setError(d?.error || "Não encontrado"); }
+        if (resp?.success !== false && resp?.data) setData(resp.data);
+        else { setData(null); setError(resp?.error || "Não encontrado"); }
       })
       .catch(() => { setData(null); setError("Falha ao consultar IXC"); })
       .finally(() => setLoading(false));
