@@ -85,7 +85,7 @@
     },
     "wa_message_id": {
       "type": "string",
-      "description": "ID nativo da mensagem no WhatsApp (info.ID), usado como referência para o chat/history-sync"
+      "description": "ID nativo da mensagem no WhatsApp (info.ID), usado como refer\u00eancia para o chat/history-sync"
     },
     "chat_jid": {
       "type": "string",
@@ -145,13 +145,11 @@
     "update": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
-          }
+          "created_by_id": "{{user.id}}"
         },
         {
           "user_condition": {
-            "role": "user"
+            "role": "admin"
           }
         }
       ]
