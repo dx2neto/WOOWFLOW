@@ -95,13 +95,11 @@
     "read": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
-          }
+          "created_by_id": "{{user.id}}"
         },
         {
           "user_condition": {
-            "role": "user"
+            "role": "admin"
           }
         }
       ]
