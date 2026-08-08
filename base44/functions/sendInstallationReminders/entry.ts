@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ action: 'os', limit: 200 }),
     });
     const osData = await osRes.json();
-    const ordens = osData?.result?.registros || osData?.data || [];
+    const ordens = osData?.data || osData?.result?.registros || [];
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
