@@ -1,0 +1,45 @@
+{
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "America/Sao_Paulo",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Daily sales summary to commercial manager",
+  "name": "Daily Sales Summary",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "daily_sales_summary",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_summary": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendDailySalesSummary",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Send daily summary via WhatsApp",
+            "description": "Compiles daily sales and contracts and sends to commercial manager"
+          }
+        }
+      }
+    ]
+  }
+}

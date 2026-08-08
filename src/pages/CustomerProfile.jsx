@@ -12,6 +12,7 @@ import {
 import CustomerTimeline from "@/components/customers/CustomerTimeline";
 import CustomerConversationsHistory from "@/components/customers/CustomerConversationsHistory";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
+import SignatureAlertBanner from "@/components/inbox/SignatureAlertBanner";
 
 const STATUS_CONTRATO = {
   A:  { label: "Ativo",     color: "bg-green-100 text-green-700" },
@@ -194,6 +195,9 @@ export default function CustomerProfile() {
           </div>
         </div>
       </div>
+
+      {/* Alerta de assinatura ZapSign pendente */}
+      {customer.phone && <SignatureAlertBanner phone={customer.phone} />}
 
       {/* Seletor de contrato (multi-contrato) */}
       {contratos.length > 1 && (
