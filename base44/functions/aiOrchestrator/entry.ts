@@ -445,6 +445,31 @@ Deno.serve(async (req) => {
       details: `Especialista: ${specialist} | Intenção: ${classification?.intent || 'N/A'} | Confiança: ${classification?.confidence || 0} | Dados IXC: ${specialistData.fetched ? 'sim' : 'não'} | Humano: ${responseResult.needs_human ? 'sim' : 'não'}`,
     }).catch(() => {});
 
+    // ── Persiste a interação para o painel de monitoramento ──────────────────
+    const routingMethod = classification?.summary?.includes('palavra-chave') ? 'keyword'
+      : specialist_override ? 'override' : 'llm';
+    await base44.asServiceRole.entities.AIInteraction.create({
+      specialist,
+      intent: classification?.intent || null,
+      message,
+      reply: responseResult.reply || null,
+      confidence: classification?.confidence || 0,
+      sentiment: classification?.sentiment || 'neutro',
+      urgency: classification?.urgency || 'media',
+      phone: phone || null,
+      customer_name: customer_name || customer_context?.name || null,
+      needs_human: responseResult.needs_human || false,
+      human_reason: responseResult.human_reason || null,
+      escalation_needed: classification?.escalation_needed || false,
+      escalation_reason: classification?.escalation_reason || null,
+      protocol: responseResult.protocol || null,
+      actions_taken: JSON.stringify(responseResult.actions_taken || []),
+      actions_available: JSON.stringify(responseResult.actions_available || []),
+      specialist_data_fetched: specialistData.fetched,
+      routing_method: routingMethod,
+      channel,
+    }).catch(() => {});
+
     return Response.json({
       success: true,
       orchestrator: {

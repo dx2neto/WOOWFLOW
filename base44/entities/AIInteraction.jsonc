@@ -1,0 +1,150 @@
+{
+  "name": "AIInteraction",
+  "type": "object",
+  "properties": {
+    "specialist": {
+      "type": "string",
+      "enum": [
+        "general",
+        "finance",
+        "tech",
+        "sales",
+        "retention",
+        "copilot"
+      ],
+      "default": "general",
+      "description": "Especialista que atendeu a intera\u00e7\u00e3o"
+    },
+    "intent": {
+      "type": "string",
+      "description": "Inten\u00e7\u00e3o classificada pelo orquestrador"
+    },
+    "message": {
+      "type": "string",
+      "description": "Mensagem original do cliente"
+    },
+    "reply": {
+      "type": "string",
+      "description": "Resposta gerada pelo especialista"
+    },
+    "confidence": {
+      "type": "number",
+      "default": 0,
+      "description": "Confian\u00e7a da classifica\u00e7\u00e3o (0.0-1.0)"
+    },
+    "sentiment": {
+      "type": "string",
+      "enum": [
+        "positivo",
+        "neutro",
+        "irritado",
+        "muito_irritado"
+      ],
+      "default": "neutro"
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "baixa",
+        "media",
+        "alta",
+        "urgente"
+      ],
+      "default": "media"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "needs_human": {
+      "type": "boolean",
+      "default": false
+    },
+    "human_reason": {
+      "type": "string"
+    },
+    "escalation_needed": {
+      "type": "boolean",
+      "default": false
+    },
+    "escalation_reason": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "actions_taken": {
+      "type": "string",
+      "description": "JSON array de a\u00e7\u00f5es executadas"
+    },
+    "actions_available": {
+      "type": "string",
+      "description": "JSON array de a\u00e7\u00f5es dispon\u00edveis"
+    },
+    "specialist_data_fetched": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se dados reais do IXC foram buscados"
+    },
+    "routing_method": {
+      "type": "string",
+      "enum": [
+        "keyword",
+        "llm",
+        "override"
+      ],
+      "default": "llm",
+      "description": "M\u00e9todo usado para roteamento"
+    },
+    "channel": {
+      "type": "string",
+      "default": "whatsapp"
+    }
+  },
+  "required": [
+    "specialist",
+    "message"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
