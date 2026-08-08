@@ -3,6 +3,7 @@ import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Search, MoreVertical, Filter, X } from "lucide-react";
 import { ixcApi } from "@/functions/ixcApi";
 import { useNavigate } from "react-router-dom";
+import { maskCpfCnpj } from "@/lib/lgpd";
 
 export default function Customers() {
   const navigate = useNavigate();
@@ -178,7 +179,7 @@ export default function Customers() {
                         </div>
                         <div>
                           <p className="font-medium">{c.name}</p>
-                          <p className="text-xs text-muted-foreground">{c.cpf_cnpj || "—"}</p>
+                          <p className="text-xs text-muted-foreground">{c.cpf_cnpj ? maskCpfCnpj(c.cpf_cnpj) : "—"}</p>
                         </div>
                       </div>
                     </td>

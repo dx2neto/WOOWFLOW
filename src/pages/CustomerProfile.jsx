@@ -13,6 +13,7 @@ import CustomerTimeline from "@/components/customers/CustomerTimeline";
 import CustomerConversationsHistory from "@/components/customers/CustomerConversationsHistory";
 import AgreementCheckPanel from "@/components/agreements/AgreementCheckPanel";
 import SignatureAlertBanner from "@/components/inbox/SignatureAlertBanner";
+import { maskCpfCnpj } from "@/lib/lgpd";
 
 const STATUS_CONTRATO = {
   A:  { label: "Ativo",     color: "bg-green-100 text-green-700" },
@@ -181,7 +182,7 @@ export default function CustomerProfile() {
             {customer.phone    && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{customer.phone}</span>}
             {customer.email    && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{customer.email}</span>}
             {customer.city     && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{customer.city}</span>}
-            {customer.cpf_cnpj && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{customer.cpf_cnpj}</span>}
+            {customer.cpf_cnpj && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{maskCpfCnpj(customer.cpf_cnpj)}</span>}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${customer.contract_status === "ativo" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>

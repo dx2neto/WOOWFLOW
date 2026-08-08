@@ -4,6 +4,7 @@ import { SALE_STAGES, SALE_TYPES } from "./saleConstants";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { salesPipelineApi } from "@/functions/salesPipelineApi";
+import { maskCpfCnpj } from "@/lib/lgpd";
 
 export default function SaleDetailPanel({ sale, onClose, onRefresh }) {
   const { toast } = useToast();
@@ -57,7 +58,7 @@ export default function SaleDetailPanel({ sale, onClose, onRefresh }) {
             <Info icon={User} label="Vendedor" value={sale.vendor_name || "—"} />
             <Info icon={MapPin} label="Cidade" value={sale.city || "—"} />
             <Info icon={DollarSign} label="Mensalidade" value={sale.monthly_fee ? `R$ ${sale.monthly_fee.toFixed(2)}` : "—"} />
-            <Info icon={Hash} label="CPF/CNPJ" value={sale.cpf_cnpj ? sale.cpf_cnpj.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"} />
+            <Info icon={Hash} label="CPF/CNPJ" value={sale.cpf_cnpj ? maskCpfCnpj(sale.cpf_cnpj) : "—"} />
             <Info icon={FileText} label="Plano" value={sale.plan_name || "—"} />
           </div>
 
