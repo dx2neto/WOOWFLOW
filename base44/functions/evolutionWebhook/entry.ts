@@ -60,62 +60,94 @@ Deno.serve(async (req) => {
     // ── messages.upsert (nova mensagem recebida ou enviada) ─────────────────
     if (event === 'messages.upsert' || event === 'message' || event === 'messages') {
       const data = asRecord(body.data);
-      // data pode ser { messages: [...] } ou uma mensagem direta
       const messages: AnyRecord[] = Array.isArray(data.messages) ? data.messages : [data];
 
+      // Rate limit: max 50 mensagens por request para evitar sobrecarga
+      const MAX_MSGS = 50;
+      const batch = messages.slice(0, MAX_MSGS);
+
+      // Pré-filtro: coletar wa_message_ids e fazer UMA query de deduplicação
+      const waIds = batch.map((m) => {
+        const k = asRecord(m.key || m.Key);
+        return String(k.id || k.ID || k.messageId || '');
+      }).filter(Boolean);
+
+      const existingMsgIds = new Set<string>();
+      if (waIds.length > 0) {
+        const existing = await base44.asServiceRole.entities.Message.filter({ wa_message_id: { $in: waIds } }).catch(() => []);
+        for (const em of existing) if (em.wa_message_id) existingMsgIds.add(em.wa_message_id as string);
+      }
+
+      // Pré-busca de conversas existentes por phone (1 query por phone único)
+      const phones = [...new Set(batch.map((m) => {
+        const k = asRecord(m.key || m.Key);
+        return String(k.remoteJid || k.RemoteJid || k.Chat || '').replace(/@.*$/, '');
+      }).filter(Boolean))];
+
+      const convMap = new Map<string, AnyRecord>();
+      if (phones.length > 0) {
+        const existingConvs = await base44.asServiceRole.entities.Conversation.filter({ phone: { $in: phones }, channel: 'whatsapp' }).catch(() => []);
+        for (const c of existingConvs) convMap.set(c.phone as string, c as AnyRecord);
+      }
+
+      // Pré-carregar tags uma única vez para todo o batch
+      let tagNames: string[] = [];
+      try {
+        const tagList = await base44.asServiceRole.entities.Tag.list();
+        tagNames = tagList.map((t) => String(t.name));
+      } catch { /* sem tags disponíveis */ }
+
       let saved = 0;
-      for (const msg of messages) {
-        const key = asRecord(msg.key || msg.Key);
-        const chat = String(key.remoteJid || key.RemoteJid || key.Chat || '');
-        if (!chat || chat.endsWith('@g.us')) continue;
+      let skipped = 0;
+      let errors = 0;
 
-        const waId = String(key.id || key.ID || key.messageId || '');
-        const phone = chat.replace(/@.*$/, '');
-        const fromMe = !!(key.fromMe ?? key.FromMe ?? key.IsFromMe);
-        const pushName = String(msg.pushName || key.PushName || msg.PushName || phone);
-        const msgBody = asRecord(msg.message || msg.Message || {});
-        const msgType = detectMsgType(key, msgBody);
-        const textContent = extractText(msgBody);
-        const content = textContent || `[${msgType}]`;
-        const timestamp = normalizeTimestamp(msg.messageTimestamp || key.Timestamp || msg.Timestamp);
+      for (const msg of batch) {
+        try {
+          const key = asRecord(msg.key || msg.Key);
+          const chat = String(key.remoteJid || key.RemoteJid || key.Chat || '');
+          if (!chat || chat.endsWith('@g.us')) continue;
 
-        // Deduplicação por wa_message_id
-        if (waId) {
-          const dup = await base44.asServiceRole.entities.Message.filter({ wa_message_id: waId });
-          if (dup.length > 0) continue;
-        }
+          const waId = String(key.id || key.ID || key.messageId || '');
+          const phone = chat.replace(/@.*$/, '');
+          const fromMe = !!(key.fromMe ?? key.FromMe ?? key.IsFromMe);
+          const pushName = String(msg.pushName || key.PushName || msg.PushName || phone);
+          const msgBody = asRecord(msg.message || msg.Message || {});
+          const msgType = detectMsgType(key, msgBody);
+          const textContent = extractText(msgBody);
+          const content = textContent || `[${msgType}]`;
+          const timestamp = normalizeTimestamp(msg.messageTimestamp || key.Timestamp || msg.Timestamp);
 
-        // Upsert Conversation
-        const existing = await base44.asServiceRole.entities.Conversation.filter({ phone, channel: 'whatsapp' });
-        let conversation = existing[0];
-        if (!conversation) {
-          conversation = await base44.asServiceRole.entities.Conversation.create({
-            customer_name: pushName, phone, channel: 'whatsapp', instance: instanceId, provider: 'evolution_api',
-            provider_contact_id: chat, status: 'novo', last_message: content, last_message_time: timestamp, unread: !fromMe,
+          // Deduplicação (batch)
+          if (waId && existingMsgIds.has(waId)) { skipped++; continue; }
+
+          // Upsert Conversation
+          let conversation = convMap.get(phone);
+          if (!conversation) {
+            conversation = await base44.asServiceRole.entities.Conversation.create({
+              customer_name: pushName, phone, channel: 'whatsapp', instance: instanceId, provider: 'evolution_api',
+              provider_contact_id: chat, status: 'novo', last_message: content, last_message_time: timestamp, unread: !fromMe,
+            }) as AnyRecord;
+            convMap.set(phone, conversation);
+          } else {
+            await base44.asServiceRole.entities.Conversation.update(conversation.id as string, {
+              instance: instanceId || conversation.instance, provider: 'evolution_api',
+              provider_contact_id: chat, last_message: content, last_message_time: timestamp,
+              unread: !fromMe ? true : conversation.unread,
+            });
+          }
+
+          // Save Message
+          await base44.asServiceRole.entities.Message.create({
+            conversation_id: conversation.id, content, direction: fromMe ? 'out' : 'in',
+            type: msgType, status: fromMe ? 'sent' : 'received', timestamp,
+            wa_message_id: waId, provider: 'evolution_api', provider_message_id: waId,
+            instance_id: instanceId, contact_id: chat, phone, chat_jid: chat, is_group: false,
+            sender_name: fromMe ? null : pushName, payload: body,
           });
-        } else {
-          await base44.asServiceRole.entities.Conversation.update(conversation.id, {
-            instance: instanceId || conversation.instance, provider: 'evolution_api',
-            provider_contact_id: chat, last_message: content, last_message_time: timestamp,
-            unread: !fromMe ? true : conversation.unread,
-          });
-        }
 
-        // Save Message
-        await base44.asServiceRole.entities.Message.create({
-          conversation_id: conversation.id, content, direction: fromMe ? 'out' : 'in',
-          type: msgType, status: fromMe ? 'sent' : 'received', timestamp,
-          wa_message_id: waId, provider: 'evolution_api', provider_message_id: waId,
-          instance_id: instanceId, contact_id: chat, phone, chat_jid: chat, is_group: false,
-          sender_name: fromMe ? null : pushName, payload: body,
-        });
-
-        // Auto-tag via IA (apenas mensagens recebidas com texto)
-        if (!fromMe && textContent) {
-          try {
-            const tagList = await base44.asServiceRole.entities.Tag.list();
-            if (tagList.length > 0) {
-              const tagNames = tagList.map((t) => String(t.name));
+          // Auto-tag via IA (apenas mensagens recebidas com texto, tags disponíveis)
+          if (!fromMe && textContent && tagNames.length > 0) {
+            try {
               const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `Mensagem do cliente: "${textContent}"\n\nEtiquetas disponíveis: ${tagNames.join(', ')}\n\nEscolha até 3 etiquetas relevantes. Se nenhuma for relevante, retorne lista vazia. Responda apenas com nomes exatamente como estão na lista.`,
                 response_json_schema: { type: 'object', properties: { tags: { type: 'array', items: { type: 'string' } } } },
@@ -125,20 +157,20 @@ Deno.serve(async (req) => {
                 const currentTags = Array.isArray(conversation.tags) ? conversation.tags as string[] : [];
                 const merged = Array.from(new Set([...currentTags, ...suggested]));
                 if (merged.length !== currentTags.length) {
-                  await base44.asServiceRole.entities.Conversation.update(conversation.id, { tags: merged });
+                  await base44.asServiceRole.entities.Conversation.update(conversation.id as string, { tags: merged });
                 }
               }
-            }
-          } catch { /* não bloqueia o fluxo principal */ }
-        }
-        saved++;
+            } catch { /* não bloqueia o fluxo principal */ }
+          }
+          saved++;
+        } catch { errors++; /* uma mensagem com erro não derruba o batch */ }
       }
 
       await base44.asServiceRole.entities.IntegrationLog.create({
         integration: 'evolutionWebhook', action: event, status: 'sucesso',
-        details: `saved: ${saved}`,
+        details: `saved: ${saved}, skipped: ${skipped}, errors: ${errors}, total: ${batch.length}`,
       }).catch(() => {});
-      return Response.json({ success: true, processed: saved });
+      return Response.json({ success: true, saved, skipped, errors, total: batch.length });
     }
 
     // ── messages.update (entrega / leitura) ─────────────────────────────────
