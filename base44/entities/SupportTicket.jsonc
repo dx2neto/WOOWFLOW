@@ -1,0 +1,141 @@
+{
+  "name": "SupportTicket",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "conversation_id": {
+      "type": "string",
+      "description": "ID da conversa vinculada"
+    },
+    "description": {
+      "type": "string",
+      "description": "Mensagem do cliente que originou o chamado"
+    },
+    "specialist": {
+      "type": "string",
+      "enum": [
+        "tech",
+        "finance",
+        "general"
+      ],
+      "default": "tech"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aberto",
+        "em_atendimento",
+        "resolvido",
+        "fechado",
+        "cancelado"
+      ],
+      "default": "aberto"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "baixa",
+        "media",
+        "alta",
+        "urgente"
+      ],
+      "default": "media"
+    },
+    "assigned_user_id": {
+      "type": "string",
+      "description": "ID do atendente/t\u00e9cnico respons\u00e1vel"
+    },
+    "ai_interaction_id": {
+      "type": "string",
+      "description": "ID da intera\u00e7\u00e3o da IA que gerou o chamado"
+    },
+    "ixc_customer_id": {
+      "type": "string"
+    },
+    "ixc_os_id": {
+      "type": "string",
+      "description": "ID da OS criada no IXCSoft (atendimento)"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "resolution": {
+      "type": "string",
+      "description": "Solu\u00e7\u00e3o registrada ao fechar o chamado"
+    },
+    "sector": {
+      "type": "string",
+      "default": "suporte_tecnico"
+    }
+  },
+  "required": [
+    "customer_name",
+    "phone",
+    "description"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.assigned_user_id": "{{user.id}}"
+        },
+        {
+          "data.assigned_user_id": {
+            "$in": [
+              null,
+              ""
+            ]
+          }
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.assigned_user_id": "{{user.id}}"
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

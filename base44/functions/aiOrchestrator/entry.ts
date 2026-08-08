@@ -74,7 +74,7 @@ const KEYWORD_ROUTES: { specialist: string; keywords: string[]; intent: string }
   {
     specialist: 'tech',
     intent: 'suporte_tecnico',
-    keywords: ['conexão', 'conexao', 'conectado', 'conectada', 'internet', 'online', 'offline', 'sem net', 'sem internet', 'caiu', 'caindo', 'lento', 'lenta', 'lentidão', 'lentidao', 'wifi', 'wi-fi', 'roteador', 'modem', 'onu', 'fibra', 'sinal', 'lojando', 'lag', 'travando', 'trava', 'ping', 'velocidade', 'velocímetro', 'luz', 'reset', 'reiniciar', 'piscando', 'vermelho', 'pppoe', 'ppp', 'ip', 'dns', 'vlan'],
+    keywords: ['conexão', 'conexao', 'conectado', 'conectada', 'internet', 'online', 'offline', 'sem net', 'sem internet', 'caiu', 'caindo', 'lento', 'lenta', 'lentidão', 'lentidao', 'wifi', 'wi-fi', 'roteador', 'modem', 'onu', 'fibra', 'sinal', 'lojando', 'lag', 'travando', 'trava', 'ping', 'velocidade', 'velocímetro', 'luz', 'reset', 'reiniciar', 'piscando', 'vermelho', 'pppoe', 'ppp', 'ip', 'dns', 'vlan', 'problema técnico', 'problema tecnico', 'problema na internet', 'problema de conexão', 'problema de conexao', 'suporte técnico', 'suporte tecnico', 'defeito', 'com defeito', 'não funciona', 'nao funciona', 'quebrado', 'com problema', 'estou com problema', 'técnico', 'tecnico', 'assistência técnica', 'assistencia tecnica', 'manutenção', 'manutencao', 'instalação', 'instalacao'],
   },
   {
     specialist: 'sales',
@@ -469,6 +469,76 @@ Deno.serve(async (req) => {
       routing_method: routingMethod,
       channel,
     }).catch(() => {});
+
+    // ── Abertura automática de chamado para o agente técnico ──────────────────
+    // Quando o especialista é 'tech' e a intenção indica um problema técnico real,
+    // cria um SupportTicket para o time de suporte. Se o cliente estiver identificado
+    // no IXC, também abre a OS diretamente no IXCSoft.
+    if (specialist === 'tech' && classification?.intent && classification.intent !== 'saudacao' && classification.intent !== 'outro') {
+      try {
+        // Deduplicação: não abrir chamado duplicado se já existe um aberto para este telefone nas últimas 24h
+        const existingTickets = await base44.asServiceRole.entities.SupportTicket.filter({
+          phone: phone || '',
+          status: { $in: ['aberto', 'em_atendimento'] },
+        }).catch(() => []);
+
+        const now = Date.now();
+        const recentTickets = (existingTickets as any[]).filter((t) => {
+          const created = new Date(t.created_date).getTime();
+          return (now - created) < 86_400_000; // 24h
+        });
+
+        if (recentTickets.length === 0) {
+          // Dados do cliente no IXC (se disponíveis)
+          const ixcCustomerId = specialistData?.raw_data?.cliente?.id || null;
+          const ticketProtocol = responseResult.protocol || `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+          // Cria o chamado local
+          const ticket = await base44.asServiceRole.entities.SupportTicket.create({
+            customer_name: customer_name || customer_context?.name || phone || 'Cliente',
+            phone: phone || '',
+            description: message,
+            specialist: 'tech',
+            status: 'aberto',
+            priority: classification?.urgency === 'urgente' ? 'urgente' : classification?.urgency === 'alta' ? 'alta' : 'media',
+            ai_interaction_id: null, // será atualizado se necessário
+            ixc_customer_id: ixcCustomerId || null,
+            protocol: ticketProtocol,
+            sector: 'suporte_tecnico',
+          }).catch(() => null);
+
+          // Se cliente identificado no IXC, cria a OS no IXCSoft
+          if (ixcCustomerId) {
+            try {
+              const osResp = await base44.asServiceRole.functions.invoke('ixcApi', {
+                action: 'os_create',
+                data: {
+                  id_cliente: ixcCustomerId,
+                  assunto: `Chamado automático — ${classification?.intent || 'suporte técnico'}`,
+                  descricao: `Protocolo: ${ticketProtocol}\nCliente: ${customer_name || phone}\nMensagem: ${message}\nUrgência: ${classification?.urgency || 'media'}`,
+                  status: 'A',
+                  prioridade: classification?.urgency === 'urgente' ? 'A' : classification?.urgency === 'alta' ? 'M' : 'B',
+                },
+              }) as any;
+
+              const ixcOsId = osResp?.data?.id || osResp?.id || null;
+              if (ixcOsId && ticket) {
+                await base44.asServiceRole.entities.SupportTicket.update(ticket.id, {
+                  ixc_os_id: String(ixcOsId),
+                }).catch(() => {});
+              }
+            } catch { /* IXC OS creation failure doesn't block the flow */ }
+          }
+
+          await base44.asServiceRole.entities.IntegrationLog.create({
+            integration: 'aiOmnichannelApi',
+            action: 'auto_ticket_created',
+            status: 'sucesso',
+            details: `Especialista: tech | Telefone: ${phone} | IXC: ${ixcCustomerId ? 'sim' : 'não'} | Protocolo: ${ticketProtocol}`,
+          }).catch(() => {});
+        }
+      } catch { /* ticket creation failure doesn't block the response */ }
+    }
 
     return Response.json({
       success: true,
