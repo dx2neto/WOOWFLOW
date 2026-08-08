@@ -5,7 +5,7 @@
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "0 9 * * *",
+      "cron_expression": "0 8 * * *",
       "one_time_date": null,
       "timezone": "America/Sao_Paulo",
       "interval_value": null,
@@ -16,8 +16,8 @@
       "ends_after_count": null
     }
   },
-  "description": "Daily sales summary to commercial manager",
-  "name": "Daily Sales Summary",
+  "description": "Envia resumo diario com total de vendas, novos contratos assinados e pendencias de assinatura para o gestor comercial via WhatsApp, todos os dias as 08:00",
+  "name": "Resumo Diario de Vendas",
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -35,8 +35,8 @@
           },
           "then": "end",
           "x-base44": {
-            "title": "Send daily summary via WhatsApp",
-            "description": "Compiles daily sales and contracts and sends to commercial manager"
+            "title": "Enviar resumo diario via WhatsApp",
+            "description": "Compila vendas e contratos do dia e envia ao gestor comercial"
           }
         }
       }
