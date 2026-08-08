@@ -174,6 +174,7 @@ export default function Inbox() {
         phone: selected.phone,
         chat_jid: selected.channel === "whatsapp" ? `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net` : undefined,
         instance_id: selectedInstance || selected.instance || undefined,
+        assigned_user_id: selected.assigned_user_id || null,
         ...(waMessageId ? { wa_message_id: waMessageId, provider_message_id: waMessageId } : {}),
       });
       if (direction !== "internal") {

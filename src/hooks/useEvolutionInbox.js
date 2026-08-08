@@ -232,6 +232,7 @@ export function useEvolutionInbox({
         status: "sent", timestamp: now, sender_name: "Atendente", provider: "evolution_api",
         phone: selected.phone, chat_jid: `${String(selected.phone || "").replace(/\D/g, "")}@s.whatsapp.net`,
         instance_id: selectedInstance || selected.instance || undefined,
+        assigned_user_id: selected.assigned_user_id || null,
         file_name: file.name, mime_type: file.type, caption: file.name,
         ...(type === "image" && base64 ? { media_base64: base64 } : {}),
         ...(pid ? { wa_message_id: pid, provider_message_id: pid } : {}),

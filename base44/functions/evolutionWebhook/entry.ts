@@ -144,6 +144,7 @@ Deno.serve(async (req) => {
             wa_message_id: waId, provider: 'evolution_api', provider_message_id: waId,
             instance_id: instanceId, contact_id: chat, phone, chat_jid: chat, is_group: false,
             sender_name: fromMe ? null : pushName, payload: body,
+            assigned_user_id: (conversation.assigned_user_id as string) || null,
           });
 
           // Auto-tag via IA (apenas mensagens recebidas com texto, tags disponíveis)
