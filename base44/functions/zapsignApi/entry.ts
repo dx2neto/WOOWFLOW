@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
+import { logError } from '../../shared/errorLogger.ts';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const ZAP_BASE = 'https://api.zapsign.com.br/api/v1';
@@ -791,10 +792,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: `Action inválida: ${action}` }, { status: 400 });
 
   } catch (error) {
-    await b44.asServiceRole.entities.ErrorLog.create({
-      function_name: 'zapsignApi',
-      error_message: (error as Error).message,
-    }).catch(() => {});
+    await logError(b44, 'zapsignApi', error, {
+      action: action || 'unknown',
+      severity: 'critica',
+    });
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

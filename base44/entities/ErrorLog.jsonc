@@ -5,8 +5,20 @@
     "function_name": {
       "type": "string"
     },
+    "action": {
+      "type": "string",
+      "description": "A\u00e7\u00e3o que estava sendo executada quando o erro ocorreu"
+    },
     "error_message": {
       "type": "string"
+    },
+    "stack_trace": {
+      "type": "string",
+      "description": "Stack trace completo do erro"
+    },
+    "error_context": {
+      "type": "string",
+      "description": "JSON com dados de contexto da requisi\u00e7\u00e3o (payload, user, etc.) \u2014 truncado se muito grande"
     },
     "severity": {
       "type": "string",
