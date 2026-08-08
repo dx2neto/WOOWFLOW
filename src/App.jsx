@@ -58,6 +58,7 @@ const SystemAudit = lazy(() => import('@/pages/SystemAudit'));
 const AuditCenter = lazy(() => import('@/pages/AuditCenter'));
 const SalesPipeline = lazy(() => import('@/pages/SalesPipeline'));
 const Resellers = lazy(() => import('@/pages/Resellers'));
+const AIAssistant = lazy(() => import('@/pages/AIAssistant'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -152,6 +153,9 @@ const AuthenticatedApp = () => {
           {/* Módulo de Vendas */}
           <Route path="/sales-pipeline" element={<SalesPipeline />} />
           <Route path="/resellers" element={<Resellers />} />
+
+          {/* Assistente IA */}
+          <Route path="/ai-assistant" element={<AIAssistant />} />
         </Route>
       </Route>
 

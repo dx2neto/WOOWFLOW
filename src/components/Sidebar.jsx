@@ -42,6 +42,7 @@ const menuGroups = [
       { label: "Automações do CRM",   path: "/crm-automations", icon: Workflow },
       { label: "Campanhas",           path: "/campaigns",       icon: Send },
       { label: "Chatbot / IA",        path: "/chatbot",         icon: Bot },
+      { label: "Assistente IA",       path: "/ai-assistant",    icon: Bot },
       { label: "Painel da Lara",      path: "/lara-dashboard",  icon: BotIcon },
       { label: "Logs da Lara",        path: "/lara-logs",       icon: BotIcon },
       { label: "Relatórios da Lara",  path: "/lara-reports",    icon: BarChart3 },
