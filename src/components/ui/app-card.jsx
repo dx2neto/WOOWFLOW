@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/utils";
+import { cn } from "@/lib/utils";
 
 /**
  * @param {{ title?: React.ReactNode, value?: React.ReactNode, icon?: any, trend?: number, color?: string, subtitle?: React.ReactNode }} props
