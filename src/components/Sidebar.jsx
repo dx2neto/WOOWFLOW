@@ -8,7 +8,7 @@ import {
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
   FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
-  Shield, History
+  Shield, History, ShieldCheck
 } from "lucide-react";
 
 // ── Hook: contagem de conversas não lidas em tempo real ───────────────────────
@@ -81,6 +81,7 @@ const menuGroups = [
       { label: "Feriados e Horários",path: "/holidays",            icon: CalendarDays },
       { label: "Logs de Auditoria",  path: "/audit-logs",          icon: ScrollText },
       { label: "Logs do Sistema",    path: "/system-logs",         icon: AlertTriangle },
+      { label: "Auditoria do Sistema", path: "/system-audit",      icon: ShieldCheck },
       { label: "Logs Sync WhatsApp", path: "/evolution-sync-logs", icon: History },
       { label: "Configurações",      path: "/settings",            icon: Settings },
     ],

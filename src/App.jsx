@@ -54,6 +54,7 @@ const IxcTest = lazy(() => import('@/pages/IxcTest'));
 const Agreements = lazy(() => import('@/pages/Agreements'));
 const AgreementDetail = lazy(() => import('@/pages/AgreementDetail'));
 const AgreementSettings = lazy(() => import('@/pages/AgreementSettings'));
+const SystemAudit = lazy(() => import('@/pages/SystemAudit'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -137,6 +138,11 @@ const AuthenticatedApp = () => {
           <Route path="/agreements/:id"      element={<AgreementDetail />} />
           <Route element={<RequirePermission adminOnly />}>
             <Route path="/agreements/settings" element={<AgreementSettings />} />
+          </Route>
+
+          {/* Painel de Auditoria do Sistema */}
+          <Route element={<RequirePermission adminOnly />}>
+            <Route path="/system-audit" element={<SystemAudit />} />
           </Route>
         </Route>
       </Route>
