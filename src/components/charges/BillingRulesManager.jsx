@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Card } from "@/components/ui/app-card";
 import { Plus, Pencil, Trash2, PlayCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -7,44 +7,34 @@ import { sendBillingRuleReminders } from "@/functions/sendBillingRuleReminders";
 import BillingRuleFormModal from "./BillingRuleFormModal";
 
 export default function BillingRulesManager() {
-  const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rules = [], isLoading: loading } = useEntityList("BillingRule", "-created_date");
+  const ruleCreate = useEntityCreate("BillingRule");
+  const ruleUpdate = useEntityUpdate("BillingRule");
+  const ruleDelete = useEntityDelete("BillingRule");
   const [editingRule, setEditingRule] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [running, setRunning] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => { loadRules(); }, []);
-
-  const loadRules = async () => {
-    setLoading(true);
-    const data = await base44.entities.BillingRule.list("-created_date");
-    setRules(data);
-    setLoading(false);
-  };
-
   const handleSave = async (data) => {
     if (editingRule) {
-      await base44.entities.BillingRule.update(editingRule.id, data);
+      await ruleUpdate.mutateAsync({ id: editingRule.id, data });
     } else {
-      await base44.entities.BillingRule.create(data);
+      await ruleCreate.mutateAsync(data);
     }
     setShowModal(false);
     setEditingRule(null);
     toast({ title: "Regra salva com sucesso" });
-    loadRules();
   };
 
   const handleDelete = async (rule) => {
     if (!confirm(`Excluir a regra "${rule.name}"?`)) return;
-    await base44.entities.BillingRule.delete(rule.id);
+    await ruleDelete.mutateAsync(rule.id);
     toast({ title: "Regra excluída" });
-    loadRules();
   };
 
-  const handleToggleActive = async (rule) => {
-    await base44.entities.BillingRule.update(rule.id, { active: !rule.active });
-    loadRules();
+  const handleToggleActive = (rule) => {
+    ruleUpdate.mutate({ id: rule.id, data: { active: !rule.active } });
   };
 
   const handleRunNow = async () => {

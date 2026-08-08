@@ -1,17 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React from "react";
+import { useCharges } from "@/hooks/useEntityQueries";
 import { Card } from "@/components/ui/app-card";
 import { CheckCircle2, Clock3 } from "lucide-react";
 
 const formatBRL = (value) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function FinancialPanel() {
-  const [charges, setCharges] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    base44.entities.Charge.list().then((data) => { setCharges(data); setLoading(false); });
-  }, []);
+  const { data: charges = [], isLoading: loading } = useCharges(100);
 
   const paid = charges.filter((c) => c.status === "paga");
   const pending = charges.filter((c) => c.status === "pendente" || c.status === "vencida" || c.status === "negociando");
