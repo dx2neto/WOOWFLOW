@@ -69,6 +69,7 @@ export default function CustomerProfile() {
   const [osFetched, setOsFetched]         = useState(false);
 
   const [sendingId, setSendingId] = useState(null);
+  const [selectedContractId, setSelectedContractId] = useState(null);
 
   useEffect(() => { loadCustomer(); }, [id]);
 
@@ -76,7 +77,19 @@ export default function CustomerProfile() {
     setLoading(true);
     try {
       const response = await ixcApi({ action: "cliente_por_id", clientId: id });
-      setCustomer((response?.data?.result?.registros || [])[0] || null);
+      const cust = (response?.data?.result?.registros || [])[0] || null;
+      setCustomer(cust);
+      // Pré-carrega contratos para o seletor de multi-contrato
+      if (cust) {
+        ixcApi({ action: "contratos", clientId: id })
+          .then((res) => {
+            const list = res?.data?.result?.registros || [];
+            setContratos(list);
+            setContratosFetched(true);
+            if (list.length > 0) setSelectedContractId(String(list[0].id));
+          })
+          .catch(() => setContratos([]));
+      }
     } catch {
       setCustomer(null);
     } finally {
@@ -145,8 +158,10 @@ export default function CustomerProfile() {
     );
   }
 
-  const faturasAbertas = faturas.filter((f) => f.status === "A");
+  const faturasAbertas = faturas.filter((f) => f.status === "A" && (!selectedContractId || String(f.contract_id) === selectedContractId));
   const totalEmAberto  = faturasAbertas.reduce((s, f) => s + (f.value || 0), 0);
+  const faturasFiltradas = selectedContractId ? faturas.filter((f) => String(f.contract_id) === selectedContractId) : faturas;
+  const ordensFiltradas  = selectedContractId ? ordens.filter((o) => String(o.contract_id) === selectedContractId) : ordens;
 
   return (
     <PageContainer>
@@ -167,13 +182,38 @@ export default function CustomerProfile() {
             {customer.city     && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{customer.city}</span>}
             {customer.cpf_cnpj && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{customer.cpf_cnpj}</span>}
           </div>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${customer.contract_status === "ativo" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
               {customer.contract_status === "ativo" ? "Ativo" : "Inativo"}
             </span>
+            {contratos.length > 1 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-primary/10 text-primary">
+                {contratos.length} contratos
+              </span>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Seletor de contrato (multi-contrato) */}
+      {contratos.length > 1 && (
+        <div className="flex items-center gap-2 mb-4 p-3 rounded-xl border border-border bg-muted/30">
+          <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <label className="text-sm font-medium whitespace-nowrap">Contrato:</label>
+          <select
+            value={selectedContractId || ""}
+            onChange={(e) => setSelectedContractId(e.target.value || null)}
+            className="flex-1 text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Todos os contratos</option>
+            {contratos.map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                #{c.id} — {c.plan_name || "Sem plano"}{c.status === "A" ? " (Ativo)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0 border-b border-border mb-5">
@@ -261,9 +301,9 @@ export default function CustomerProfile() {
       {/* ── Financeiro ─────────────────────────────────────── */}
       {tab === "financeiro" && (
         <div className="space-y-4">
-          {!loadingFaturas && faturas.length > 0 && (
+          {!loadingFaturas && faturasFiltradas.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <StatCard title="Total de Faturas"  value={faturas.length}        icon={DollarSign}    color="primary" />
+              <StatCard title="Total de Faturas"  value={faturasFiltradas.length} icon={DollarSign}    color="primary" />
               <StatCard title="Faturas em Aberto" value={faturasAbertas.length} icon={AlertTriangle} color="warning" />
               <StatCard title="Valor em Aberto"   value={fmtBRL(totalEmAberto)} icon={DollarSign}    color="danger" />
             </div>
@@ -271,7 +311,7 @@ export default function CustomerProfile() {
           <Card title="Histórico de Faturas" className="overflow-hidden">
             {loadingFaturas ? (
               <p className="text-center py-8 text-muted-foreground text-sm">Carregando faturas...</p>
-            ) : faturas.length === 0 ? (
+            ) : faturasFiltradas.length === 0 ? (
               <p className="text-center py-8 text-muted-foreground text-sm">Nenhuma fatura encontrada</p>
             ) : (
               <div className="overflow-x-auto">
@@ -287,7 +327,7 @@ export default function CustomerProfile() {
                     </tr>
                   </thead>
                   <tbody>
-                    {faturas.map((f) => {
+                    {faturasFiltradas.map((f) => {
                       const sf = STATUS_FATURA[f.status] || { label: f.status, color: "bg-muted text-muted-foreground" };
                       return (
                         <tr key={f.id} className="border-b border-border hover:bg-muted/30">
@@ -330,11 +370,11 @@ export default function CustomerProfile() {
         <Card title="Ordens de Serviço" className="overflow-hidden">
           {loadingOS ? (
             <p className="text-center py-8 text-muted-foreground text-sm">Carregando OS...</p>
-          ) : ordens.length === 0 ? (
+          ) : ordensFiltradas.length === 0 ? (
             <p className="text-center py-8 text-muted-foreground text-sm">Nenhuma OS encontrada</p>
           ) : (
             <div className="divide-y divide-border">
-              {ordens.map((o) => {
+              {ordensFiltradas.map((o) => {
                 const so = STATUS_OS[o.status] || { label: o.status || "—", color: "bg-muted text-muted-foreground" };
                 return (
                   <div key={o.id} className="p-5">
