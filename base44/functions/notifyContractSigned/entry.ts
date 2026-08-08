@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 export default async function(req: Request): Promise<Response> {
   const b44 = createClientFromRequest(req);
@@ -120,10 +121,7 @@ export default async function(req: Request): Promise<Response> {
       },
     });
   } catch (error) {
-    await b44.asServiceRole.entities.ErrorLog.create({
-      function_name: 'notifyContractSigned',
-      error_message: (error as Error).message,
-    }).catch(() => {});
+    await logError(b44, 'notifyContractSigned', error, { action: 'notify_contract_signed', severity: 'critica' });
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 }

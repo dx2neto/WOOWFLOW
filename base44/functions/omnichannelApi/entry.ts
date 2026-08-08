@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -221,10 +222,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ success: false, error: `Ação não suportada: ${action}` }, { status: 400 });
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({
-      function_name: 'omnichannelApi',
-      error_message: (error as Error).message,
-    }).catch(() => {});
+    await logError(base44, 'omnichannelApi', error, { action: action || 'unknown', severity: 'alta' });
     return Response.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
 });

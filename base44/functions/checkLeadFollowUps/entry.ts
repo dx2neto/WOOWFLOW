@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Garante que leads aguardando retorno recebam um follow-up automático via
 // WhatsApp no prazo correto. Disparado diariamente pelo workflow "LeadFollowUpCheck".
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ success: true, checked: due.length, sent, errors });
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'checkLeadFollowUps', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'checkLeadFollowUps', error, { action: 'check_follow_ups', severity: 'media' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

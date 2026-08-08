@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { ScrollText, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useEntityList } from "@/hooks/useEntityQueries";
 
 const actionClasses = {
   create: "bg-green-100 text-green-700",
@@ -16,18 +16,9 @@ const actionClasses = {
 const actionLabels = { create: "Criação", update: "Atualização", delete: "Exclusão", login: "Login", export: "Exportação", send: "Envio" };
 
 export default function AuditLogs() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: logs = [], isLoading: loading } = useEntityList("AuditLog", "-created_date", 200);
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
-
-  useEffect(() => {
-    (async () => {
-      const data = await base44.entities.AuditLog.list("-created_date", 200);
-      setLogs(data);
-      setLoading(false);
-    })();
-  }, []);
 
   const filtered = logs.filter((l) => {
     const matchesSearch = !search || l.user_name?.toLowerCase().includes(search.toLowerCase()) || l.module?.toLowerCase().includes(search.toLowerCase()) || l.description?.toLowerCase().includes(search.toLowerCase());

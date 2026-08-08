@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Executa, em ordem, as etapas configuradas no editor visual de automações do CRM
 // (base44/entities/AutomationFlow) para um determinado gatilho (contrato_assinado
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
     return Response.json({ success: true, steps_executed: steps.length, results });
   } catch (error) {
     const base44 = createClientFromRequest(req);
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'runAutomationFlow', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'runAutomationFlow', error, { action: trigger || 'unknown', severity: 'alta' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

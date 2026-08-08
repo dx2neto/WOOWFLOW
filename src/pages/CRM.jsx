@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer } from "@/components/ui/app-card";
 import { ChannelBadge } from "@/components/Badges";
 import { Plus, Phone, MapPin, DollarSign } from "lucide-react";
 import LeadFormModal from "@/components/crm/LeadFormModal";
+import { useLeads, useUpdateLead, useCreateLead } from "@/hooks/useEntityQueries";
 
 const stages = [
   { key: "novo_lead", label: "Novo Lead", color: "border-t-blue-500" },
@@ -17,34 +17,17 @@ const stages = [
 ];
 
 export default function CRM() {
-  const [leads, setLeads] = useState([]);
-  const [_loading, setLoading] = useState(true);
+  const { data: leads = [], isLoading } = useLeads(200);
+  const updateLead = useUpdateLead();
+  const createLead = useCreateLead();
   const [draggedId, setDraggedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    loadLeads();
-  }, []);
-
-  const loadLeads = async () => {
-    try {
-      const data = await base44.entities.Lead.list("-created_date", 200);
-      setLeads(data);
-    } catch {
-      setLeads([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDrop = async (stage) => {
     if (!draggedId) return;
     const lead = leads.find((l) => l.id === draggedId);
     if (lead && lead.stage !== stage) {
-      setLeads(leads.map((l) => l.id === draggedId ? { ...l, stage } : l));
-      try {
-        await base44.entities.Lead.update(draggedId, { stage });
-      } catch {}
+      await updateLead.mutateAsync({ id: draggedId, data: { stage } });
     }
     setDraggedId(null);
   };
@@ -69,8 +52,8 @@ export default function CRM() {
         <LeadFormModal
           onClose={() => setShowModal(false)}
           onSave={async (data) => {
-            await base44.entities.Lead.create(data);
-            await loadLeads();
+            await createLead.mutateAsync(data);
+            setShowModal(false);
           }}
         />
       )}

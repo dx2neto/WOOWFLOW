@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Pencil, Trash2, MessageSquareText } from "lucide-react";
 import TemplateFormModal from "@/components/templates/TemplateFormModal";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const categoryLabels = {
   saudacao: "Saudação",
@@ -15,32 +15,25 @@ const categoryLabels = {
 };
 
 export default function MessageTemplates() {
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: templates = [], isLoading: loading } = useEntityList("MessageTemplate", "-created_date", 200);
+  const createMut = useEntityCreate("MessageTemplate");
+  const updateMut = useEntityUpdate("MessageTemplate");
+  const deleteMut = useEntityDelete("MessageTemplate");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  useEffect(() => { loadTemplates(); }, []);
-
-  const loadTemplates = async () => {
-    setLoading(true);
-    const data = await base44.entities.MessageTemplate.list("-created_date", 200);
-    setTemplates(data);
-    setLoading(false);
-  };
-
   const handleSave = async (data) => {
     if (editing) {
-      await base44.entities.MessageTemplate.update(editing.id, data);
+      await updateMut.mutateAsync({ id: editing.id, data });
     } else {
-      await base44.entities.MessageTemplate.create(data);
+      await createMut.mutateAsync(data);
     }
-    await loadTemplates();
+    setShowModal(false);
+    setEditing(null);
   };
 
   const handleDelete = async (id) => {
-    await base44.entities.MessageTemplate.delete(id);
-    await loadTemplates();
+    await deleteMut.mutateAsync(id);
   };
 
   return (

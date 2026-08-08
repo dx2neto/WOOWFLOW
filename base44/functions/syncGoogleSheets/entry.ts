@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 const CONNECTOR_ID = '6a4b4340824be09549e87579';
 
@@ -65,6 +66,7 @@ Deno.serve(async (req) => {
     await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'sync_google_sheets', status: 'sucesso', details: `${rows.length} clientes sincronizados` });
     return Response.json({ success: true, total: rows.length });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'syncGoogleSheets', error, { action: 'sync', severity: 'alta' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

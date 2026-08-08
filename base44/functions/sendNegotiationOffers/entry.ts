@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -75,7 +76,7 @@ Deno.serve(async (req) => {
     return Response.json({ success: true, sent: sentCount, total_overdue: vencidas.length, errors });
   } catch (error) {
     const base44 = createClientFromRequest(req);
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'sendNegotiationOffers', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'sendNegotiationOffers', error, { action: 'run', severity: 'alta' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

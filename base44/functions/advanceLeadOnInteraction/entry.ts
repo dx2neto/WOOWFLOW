@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Movimenta a etapa do Lead no funil do CRM conforme a interação (mensagem
 // enviada/recebida) com o telefone do cliente, e agenda o próximo follow-up.
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ success: true, lead_id: lead.id, updates });
   } catch (error) {
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'advanceLeadOnInteraction', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'advanceLeadOnInteraction', error, { action: 'advance_on_interaction', severity: 'media' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

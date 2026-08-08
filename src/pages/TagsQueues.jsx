@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Tags, ListTree, Plus, Pencil, Trash2 } from "lucide-react";
 import TagFormModal from "@/components/tagsqueues/TagFormModal";
 import QueueFormModal from "@/components/tagsqueues/QueueFormModal";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const colorClasses = {
   blue: "bg-blue-100 text-blue-700", green: "bg-green-100 text-green-700", red: "bg-red-100 text-red-700",
@@ -13,44 +13,36 @@ const colorClasses = {
 
 export default function TagsQueues() {
   const [tab, setTab] = useState("tags");
-  const [tags, setTags] = useState([]);
-  const [queues, setQueues] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: tags = [], isLoading: loadingTags } = useEntityList("Tag", "-created_date");
+  const { data: queues = [], isLoading: loadingQueues } = useEntityList("Queue", "-created_date");
+  const loading = loadingTags || loadingQueues;
   const [showTagForm, setShowTagForm] = useState(false);
   const [editingTag, setEditingTag] = useState(null);
   const [showQueueForm, setShowQueueForm] = useState(false);
   const [editingQueue, setEditingQueue] = useState(null);
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    const [tagsData, queuesData] = await Promise.all([
-      base44.entities.Tag.list("-created_date"),
-      base44.entities.Queue.list("-created_date"),
-    ]);
-    setTags(tagsData);
-    setQueues(queuesData);
-    setLoading(false);
-  };
+  const tagCreate = useEntityCreate("Tag");
+  const tagUpdate = useEntityUpdate("Tag");
+  const tagDelete = useEntityDelete("Tag");
+  const queueCreate = useEntityCreate("Queue");
+  const queueUpdate = useEntityUpdate("Queue");
+  const queueDelete = useEntityDelete("Queue");
 
   const saveTag = async (data) => {
-    if (editingTag) await base44.entities.Tag.update(editingTag.id, data);
-    else await base44.entities.Tag.create(data);
+    if (editingTag) await tagUpdate.mutateAsync({ id: editingTag.id, data });
+    else await tagCreate.mutateAsync(data);
     setShowTagForm(false); setEditingTag(null);
-    await loadData();
   };
 
-  const deleteTag = async (id) => { await base44.entities.Tag.delete(id); await loadData(); };
+  const deleteTag = async (id) => { await tagDelete.mutateAsync(id); };
 
   const saveQueue = async (data) => {
-    if (editingQueue) await base44.entities.Queue.update(editingQueue.id, data);
-    else await base44.entities.Queue.create(data);
+    if (editingQueue) await queueUpdate.mutateAsync({ id: editingQueue.id, data });
+    else await queueCreate.mutateAsync(data);
     setShowQueueForm(false); setEditingQueue(null);
-    await loadData();
   };
 
-  const deleteQueue = async (id) => { await base44.entities.Queue.delete(id); await loadData(); };
+  const deleteQueue = async (id) => { await queueDelete.mutateAsync(id); };
 
   const tabs = [
     { key: "tags", label: "Etiquetas", icon: Tags },

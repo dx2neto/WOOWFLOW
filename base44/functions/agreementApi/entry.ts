@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -811,7 +812,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     const base44 = createClientFromRequest(req);
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'agreementApi', error_message: error.message }).catch(() => {});
-    return Response.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message } }, { status: 500 });
+    await logError(base44, 'agreementApi', error, { action: action || 'unknown', severity: 'critica' });
+    return Response.json({ success: false, error: { code: 'INTERNAL_ERROR', message: (error as Error).message } }, { status: 500 });
   }
 });

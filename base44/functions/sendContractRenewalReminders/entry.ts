@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { logError } from '../../shared/errorLogger.ts';
 
 // Verifica diariamente os contratos próximos ao vencimento no IXC, gera um documento
 // de renovação no ZapSign para cada cliente e envia o link via WhatsApp (Evolution API).
@@ -97,7 +98,7 @@ Deno.serve(async (req) => {
     return Response.json({ success: true, sent: sentCount, total_upcoming: proximos.length, errors });
   } catch (error) {
     const base44 = createClientFromRequest(req);
-    await base44.asServiceRole.entities.ErrorLog.create({ function_name: 'sendContractRenewalReminders', error_message: error.message }).catch(() => {});
-    return Response.json({ error: error.message }, { status: 500 });
+    await logError(base44, 'sendContractRenewalReminders', error, { action: 'run', severity: 'alta' });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });

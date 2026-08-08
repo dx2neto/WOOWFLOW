@@ -4,6 +4,7 @@ import { PageContainer, Card } from "@/components/ui/app-card";
 import { Calendar, Plus, Trash2 } from "lucide-react";
 import HolidayFormModal from "@/components/tagsqueues/HolidayFormModal";
 import { format } from "date-fns";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const DAYS = [
   { key: "segunda", label: "Segunda" }, { key: "terca", label: "Terça" }, { key: "quarta", label: "Quarta" },
@@ -11,43 +12,40 @@ const DAYS = [
 ];
 
 export default function Holidays() {
-  const [holidays, setHolidays] = useState([]);
+  const { data: holidays = [], isLoading: loadingHolidays } = useEntityList("Holiday", "date");
+  const { data: hoursData = [], isLoading: loadingHours } = useEntityList("BusinessHours", "-created_date", 100);
   const [hours, setHours] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const loading = loadingHolidays || loadingHours;
 
-  useEffect(() => { loadData(); }, []);
+  const holidayCreate = useEntityCreate("Holiday");
+  const holidayDelete = useEntityDelete("Holiday");
+  const hourUpdate = useEntityUpdate("BusinessHours");
 
-  const loadData = async () => {
-    setLoading(true);
-    const [holidaysData, hoursData] = await Promise.all([
-      base44.entities.Holiday.list("date"),
-      base44.entities.BusinessHours.list(),
-    ]);
-    setHolidays(holidaysData);
+  // Sincroniza hoursData → hours (estado local para edição otimista)
+  useEffect(() => {
+    if (hoursData.length > 0) setHours(hoursData);
+  }, [hoursData]);
 
-    if (hoursData.length === 0) {
-      const created = await base44.entities.BusinessHours.bulkCreate(
+  // Cria horários padrão se não existir nenhum
+  useEffect(() => {
+    if (!loadingHours && hoursData.length === 0) {
+      base44.entities.BusinessHours.bulkCreate(
         DAYS.map((d) => ({ day: d.key, open_time: "08:00", close_time: "18:00", active: d.key !== "domingo" }))
-      );
-      setHours(created);
-    } else {
-      setHours(hoursData);
+      ).then(setHours).catch(() => {});
     }
-    setLoading(false);
-  };
+  }, [loadingHours, hoursData.length]);
 
   const addHoliday = async (data) => {
-    await base44.entities.Holiday.create(data);
+    await holidayCreate.mutateAsync(data);
     setShowForm(false);
-    await loadData();
   };
 
-  const deleteHoliday = async (id) => { await base44.entities.Holiday.delete(id); await loadData(); };
+  const deleteHoliday = async (id) => { await holidayDelete.mutateAsync(id); };
 
   const updateHour = async (id, field, value) => {
     setHours((prev) => prev.map((h) => (h.id === id ? { ...h, [field]: value } : h)));
-    await base44.entities.BusinessHours.update(id, { [field]: value });
+    await hourUpdate.mutateAsync({ id, data: { [field]: value } });
   };
 
   return (
