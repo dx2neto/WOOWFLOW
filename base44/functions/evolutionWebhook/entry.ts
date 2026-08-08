@@ -278,7 +278,28 @@ Deno.serve(async (req) => {
       try {
         const evoBase = Deno.env.get('EVOLUTION_API_URL') || '';
         const evoKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-        const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || instanceId;
+        let instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || instanceId;
+        // Auto-detecta instância conectada se a padrão não estiver ativa
+        if (evoBase && evoKey && instanceName) {
+          try {
+            const listRes = await fetch(evoBase.replace(/\/+$/, '') + '/instance/fetchInstances', { headers: { apikey: evoKey } });
+            if (listRes.ok) {
+              const listData = await listRes.json().catch(() => []);
+              const list = Array.isArray(listData) ? listData : [];
+              const all = list.map((item) => {
+                const rec = asRecord(item);
+                const inst = asRecord(rec.instance || rec);
+                const stateRaw = String(inst.connectionStatus || inst.state || inst.status || 'close').toLowerCase();
+                return { name: String(inst.name || inst.instanceName || ''), state: stateRaw === 'open' || stateRaw === 'connected' ? 'connected' : 'disconnected' };
+              });
+              const target = all.find((i) => i.name === instanceName);
+              if (!target || target.state !== 'connected') {
+                const connected = all.find((i) => i.state === 'connected' && i.name);
+                if (connected) instanceName = connected.name;
+              }
+            }
+          } catch { /* mantém instanceName atual */ }
+        }
 
         for (const msg of batch) {
           const key = asRecord(msg.key || msg.Key);

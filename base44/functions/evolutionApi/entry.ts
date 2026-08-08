@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
 
     const base = BASE(Deno.env.get('EVOLUTION_API_URL') || '');
     const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-    const defaultInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+    const envInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || '';
 
     if (!base) return Response.json({ success: false, error: { code: 'EVOLUTION_API_URL_NOT_SET', message: 'Variável EVOLUTION_API_URL não configurada.' } }, { status: 500 });
     if (!apiKey) return Response.json({ success: false, error: { code: 'EVOLUTION_API_KEY_NOT_SET', message: 'Variável EVOLUTION_API_KEY não configurada.' } }, { status: 500 });
@@ -86,7 +86,23 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || 'list_instances');
-    const instanceName = String(body.instanceName || body.instance || defaultInst);
+
+    // Instância: prioriza a selecionada no frontend; se não houver, auto-detecta conectada
+    let instanceName = String(body.instanceName || body.instance || '').trim();
+    if (!instanceName) {
+      try {
+        const listRes = await fetchWithRetry(`${base}/instance/fetchInstances`, { headers: authHeaders });
+        const listData = listRes.ok ? await listRes.json().catch(() => []) : [];
+        const list = Array.isArray(listData) ? listData : [];
+        const connected = list.map((item) => {
+          const rec = asRecord(item);
+          const inst = asRecord(rec.instance || rec);
+          const stateRaw = String(inst.connectionStatus || inst.state || inst.status || 'close').toLowerCase();
+          return { name: String(inst.name || inst.instanceName || ''), state: stateRaw === 'open' || stateRaw === 'connected' ? 'connected' : 'disconnected' };
+        }).find((i) => i.state === 'connected' && i.name);
+        instanceName = connected?.name || envInst || '';
+      } catch { instanceName = envInst || ''; }
+    }
 
     const log = (a: string, s: string, d = '') => b44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: a, status: s, details: d.slice(0, 500) }).catch(() => {});
 
