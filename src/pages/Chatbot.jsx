@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Bot, MessageSquare, Phone, Clock, Calendar, Zap, Plus, Play, Settings, Brain, Trash2 } from "lucide-react";
 import FlowFormModal from "@/components/chatbot/FlowFormModal";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const intents = [
   { label: "Segunda via de boleto", icon: "📄", color: "bg-orange-50 text-orange-700" },
@@ -21,37 +21,28 @@ const intents = [
 
 export default function Chatbot() {
   const [tab, setTab] = useState("flows");
-  const [flows, setFlows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: flows = [], isLoading: loading } = useEntityList("ChatbotFlow", "-created_date", 200);
   const [showModal, setShowModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState(null);
 
-  useEffect(() => { loadFlows(); }, []);
-
-  const loadFlows = async () => {
-    setLoading(true);
-    const data = await base44.entities.ChatbotFlow.list("-created_date", 200);
-    setFlows(data);
-    setLoading(false);
-  };
+  const flowCreate = useEntityCreate("ChatbotFlow");
+  const flowUpdate = useEntityUpdate("ChatbotFlow");
+  const flowDelete = useEntityDelete("ChatbotFlow");
 
   const handleSaveFlow = async (data) => {
     if (editingFlow) {
-      await base44.entities.ChatbotFlow.update(editingFlow.id, data);
+      await flowUpdate.mutateAsync({ id: editingFlow.id, data });
     } else {
-      await base44.entities.ChatbotFlow.create({ status: "rascunho", ...data });
+      await flowCreate.mutateAsync({ status: "rascunho", ...data });
     }
-    await loadFlows();
   };
 
   const toggleFlowStatus = async (flow) => {
-    await base44.entities.ChatbotFlow.update(flow.id, { status: flow.status === "ativo" ? "rascunho" : "ativo" });
-    await loadFlows();
+    await flowUpdate.mutateAsync({ id: flow.id, data: { status: flow.status === "ativo" ? "rascunho" : "ativo" } });
   };
 
   const handleDeleteFlow = async (id) => {
-    await base44.entities.ChatbotFlow.delete(id);
-    await loadFlows();
+    await flowDelete.mutateAsync(id);
   };
 
   const tabs = [

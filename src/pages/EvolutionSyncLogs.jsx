@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useMemo } from "react";
 import { PageContainer, Card, StatCard } from "@/components/ui/app-card";
 import { RefreshCw, History, CheckCircle2, XCircle } from "lucide-react";
 import SyncLogRow from "@/components/evolutionlogs/SyncLogRow";
+import { useEntityList } from "@/hooks/useEntityQueries";
 
 const actionLabels = {
   sync_history: "Histórico",
@@ -14,26 +14,10 @@ const actionLabels = {
 };
 
 export default function EvolutionSyncLogs() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: logs = [], isLoading: loading, refetch } = useEntityList("IntegrationLog", "-created_date", 300, { integration: "evolutionApi" });
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
-
-  const loadLogs = async () => {
-    setLoading(true);
-    const data = await base44.entities.IntegrationLog.filter(
-      { integration: "evolutionApi" },
-      "-created_date",
-      300
-    );
-    setLogs(data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadLogs();
-  }, []);
 
   const actions = useMemo(() => ["all", ...new Set(logs.map((l) => l.action))], [logs]);
 
@@ -57,7 +41,7 @@ export default function EvolutionSyncLogs() {
           <p className="text-sm text-muted-foreground">Acompanhe o status de cada tentativa de sincronização e identifique rapidamente mensagens ou contatos com falha.</p>
         </div>
         <button
-          onClick={loadLogs}
+          onClick={() => refetch()}
           disabled={loading}
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import { Plus, Send, CheckCircle, Eye, MessageSquare, Calendar, Camera, Image as ImageIcon, Film, Clock, Trash2 } from "lucide-react";
 // Note: lucide-react removed the Instagram icon; Camera is used as visual substitute
 import InstagramPostForm from "@/components/campaigns/InstagramPostForm";
 import ContentCalendar from "@/components/campaigns/ContentCalendar";
+import { useEntityList, useEntityCreate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const typeConfig = {
   cobranca: { label: "Cobrança", color: "bg-red-100 text-red-700" },
@@ -34,25 +34,17 @@ const igTypeConfig = {
 };
 
 export default function Campaigns() {
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: campaigns = [], isLoading: loading } = useEntityList("Campaign", "-created_date", 50);
   const [activeTab, setActiveTab] = useState("whatsapp");
   const [showPostForm, setShowPostForm] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
 
-  useEffect(() => { loadCampaigns(); }, []);
-
-  const loadCampaigns = async () => {
-    try {
-      const data = await base44.entities.Campaign.list("-created_date", 50);
-      setCampaigns(data);
-    } catch { setCampaigns([]); } finally { setLoading(false); }
-  };
+  const campaignCreate = useEntityCreate("Campaign");
+  const campaignDelete = useEntityDelete("Campaign");
 
   const handleSavePost = async (postData) => {
     try {
-      await base44.entities.Campaign.create(postData);
-      await loadCampaigns();
+      await campaignCreate.mutateAsync(postData);
       setShowPostForm(false);
     } catch (e) {
       console.error("Erro ao agendar postagem:", e);
@@ -61,9 +53,8 @@ export default function Campaigns() {
 
   const handleDeletePost = async (postId) => {
     try {
-      await base44.entities.Campaign.delete(postId);
+      await campaignDelete.mutateAsync(postId);
       setSelectedPost(null);
-      await loadCampaigns();
     } catch (e) {
       console.error("Erro ao excluir postagem:", e);
     }

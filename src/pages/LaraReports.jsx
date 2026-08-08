@@ -1,30 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useMemo } from "react";
 import { StatCard, Card } from "@/components/ui/app-card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { BarChart3, CheckCircle2, ArrowRightCircle, MessagesSquare } from "lucide-react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 
 const RESOLVED_STATUSES = ["resolvido", "finalizado"];
 const ESCALATED_STATUSES = ["aguardando_atendimento", "em_atendimento"];
 
 export default function LaraReports() {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  const loadConversations = async () => {
-    try {
-      const data = await base44.entities.Conversation.filter({ is_ai: true }, "-last_message_time", 1000);
-      setConversations(data);
-    } catch {
-      setConversations([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: conversations = [], isLoading: loading } = useEntityList("Conversation", "-last_message_time", 1000, { is_ai: true });
 
   const stats = useMemo(() => {
     const total = conversations.length;

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { AlertTriangle, ChevronDown, ChevronRight, Plug, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useEntityList } from "@/hooks/useEntityQueries";
 
 const integrationFilters = [
   { key: "all", label: "Todas" },
@@ -13,24 +13,12 @@ const integrationFilters = [
 
 export default function SystemLogs() {
   const [tab, setTab] = useState("errors");
-  const [errorLogs, setErrorLogs] = useState([]);
-  const [integrationLogs, setIntegrationLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: errorLogs = [], isLoading: loadingErrors } = useEntityList("ErrorLog", "-created_date", 200);
+  const { data: integrationLogs = [], isLoading: loadingInts } = useEntityList("IntegrationLog", "-created_date", 200);
+  const loading = loadingErrors || loadingInts;
   const [integrationFilter, setIntegrationFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [expandedError, setExpandedError] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      const [errs, ints] = await Promise.all([
-        base44.entities.ErrorLog.list("-created_date", 200),
-        base44.entities.IntegrationLog.list("-created_date", 200),
-      ]);
-      setErrorLogs(errs);
-      setIntegrationLogs(ints);
-      setLoading(false);
-    })();
-  }, []);
 
   const filteredIntegrationLogs = integrationLogs
     .filter((log) => integrationFilter === "all" || log.integration === integrationFilter)

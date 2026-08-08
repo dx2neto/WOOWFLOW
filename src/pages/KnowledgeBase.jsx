@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Plus, Search, BookOpen, Tag, Edit, Trash2 } from "lucide-react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 
 const categoryConfig = {
   financeiro: { label: "Financeiro", color: "bg-green-100 text-green-700" },
@@ -17,19 +17,9 @@ const categoryConfig = {
 };
 
 export default function KnowledgeBase() {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: articles = [], isLoading: loading } = useEntityList("KnowledgeArticle", "-created_date", 100);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-
-  useEffect(() => { loadArticles(); }, []);
-
-  const loadArticles = async () => {
-    try {
-      const data = await base44.entities.KnowledgeArticle.list("-created_date", 100);
-      setArticles(data);
-    } catch { setArticles([]); } finally { setLoading(false); }
-  };
 
   const filtered = articles.filter((a) => {
     const matchSearch = a.title?.toLowerCase().includes(search.toLowerCase()) || a.content?.toLowerCase().includes(search.toLowerCase());
