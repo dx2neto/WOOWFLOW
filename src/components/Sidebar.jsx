@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Inbox, Users, DollarSign, ClipboardList,
@@ -12,31 +13,19 @@ import {
 
 // ── Hook: contagem de conversas não lidas em tempo real ───────────────────────
 function useUnreadCount() {
-  const [count, setCount] = useState(0);
+  const qc = useQueryClient();
+  const { data: count = 0 } = useQuery({
+    queryKey: ["unreadCount"],
+    queryFn: () => base44.entities.Conversation.filter({ unread: true }).then((data) => data.length).catch(() => 0),
+    staleTime: 5_000,
+  });
 
   useEffect(() => {
-    // Carga inicial
-    base44.entities.Conversation.filter({ unread: true })
-      .then((data) => setCount(data.length))
-      .catch(() => setCount(0));
-
-    // Realtime
-    const unsub = base44.entities.Conversation.subscribe((event) => {
-      setCount((prev) => {
-        if (event.type === "create") return event.data.unread ? prev + 1 : prev;
-        if (event.type === "update") {
-          // Re-consulta para garantir precisão — leve, pois é apenas a contagem
-          base44.entities.Conversation.filter({ unread: true })
-            .then((data) => setCount(data.length))
-            .catch(() => {});
-          return prev;
-        }
-        if (event.type === "delete") return event.data.unread ? Math.max(0, prev - 1) : prev;
-        return prev;
-      });
+    const unsub = base44.entities.Conversation.subscribe(() => {
+      qc.invalidateQueries({ queryKey: ["unreadCount"] });
     });
     return unsub;
-  }, []);
+  }, [qc]);
 
   return count;
 }

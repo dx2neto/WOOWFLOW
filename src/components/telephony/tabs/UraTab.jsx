@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import UraModal from "../UraModal";
 
 export default function UraTab() {
-  const [items, setItems] = useState([]);
+  const { data: items = [] } = useEntityList("UraMenu", "-created_date");
   const [modalItem, setModalItem] = useState(undefined);
-  const load = async () => setItems(await base44.entities.UraMenu.list("-created_date"));
-  useEffect(() => { load(); }, []);
+  const createMut = useEntityCreate("UraMenu");
+  const updateMut = useEntityUpdate("UraMenu");
+  const deleteMut = useEntityDelete("UraMenu");
 
   const handleSave = async (data) => {
-    if (data.id) await base44.entities.UraMenu.update(data.id, data);
-    else await base44.entities.UraMenu.create(data);
-    setModalItem(undefined); load();
+    if (data.id) await updateMut.mutateAsync({ id: data.id, data });
+    else await createMut.mutateAsync(data);
+    setModalItem(undefined);
   };
-  const handleDelete = async (id) => { await base44.entities.UraMenu.delete(id); load(); };
+  const handleDelete = async (id) => { await deleteMut.mutateAsync(id); };
 
   return (
     <div>

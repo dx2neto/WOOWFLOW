@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import QueueModal from "../QueueModal";
 import { queueStrategies } from "../constants";
 
 export default function QueuesTab() {
-  const [items, setItems] = useState([]);
+  const { data: items = [] } = useEntityList("TelephonyQueue", "-created_date");
   const [modalItem, setModalItem] = useState(undefined);
-  const load = async () => setItems(await base44.entities.TelephonyQueue.list("-created_date"));
-  useEffect(() => { load(); }, []);
+  const createMut = useEntityCreate("TelephonyQueue");
+  const updateMut = useEntityUpdate("TelephonyQueue");
+  const deleteMut = useEntityDelete("TelephonyQueue");
 
   const handleSave = async (data) => {
-    if (data.id) await base44.entities.TelephonyQueue.update(data.id, data);
-    else await base44.entities.TelephonyQueue.create(data);
-    setModalItem(undefined); load();
+    if (data.id) await updateMut.mutateAsync({ id: data.id, data });
+    else await createMut.mutateAsync(data);
+    setModalItem(undefined);
   };
-  const handleDelete = async (id) => { await base44.entities.TelephonyQueue.delete(id); load(); };
+  const handleDelete = async (id) => { await deleteMut.mutateAsync(id); };
 
   return (
     <div>

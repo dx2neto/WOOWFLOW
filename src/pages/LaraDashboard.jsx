@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 import { base44 } from "@/api/base44Client";
 import { StatCard, Card } from "@/components/ui/app-card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -8,35 +10,17 @@ const RESOLVED_STATUSES = ["resolvido", "finalizado"];
 const ESCALATED_STATUSES = ["aguardando_atendimento", "em_atendimento"];
 
 export default function LaraDashboard() {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadConversations();
-  }, []);
+  const qc = useQueryClient();
+  const { data: conversations = [], isLoading: loading } = useEntityFilter("Conversation", { is_ai: true }, "-last_message_time", 500);
 
   useEffect(() => {
     const unsubscribe = base44.entities.Conversation.subscribe((event) => {
-      setConversations((prev) => {
-        if (event.type === "create") return [event.data, ...prev.filter((c) => c.id !== event.data.id)];
-        if (event.type === "update") return prev.map((c) => (c.id === event.data.id ? event.data : c));
-        if (event.type === "delete") return prev.filter((c) => c.id !== event.data.id);
-        return prev;
-      });
+      if (event.data?.is_ai) {
+        qc.invalidateQueries({ queryKey: ["Conversation", "filter", { is_ai: true }] });
+      }
     });
     return unsubscribe;
-  }, []);
-
-  const loadConversations = async () => {
-    try {
-      const data = await base44.entities.Conversation.filter({ is_ai: true }, "-last_message_time", 500);
-      setConversations(data);
-    } catch {
-      setConversations([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [qc]);
 
   const stats = useMemo(() => {
     const total = conversations.length;

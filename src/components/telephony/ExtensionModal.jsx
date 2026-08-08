@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { X } from "lucide-react";
 import { extensionPermissions } from "./constants";
 
@@ -10,11 +10,7 @@ export default function ExtensionModal({ item, onClose, onSave }) {
     number: "", attendant_name: "", user_id: "", sector: "", permissions: [], status: "offline",
     forward_enabled: false, forward_type: "sempre", forward_destination: "", active: true,
   });
-  const [users, setUsers] = useState([]);
-
-  useEffect(() => {
-    base44.entities.User.list().then(setUsers);
-  }, []);
+  const { data: users = [] } = useEntityList("User");
 
   const set = (k, v) => setForm({ ...form, [k]: v });
   const togglePerm = (key) => {

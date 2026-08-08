@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 import { evolutionApi } from "@/functions/evolutionApi";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -52,8 +52,7 @@ export default function EvolutionQrCodeModal({ onClose }) {
   const [loadingQr, setLoadingQr]     = useState(false);
   const [connecting, setConnecting]   = useState(false);
   const [error, setError]       = useState(null);
-  const [history, setHistory]   = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  
   const pollRef = useRef(null);
   const refreshRef = useRef(null);
 
@@ -203,14 +202,13 @@ export default function EvolutionQrCodeModal({ onClose }) {
   };
 
   // ── History ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (tab === "history") {
-      setLoadingHistory(true);
-      base44.entities.IntegrationLog.filter(
-        { integration: "evolutionApi" }, "-created_date", 60
-      ).then((logs) => setHistory(logs || [])).catch(() => setHistory([])).finally(() => setLoadingHistory(false));
-    }
-  }, [tab]);
+  const { data: history = [], isLoading: loadingHistory } = useEntityFilter(
+    "IntegrationLog",
+    { integration: "evolutionApi" },
+    "-created_date",
+    60,
+    { enabled: tab === "history" }
+  );
 
   const lastSuccess = history.find((h) => h.status === "sucesso" && h.action === "list_instances");
 

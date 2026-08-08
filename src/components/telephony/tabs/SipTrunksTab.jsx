@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import SipTrunkModal from "../SipTrunkModal";
 import { TrunkStatusBadge } from "../TelephonyBadges";
 import { trunkTypes } from "../constants";
 
 export default function SipTrunksTab() {
-  const [items, setItems] = useState([]);
+  const { data: items = [] } = useEntityList("SipTrunk", "-created_date");
   const [modalItem, setModalItem] = useState(undefined);
-  const load = async () => setItems(await base44.entities.SipTrunk.list("-created_date"));
-  useEffect(() => { load(); }, []);
+  const createMut = useEntityCreate("SipTrunk");
+  const updateMut = useEntityUpdate("SipTrunk");
+  const deleteMut = useEntityDelete("SipTrunk");
 
   const handleSave = async (data) => {
-    if (data.id) await base44.entities.SipTrunk.update(data.id, data);
-    else await base44.entities.SipTrunk.create(data);
-    setModalItem(undefined); load();
+    if (data.id) await updateMut.mutateAsync({ id: data.id, data });
+    else await createMut.mutateAsync(data);
+    setModalItem(undefined);
   };
-  const handleDelete = async (id) => { await base44.entities.SipTrunk.delete(id); load(); };
+  const handleDelete = async (id) => { await deleteMut.mutateAsync(id); };
 
   return (
     <div>

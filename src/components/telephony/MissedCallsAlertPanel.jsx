@@ -1,24 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React from "react";
+import { useEntityFilter, useEntityUpdate } from "@/hooks/useEntityQueries";
 import { PhoneMissed, PhoneCall } from "lucide-react";
 
 export default function MissedCallsAlertPanel() {
-  const [missedCalls, setMissedCalls] = useState([]);
+  const { data: calls = [] } = useEntityFilter("Call", {}, "-start_time", 200);
+  const updateMut = useEntityUpdate("Call");
 
-  useEffect(() => {
-    loadMissedCalls();
-  }, []);
-
-  const loadMissedCalls = async () => {
-    const calls = await base44.entities.Call.filter({}, "-start_time", 200);
-    setMissedCalls(
-      calls.filter((c) => (c.status === "perdida" || c.status === "abandonada") && c.next_action !== "Retorno realizado")
-    );
-  };
+  const missedCalls = calls.filter(
+    (c) => (c.status === "perdida" || c.status === "abandonada") && c.next_action !== "Retorno realizado"
+  );
 
   const handleReturnCall = async (call) => {
-    await base44.entities.Call.update(call.id, { next_action: "Retorno realizado" });
-    loadMissedCalls();
+    await updateMut.mutateAsync({ id: call.id, data: { next_action: "Retorno realizado" } });
   };
 
   if (missedCalls.length === 0) return null;

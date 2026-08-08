@@ -179,3 +179,11 @@ export function useEntityDelete(entityName) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [entityName] }),
   });
 }
+
+export function useEntityBulkCreate(entityName) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => base44.entities[entityName].bulkCreate(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [entityName] }),
+  });
+}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React from "react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { StatCard } from "@/components/ui/app-card";
 import { Phone, PhoneMissed, Clock, Radio } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -7,13 +7,8 @@ import { callReasons } from "../constants";
 import MissedCallsAlertPanel from "../MissedCallsAlertPanel";
 
 export default function DashboardTab() {
-  const [trunks, setTrunks] = useState([]);
-  const [calls, setCalls] = useState([]);
-
-  useEffect(() => {
-    base44.entities.SipTrunk.list().then(setTrunks);
-    base44.entities.Call.list("-start_time", 200).then(setCalls);
-  }, []);
+  const { data: trunks = [] } = useEntityList("SipTrunk");
+  const { data: calls = [] } = useEntityList("Call", "-start_time", 200);
 
   const online = trunks.filter((t) => t.status === "online" || t.status === "registrado").length;
   const lost = calls.filter((c) => c.status === "perdida" || c.status === "abandonada").length;

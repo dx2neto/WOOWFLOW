@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Card } from "@/components/ui/Card";
 import { Target, Pencil, Check } from "lucide-react";
@@ -6,53 +7,61 @@ import { Target, Pencil, Check } from "lucide-react";
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export default function GoalsSection() {
-  const [goal, setGoal] = useState(null);
-  const [progress, setProgress] = useState({ contracts: 0, salesValue: 0 });
+  const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ target_new_contracts: 0, target_sales_value: 0 });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, []);
+  const month = currentMonth();
 
-  const load = async () => {
-    setLoading(true);
-    const month = currentMonth();
-    const goals = await base44.entities.Goal.filter({ month });
-    const currentGoal = goals[0] || null;
-    setGoal(currentGoal);
+  const { data: goal } = useQuery({
+    queryKey: ["Goal", "filter", { month }],
+    queryFn: () => base44.entities.Goal.filter({ month }),
+    select: (goals) => goals[0] || null,
+    staleTime: 30_000,
+  });
+
+  const { data: wonLeads = [] } = useQuery({
+    queryKey: ["Lead", "filter", { stage: "venda_fechada" }],
+    queryFn: () => base44.entities.Lead.filter({ stage: "venda_fechada" }, "-updated_date", 500),
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
     setForm({
-      target_new_contracts: currentGoal?.target_new_contracts || 0,
-      target_sales_value: currentGoal?.target_sales_value || 0,
+      target_new_contracts: goal?.target_new_contracts || 0,
+      target_sales_value: goal?.target_sales_value || 0,
     });
+  }, [goal]);
 
-    const leads = await base44.entities.Lead.filter({ stage: "venda_fechada" }, "-updated_date", 500);
-    const wonThisMonth = leads.filter((l) => (l.updated_date || "").slice(0, 7) === month);
-    setProgress({
-      contracts: wonThisMonth.length,
-      salesValue: wonThisMonth.reduce((sum, l) => sum + (l.estimated_value || 0), 0),
-    });
-    setLoading(false);
+  const saveMutation = useMutation({
+    mutationFn: async (data) => {
+      if (goal) return base44.entities.Goal.update(goal.id, data);
+      return base44.entities.Goal.create(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["Goal"] });
+      setEditing(false);
+    },
+  });
+
+  const wonThisMonth = wonLeads.filter((l) => (l.updated_date || "").slice(0, 7) === month);
+  const progress = {
+    contracts: wonThisMonth.length,
+    salesValue: wonThisMonth.reduce((sum, l) => sum + (l.estimated_value || 0), 0),
   };
 
-  const handleSave = async () => {
-    const data = {
+  const handleSave = () => {
+    saveMutation.mutate({
       month: currentMonth(),
       target_new_contracts: Number(form.target_new_contracts) || 0,
       target_sales_value: Number(form.target_sales_value) || 0,
-    };
-    if (goal) {
-      await base44.entities.Goal.update(goal.id, data);
-    } else {
-      await base44.entities.Goal.create(data);
-    }
-    setEditing(false);
-    await load();
+    });
   };
 
   const contractsPct = form.target_new_contracts > 0 ? Math.min(100, Math.round((progress.contracts / form.target_new_contracts) * 100)) : 0;
   const salesPct = form.target_sales_value > 0 ? Math.min(100, Math.round((progress.salesValue / form.target_sales_value) * 100)) : 0;
 
-  if (loading) return null;
+  if (!goal && !wonLeads.length) return null;
 
   return (
     <Card title="Metas do Mês" className="p-5 mb-6" action={
@@ -80,7 +89,7 @@ export default function GoalsSection() {
               className="w-full mt-1 px-3 py-2 border border-border rounded-lg text-sm"
             />
           </div>
-          <button onClick={handleSave} className="sm:col-span-2 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
+          <button onClick={handleSave} disabled={saveMutation.isPending} className="sm:col-span-2 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
             Salvar Metas
           </button>
         </div>

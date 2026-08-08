@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { useConversations } from "@/hooks/useEntityQueries";
 import { ixcApi } from "@/functions/ixcApi";
 import { Search, User, MessageSquare, Loader2 } from "lucide-react";
 
@@ -12,6 +12,8 @@ export default function GlobalSearch() {
   const [conversations, setConversations] = useState([]);
   const containerRef = useRef(null);
   const navigate = useNavigate();
+
+  const { data: allConversations = [] } = useConversations(300);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -34,10 +36,7 @@ export default function GlobalSearch() {
   const runSearch = async (term) => {
     setLoading(true);
     try {
-      const [ixcRes, allConversations] = await Promise.all([
-        ixcApi({ action: "clientes", search: term }).catch(() => null),
-        base44.entities.Conversation.list("-last_message_time", 300).catch(() => []),
-      ]);
+      const ixcRes = await ixcApi({ action: "clientes", search: term }).catch(() => null);
       setCustomers(ixcRes?.data?.result?.registros?.slice(0, 6) || []);
       const lower = term.toLowerCase();
       setConversations(

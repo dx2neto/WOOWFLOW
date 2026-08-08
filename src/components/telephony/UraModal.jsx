@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { X, Trash2 } from "lucide-react";
 import { destinationTypes } from "./constants";
 
@@ -10,15 +10,8 @@ export default function UraModal({ item, onClose, onSave }) {
     name: "", welcome_audio_text: "", options: [], invalid_attempts_limit: 3, timeout_seconds: 10,
     after_hours_audio_text: "", holiday_audio_text: "", error_audio_text: "", transbordo_destination: "", active: true,
   });
-  const [queues, setQueues] = useState([]);
-  const [extensions, setExtensions] = useState([]);
-
-  useEffect(() => {
-    (async () => {
-      setQueues(await base44.entities.TelephonyQueue.list());
-      setExtensions(await base44.entities.Extension.list());
-    })();
-  }, []);
+  const { data: queues = [] } = useEntityList("TelephonyQueue");
+  const { data: extensions = [] } = useEntityList("Extension");
 
   const set = (k, v) => setForm({ ...form, [k]: v });
   const updateOption = (idx, key, val) => {

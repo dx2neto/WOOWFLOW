@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { syncGoogleSheets } from "@/functions/syncGoogleSheets";
 import { Card } from "@/components/ui/app-card";
@@ -8,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 const CONNECTOR_ID = "6a4b4340824be09549e87579";
 
 export default function GoogleSheetsSyncCard() {
+  const qc = useQueryClient();
   const [user, setUser] = useState(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,19 @@ export default function GoogleSheetsSyncCard() {
   const [configId, setConfigId] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
+
+  const { data: configs = [] } = useQuery({
+    queryKey: ["IntegrationConfig", "filter", { service: "google_sheets" }],
+    queryFn: () => base44.entities.IntegrationConfig.filter({ service: "google_sheets" }),
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (configs[0]) {
+      setConfigId(configs[0].id);
+      setSpreadsheetId(configs[0].config?.spreadsheet_id || "");
+    }
+  }, [configs]);
 
   const checkConnection = async () => {
     try {
@@ -32,11 +47,6 @@ export default function GoogleSheetsSyncCard() {
         const me = await base44.auth.me();
         setUser(me);
         await checkConnection();
-        const configs = await base44.entities.IntegrationConfig.filter({ service: "google_sheets" });
-        if (configs[0]) {
-          setConfigId(configs[0].id);
-          setSpreadsheetId(configs[0].config?.spreadsheet_id || "");
-        }
       }
       setLoading(false);
     })();
@@ -58,11 +68,11 @@ export default function GoogleSheetsSyncCard() {
     setConnected(false);
   };
 
-  const saveSpreadsheetId = async (value) => {
-    setSpreadsheetId(value);
-    if (configId) {
-      await base44.entities.IntegrationConfig.update(configId, { config: { spreadsheet_id: value } });
-    } else {
+  const saveMutation = useMutation({
+    mutationFn: async (value) => {
+      if (configId) {
+        return base44.entities.IntegrationConfig.update(configId, { config: { spreadsheet_id: value } });
+      }
       const created = await base44.entities.IntegrationConfig.create({
         service: "google_sheets",
         display_name: "Google Sheets",
@@ -70,7 +80,13 @@ export default function GoogleSheetsSyncCard() {
         config: { spreadsheet_id: value },
       });
       setConfigId(created.id);
-    }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["IntegrationConfig"] }),
+  });
+
+  const saveSpreadsheetId = (value) => {
+    setSpreadsheetId(value);
+    saveMutation.mutate(value);
   };
 
   const handleSync = async () => {
@@ -86,6 +102,7 @@ export default function GoogleSheetsSyncCard() {
         return;
       }
       if (configId) await base44.entities.IntegrationConfig.update(configId, { last_sync: new Date().toISOString() });
+      qc.invalidateQueries({ queryKey: ["IntegrationConfig"] });
       toast({ title: `${res?.data?.total || 0} clientes sincronizados com sucesso` });
     } catch {
       toast({ title: "Erro ao sincronizar", variant: "destructive" });

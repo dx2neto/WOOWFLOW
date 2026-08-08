@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList } from "@/hooks/useEntityQueries";
 import { PhoneIncoming, PhoneOutgoing } from "lucide-react";
 import { CallStatusBadge } from "../TelephonyBadges";
 import { callStatus } from "../constants";
@@ -9,13 +9,9 @@ import moment from "moment";
 const filters = ["todas", ...Object.keys(callStatus)];
 
 export default function CallsInboxTab() {
-  const [calls, setCalls] = useState([]);
+  const { data: calls = [] } = useEntityList("Call", "-start_time", 100);
   const [filter, setFilter] = useState("todas");
   const [selected, setSelected] = useState(null);
-
-  useEffect(() => {
-    base44.entities.Call.list("-start_time", 100).then(setCalls);
-  }, []);
 
   const filtered = filter === "todas" ? calls : calls.filter((c) => c.status === filter);
 

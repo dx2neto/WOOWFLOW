@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete, useEntityBulkCreate } from "@/hooks/useEntityQueries";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { Calendar, Plus, Trash2 } from "lucide-react";
 import HolidayFormModal from "@/components/tagsqueues/HolidayFormModal";
 import { format } from "date-fns";
-import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 
 const DAYS = [
   { key: "segunda", label: "Segunda" }, { key: "terca", label: "Terça" }, { key: "quarta", label: "Quarta" },
@@ -21,6 +20,7 @@ export default function Holidays() {
   const holidayCreate = useEntityCreate("Holiday");
   const holidayDelete = useEntityDelete("Holiday");
   const hourUpdate = useEntityUpdate("BusinessHours");
+  const hourBulkCreate = useEntityBulkCreate("BusinessHours");
 
   // Sincroniza hoursData → hours (estado local para edição otimista)
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function Holidays() {
   // Cria horários padrão se não existir nenhum
   useEffect(() => {
     if (!loadingHours && hoursData.length === 0) {
-      base44.entities.BusinessHours.bulkCreate(
+      hourBulkCreate.mutateAsync(
         DAYS.map((d) => ({ day: d.key, open_time: "08:00", close_time: "18:00", active: d.key !== "domingo" }))
       ).then(setHours).catch(() => {});
     }

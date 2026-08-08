@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import E1GatewayModal from "../E1GatewayModal";
 import { LinkStatusBadge } from "../TelephonyBadges";
 
 export default function E1GatewaysTab() {
-  const [items, setItems] = useState([]);
+  const { data: items = [] } = useEntityList("E1Gateway", "-created_date");
   const [modalItem, setModalItem] = useState(undefined);
-  const load = async () => setItems(await base44.entities.E1Gateway.list("-created_date"));
-  useEffect(() => { load(); }, []);
+  const createMut = useEntityCreate("E1Gateway");
+  const updateMut = useEntityUpdate("E1Gateway");
+  const deleteMut = useEntityDelete("E1Gateway");
 
   const handleSave = async (data) => {
-    if (data.id) await base44.entities.E1Gateway.update(data.id, data);
-    else await base44.entities.E1Gateway.create(data);
-    setModalItem(undefined); load();
+    if (data.id) await updateMut.mutateAsync({ id: data.id, data });
+    else await createMut.mutateAsync(data);
+    setModalItem(undefined);
   };
-  const handleDelete = async (id) => { await base44.entities.E1Gateway.delete(id); load(); };
+  const handleDelete = async (id) => { await deleteMut.mutateAsync(id); };
 
   return (
     <div>

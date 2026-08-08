@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import InboundRouteModal from "../InboundRouteModal";
 import { destinationTypes } from "../constants";
 
 export default function InboundRoutesTab() {
-  const [items, setItems] = useState([]);
+  const { data: items = [] } = useEntityList("InboundRoute", "priority");
   const [modalItem, setModalItem] = useState(undefined);
-  const load = async () => setItems(await base44.entities.InboundRoute.list("priority"));
-  useEffect(() => { load(); }, []);
+  const createMut = useEntityCreate("InboundRoute");
+  const updateMut = useEntityUpdate("InboundRoute");
+  const deleteMut = useEntityDelete("InboundRoute");
 
   const handleSave = async (data) => {
-    if (data.id) await base44.entities.InboundRoute.update(data.id, data);
-    else await base44.entities.InboundRoute.create(data);
-    setModalItem(undefined); load();
+    if (data.id) await updateMut.mutateAsync({ id: data.id, data });
+    else await createMut.mutateAsync(data);
+    setModalItem(undefined);
   };
-  const handleDelete = async (id) => { await base44.entities.InboundRoute.delete(id); load(); };
+  const handleDelete = async (id) => { await deleteMut.mutateAsync(id); };
 
   return (
     <div>
