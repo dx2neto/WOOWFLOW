@@ -33,8 +33,11 @@ Deno.serve(async (req) => {
       headers: internalHeaders,
       body: JSON.stringify({ action: 'faturas' }),
     });
-    const faturasData = await faturasRes.json();
-    const registros = faturasData?.result?.registros || [];
+    const faturasData = await faturasRes.json().catch(() => ({}));
+    if (!faturasRes.ok) {
+      await logError(base44, 'sendBillingRuleReminders', new Error('ixcApi faturas failed: ' + (faturasData?.error || faturasRes.status)), { action: 'fetch_faturas', severity: 'media' });
+    }
+    const registros = faturasData?.result?.registros || faturasData?.data || [];
 
     const rules = await base44.asServiceRole.entities.BillingRule.filter({ active: true });
 
