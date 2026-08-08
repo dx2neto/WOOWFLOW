@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const ZAP_BASE = 'https://api.zapsign.com.br/api/v1';
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
     const zapToken  = Deno.env.get('ZAPSIGN_API_TOKEN');
     const ixcUrl    = Deno.env.get('IXC_API_URL');
     const ixcToken  = Deno.env.get('IXC_API_TOKEN');
-    const evoBase   = Deno.env.get('EVOLUTION_API_URL') || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud';
+    const evoBase   = Deno.env.get('EVOLUTION_API_URL') || '';
     const evoKey    = Deno.env.get('EVOLUTION_API_KEY') || '';
     const evoInst   = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
 
@@ -406,20 +407,11 @@ Deno.serve(async (req) => {
 
           const number = (customer.telefone_celular || customer.fone || '').replace(/\D/g, '');
 
-          // Descobrir token da instância Evolution Go
-          const allRes = await fetch(`${evoBase.replace(/\/$/, '')}/instance/all`, { headers: { apikey: evoKey } });
-          const allData = await allRes.json().catch(() => ({}));
-          const instList = allData.data || allData || [];
-          const targetInst = instList.find((i: Record<string, unknown>) => (i.name || (i.instance as Record<string, unknown>)?.instanceName) === whatsAppInstance);
-          const instToken = targetInst?.token || evoKey;
-
-          const wRes = await fetch(`${evoBase.replace(/\/$/, '')}/send/text`, {
-            method: 'POST',
-            headers: { apikey: instToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number, text: msg }),
+          const waResult = await sendWhatsAppMessage({
+            base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number, text: msg,
           });
 
-          if (wRes.ok) {
+          if (waResult.success) {
             whatsappSent = true;
             await b44.asServiceRole.entities.SignatureRequest.update(sigReq.id, {
               whatsapp_sent: true,
@@ -533,18 +525,10 @@ Deno.serve(async (req) => {
             .replace('{link_assinatura}', signUrl);
 
           const number = customerPhone.replace(/\D/g, '');
-          const allRes = await fetch(`${evoBase.replace(/\/$/, '')}/instance/all`, { headers: { apikey: evoKey } });
-          const allData = await allRes.json().catch(() => ({}));
-          const instList = allData.data || allData || [];
-          const targetInst = instList.find((i: Record<string, unknown>) => (i.name || (i.instance as Record<string, unknown>)?.instanceName) === whatsAppInstance);
-          const instToken = targetInst?.token || evoKey;
-
-          const wRes = await fetch(`${evoBase.replace(/\/$/, '')}/send/text`, {
-            method: 'POST',
-            headers: { apikey: instToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number, text: msg }),
+          const waResult = await sendWhatsAppMessage({
+            base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number, text: msg,
           });
-          if (wRes.ok) {
+          if (waResult.success) {
             whatsappSent = true;
             await b44.asServiceRole.entities.SignatureRequest.update(sigReq.id, {
               whatsapp_sent: true,
@@ -678,18 +662,10 @@ Deno.serve(async (req) => {
             .replace('{tipo_doc}', template.document_type === 'contrato' ? 'contrato' : (template.document_type || 'documento'));
 
           const number = lead.phone.replace(/\D/g, '');
-          const allRes = await fetch(`${evoBase.replace(/\/$/, '')}/instance/all`, { headers: { apikey: evoKey } });
-          const allData = await allRes.json().catch(() => ({}));
-          const instList = allData.data || allData || [];
-          const targetInst = instList.find((i: Record<string, unknown>) => (i.name || (i.instance as Record<string, unknown>)?.instanceName) === evoInst);
-          const instToken = targetInst?.token || evoKey;
-
-          const wRes = await fetch(`${evoBase.replace(/\/$/, '')}/send/text`, {
-            method: 'POST',
-            headers: { apikey: instToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number, text: msg }),
+          const waResult = await sendWhatsAppMessage({
+            base: evoBase, apiKey: evoKey, instanceName: evoInst, number, text: msg,
           });
-          if (wRes.ok) {
+          if (waResult.success) {
             whatsappSent = true;
             await b44.asServiceRole.entities.SignatureRequest.update(sigReq.id, {
               whatsapp_sent: true,
@@ -725,20 +701,12 @@ Deno.serve(async (req) => {
 
       const msg = `Olá, ${doc.customer_name}! Segue novamente o link para assinar seu ${doc.document_type || 'documento'}:\n${signUrl}`;
 
-      const allRes = await fetch(`${evoBase.replace(/\/$/, '')}/instance/all`, { headers: { apikey: evoKey } });
-      const allData = await allRes.json().catch(() => ({}));
-      const instList = allData.data || allData || [];
-      const targetInst = instList.find((i: Record<string, unknown>) => (i.name || (i.instance as Record<string, unknown>)?.instanceName) === whatsAppInstance);
-      const instToken = targetInst?.token || evoKey;
-
-      const wRes = await fetch(`${evoBase.replace(/\/$/, '')}/send/text`, {
-        method: 'POST',
-        headers: { apikey: instToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: phone, text: msg }),
+      const waResult = await sendWhatsAppMessage({
+        base: evoBase, apiKey: evoKey, instanceName: whatsAppInstance, number: phone, text: msg,
       });
 
-      if (!wRes.ok) {
-        return Response.json({ success: false, error: { code: 'WHATSAPP_ERROR', message: 'Falha ao reenviar via WhatsApp.' } }, { status: 502 });
+      if (!waResult.success) {
+        return Response.json({ success: false, error: { code: 'WHATSAPP_ERROR', message: waResult.error || 'Falha ao reenviar via WhatsApp.' } }, { status: 502 });
       }
 
       await b44.asServiceRole.entities.SignatureRequest.update(id, {
