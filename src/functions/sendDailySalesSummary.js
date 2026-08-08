@@ -1,5 +1,5 @@
-import { base44Client } from "@/api/base44Client";
+import { base44 } from "@/api/base44Client";
 
 export async function sendDailySalesSummary(payload = {}) {
-  return base44Client.functions.invoke("sendDailySalesSummary", payload);
+  return base44.functions.invoke("sendDailySalesSummary", payload);
 }
