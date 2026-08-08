@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useMemo } from "react";
+import { useConversations, useLeads } from "@/hooks/useEntityQueries";
 import { PageContainer, Card, StatCard } from "@/components/ui/app-card";
 import { Download, TrendingUp, Clock, Star, Trophy, FileBarChart, Loader2, RefreshCw, Users } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart } from "recharts";
@@ -21,27 +21,11 @@ function getDateCutoff(period) {
 
 // ─── Hook de dados ────────────────────────────────────────────────────────────
 function useReportsData(period) {
-  const [conversations, setConversations] = useState([]);
-  const [leads, setLeads]                 = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [lastUpdated, setLastUpdated]     = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [convData, leadData] = await Promise.all([
-        base44.entities.Conversation.list("-last_message_time", 500),
-        base44.entities.Lead.list("-created_date", 300),
-      ]);
-      setConversations(convData || []);
-      setLeads(leadData || []);
-      setLastUpdated(new Date());
-    } catch {
-      setConversations([]); setLeads([]);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const { data: conversations = [], isLoading: loadingConv, refetch, dataUpdatedAt } = useConversations(500);
+  const { data: leads = [], isLoading: loadingLeads } = useLeads(300);
+  const loading = loadingConv || loadingLeads;
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const load = refetch;
 
   const cutoff = useMemo(() => getDateCutoff(period), [period]);
 

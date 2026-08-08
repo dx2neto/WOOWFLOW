@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
 import { ixcApi } from "@/functions/ixcApi";
 import { agreementApi } from "@/functions/agreementApi";
+import { useConversations, useLeads } from "@/hooks/useEntityQueries";
 import { Link } from "react-router-dom";
 import {
   Inbox, DollarSign, Clock, CheckCircle, TrendingUp,
@@ -77,15 +78,14 @@ function fmtSeconds(s) {
 
 // ─── Painel de Verificação de Acordo ──────────────────────────────────────────
 function AgreementPanel() {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    agreementApi({ action: "dashboard" })
-      .then((res) => { if (res?.data?.success) setData(res.data.data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["agreementDashboard"],
+    queryFn: async () => {
+      const res = await agreementApi({ action: "dashboard" });
+      return res?.data?.success ? res.data.data : null;
+    },
+    staleTime: 60_000,
+  });
 
   if (loading) return (
     <Card className="p-5 mb-6">
@@ -152,15 +152,14 @@ function AgreementPanel() {
 
 // ─── Painel IXCSoft ────────────────────────────────────────────────────────────
 function IxcPanel() {
-  const [ixc, setIxc]         = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    ixcApi({ action: "dashboard" })
-      .then((res) => { if (res?.data?.success) setIxc(res.data.data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: ixc, isLoading: loading } = useQuery({
+    queryKey: ["ixcDashboard"],
+    queryFn: async () => {
+      const res = await ixcApi({ action: "dashboard" });
+      return res?.data?.success ? res.data.data : null;
+    },
+    staleTime: 60_000,
+  });
 
   if (loading) return (
     <Card className="p-5 mb-6">
@@ -198,31 +197,11 @@ function IxcPanel() {
 
 // ─── Hook: carrega conversas do período e retorna métricas calculadas ──────────
 function useInboxMetrics(period) {
-  const [conversations, setConversations] = useState([]);
-  const [leads, setLeads]                 = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [lastUpdated, setLastUpdated]     = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Busca mais conversas para ter dados históricos suficientes
-      const [convData, leadData] = await Promise.all([
-        base44.entities.Conversation.list("-last_message_time", 500),
-        base44.entities.Lead.list("-created_date", 200),
-      ]);
-      setConversations(convData || []);
-      setLeads(leadData || []);
-      setLastUpdated(new Date());
-    } catch {
-      setConversations([]);
-      setLeads([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const { data: conversations = [], isLoading: loadingConv, refetch, dataUpdatedAt } = useConversations(500);
+  const { data: leads = [], isLoading: loadingLeads } = useLeads(200);
+  const loading = loadingConv || loadingLeads;
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const load = refetch;
 
   // ── Filtra pelo período selecionado ──────────────────────────────────────────
   const filtered = useMemo(() => {

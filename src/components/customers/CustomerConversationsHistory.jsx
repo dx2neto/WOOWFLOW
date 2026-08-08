@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useMemo } from "react";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 import { ChannelBadge, StatusBadge } from "@/components/Badges";
 import { ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 
@@ -9,17 +9,13 @@ function fmtDateTime(value) {
 }
 
 function ConversationMessages({ conversationId }) {
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    base44.entities.Message.filter({ conversation_id: conversationId }, "timestamp")
-      .then((data) => active && setMessages(data))
-      .catch(() => active && setMessages([]))
-      .finally(() => active && setLoading(false));
-    return () => { active = false; };
-  }, [conversationId]);
+  const { data: messages = [], isLoading: loading } = useEntityFilter(
+    "Message",
+    { conversation_id: conversationId },
+    "timestamp",
+    200,
+    { enabled: !!conversationId }
+  );
 
   if (loading) return <p className="py-4 text-center text-xs text-muted-foreground">Carregando mensagens...</p>;
   if (messages.length === 0) return <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma mensagem nesta conversa</p>;
@@ -39,31 +35,30 @@ function ConversationMessages({ conversationId }) {
 }
 
 export default function CustomerConversationsHistory({ phone, email }) {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const [byPhone, byEmail] = await Promise.all([
-          phone ? base44.entities.Conversation.filter({ phone }) : Promise.resolve([]),
-          email ? base44.entities.Conversation.filter({ email }) : Promise.resolve([]),
-        ]);
-        const merged = [...byPhone, ...byEmail.filter((c) => !byPhone.some((p) => p.id === c.id))];
-        merged.sort((a, b) => +new Date(b.last_message_time || 0) - +new Date(a.last_message_time || 0));
-        if (active) setConversations(merged);
-      } catch {
-        if (active) setConversations([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    load();
-    return () => { active = false; };
-  }, [phone, email]);
+  const { data: byPhone = [], isLoading: loadingPhone } = useEntityFilter(
+    "Conversation",
+    { phone },
+    "-last_message_time",
+    100,
+    { enabled: !!phone }
+  );
+  const { data: byEmail = [], isLoading: loadingEmail } = useEntityFilter(
+    "Conversation",
+    { email },
+    "-last_message_time",
+    100,
+    { enabled: !!email }
+  );
+
+  const loading = loadingPhone || loadingEmail;
+
+  const conversations = useMemo(() => {
+    const merged = [...byPhone, ...byEmail.filter((c) => !byPhone.some((p) => p.id === c.id))];
+    merged.sort((a, b) => +new Date(b.last_message_time || 0) - +new Date(a.last_message_time || 0));
+    return merged;
+  }, [byPhone, byEmail]);
 
   if (loading) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Carregando histórico de conversas...</p>;

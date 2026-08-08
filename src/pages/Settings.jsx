@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useEffect } from "react";
+import { useEntityList, useEntityCreate, useEntityUpdate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -56,9 +56,7 @@ const DEFAULT_SECTORS = [
 // ─── Componente principal ──────────────────────────────────────────────────────
 export default function Settings() {
   const [tab, setTab] = useState("company");
-  const [, setSettings] = useState(null);
   const [settingsId, setSettingsId] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Formulário de empresa
@@ -76,8 +74,6 @@ export default function Settings() {
   const [businessHours, setBusinessHours] = useState(DEFAULT_HOURS);
 
   // Feriados
-  const [holidays, setHolidays] = useState([]);
-  const [loadingHolidays, setLoadingHolidays] = useState(false);
   const [newHoliday, setNewHoliday] = useState({ name: "", date: "", recurring: true });
   const [addingHoliday, setAddingHoliday] = useState(false);
 
@@ -86,55 +82,37 @@ export default function Settings() {
 
   const { toast } = useToast();
 
-  // ── Carrega configurações ao montar ────────────────────────────────────────
-  const loadSettings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await base44.entities.TenantSettings.list("-updated_at", 1);
-      if (data.length > 0) {
-        const s = data[0];
-        setSettings(s);
-        setSettingsId(s.id);
-        setCompany({
-          company_name:  s.company_name  || "",
-          cnpj:          s.cnpj          || "",
-          phone:         s.phone         || "",
-          whatsapp:      s.whatsapp      || "",
-          email:         s.email         || "",
-          support_email: s.support_email || "",
-          city:          s.city          || "",
-          state:         s.state         || "",
-          address:       s.address       || "",
-          website:       s.website       || "",
-        });
-        if (s.sectors?.length)       setSectors(s.sectors);
-        if (s.business_hours)        setBusinessHours({ ...DEFAULT_HOURS, ...s.business_hours });
-        if (s.appearance)            setAppearance({ ...appearance, ...s.appearance });
-      }
-    } catch {
-      // silencia — primeiro acesso sem configurações salvas ainda
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: settingsData = [], isLoading: loadingSettings } = useEntityList("TenantSettings", "-updated_at", 1);
+  const { data: holidays = [], isLoading: loadingHolidaysData } = useEntityList("Holiday", "date", 100);
+  const loading = loadingSettings || loadingHolidaysData;
 
-  // ── Carrega feriados do banco ───────────────────────────────────────────────
-  const loadHolidays = useCallback(async () => {
-    setLoadingHolidays(true);
-    try {
-      const data = await base44.entities.Holiday.list("date", 100);
-      setHolidays(data);
-    } catch {
-      setHolidays([]);
-    } finally {
-      setLoadingHolidays(false);
-    }
-  }, []);
+  const tenantCreate = useEntityCreate("TenantSettings");
+  const tenantUpdate = useEntityUpdate("TenantSettings");
+  const holidayCreate = useEntityCreate("Holiday");
+  const holidayDelete = useEntityDelete("Holiday");
 
+  // ── Sincroniza configurações carregadas do React Query para o estado do formulário ──
   useEffect(() => {
-    loadSettings();
-    loadHolidays();
-  }, [loadSettings, loadHolidays]);
+    if (settingsData.length > 0) {
+      const s = settingsData[0];
+      setSettingsId(s.id);
+      setCompany({
+        company_name:  s.company_name  || "",
+        cnpj:          s.cnpj          || "",
+        phone:         s.phone         || "",
+        whatsapp:      s.whatsapp      || "",
+        email:         s.email         || "",
+        support_email: s.support_email || "",
+        city:          s.city          || "",
+        state:         s.state         || "",
+        address:       s.address       || "",
+        website:       s.website       || "",
+      });
+      if (s.sectors?.length)       setSectors(s.sectors);
+      if (s.business_hours)        setBusinessHours({ ...DEFAULT_HOURS, ...s.business_hours });
+      if (s.appearance)            setAppearance({ primary_color: "#3b82f6", theme: "light", ...s.appearance });
+    }
+  }, [settingsData]);
 
 
   // ── Salva dados da empresa ──────────────────────────────────────────────────
@@ -147,9 +125,9 @@ export default function Settings() {
     try {
       const payload = { ...company, sectors, business_hours: businessHours, appearance, updated_at: new Date().toISOString() };
       if (settingsId) {
-        await base44.entities.TenantSettings.update(settingsId, payload);
+        await tenantUpdate.mutateAsync({ id: settingsId, data: payload });
       } else {
-        const created = await base44.entities.TenantSettings.create(payload);
+        const created = await tenantCreate.mutateAsync(payload);
         setSettingsId(created.id);
       }
       toast({ title: "Configurações salvas com sucesso!" });
@@ -166,9 +144,9 @@ export default function Settings() {
     try {
       const payload = { sectors: updatedSectors, updated_at: new Date().toISOString() };
       if (settingsId) {
-        await base44.entities.TenantSettings.update(settingsId, payload);
+        await tenantUpdate.mutateAsync({ id: settingsId, data: payload });
       } else {
-        const created = await base44.entities.TenantSettings.create({ company_name: company.company_name || "Minha Empresa", ...payload });
+        const created = await tenantCreate.mutateAsync({ company_name: company.company_name || "Minha Empresa", ...payload });
         setSettingsId(created.id);
       }
       toast({ title: "Setores salvos!" });
@@ -185,9 +163,9 @@ export default function Settings() {
     try {
       const payload = { business_hours: businessHours, updated_at: new Date().toISOString() };
       if (settingsId) {
-        await base44.entities.TenantSettings.update(settingsId, payload);
+        await tenantUpdate.mutateAsync({ id: settingsId, data: payload });
       } else {
-        const created = await base44.entities.TenantSettings.create({ company_name: company.company_name || "Minha Empresa", ...payload });
+        const created = await tenantCreate.mutateAsync({ company_name: company.company_name || "Minha Empresa", ...payload });
         setSettingsId(created.id);
       }
       toast({ title: "Horários salvos!" });
@@ -203,9 +181,9 @@ export default function Settings() {
     try {
       const payload = { appearance, updated_at: new Date().toISOString() };
       if (settingsId) {
-        await base44.entities.TenantSettings.update(settingsId, payload);
+        await tenantUpdate.mutateAsync({ id: settingsId, data: payload });
       } else {
-        const created = await base44.entities.TenantSettings.create({ company_name: company.company_name || "Minha Empresa", ...payload });
+        const created = await tenantCreate.mutateAsync({ company_name: company.company_name || "Minha Empresa", ...payload });
         setSettingsId(created.id);
       }
       toast({ title: "Aparência salva!" });
@@ -250,9 +228,8 @@ export default function Settings() {
     }
     setAddingHoliday(true);
     try {
-      await base44.entities.Holiday.create(newHoliday);
+      await holidayCreate.mutateAsync(newHoliday);
       setNewHoliday({ name: "", date: "", recurring: true });
-      await loadHolidays();
       toast({ title: "Feriado adicionado!" });
     } catch {
       toast({ title: "Erro ao adicionar feriado", variant: "destructive" });
@@ -263,8 +240,7 @@ export default function Settings() {
 
   const handleDeleteHoliday = async (id) => {
     try {
-      await base44.entities.Holiday.delete(id);
-      setHolidays((prev) => prev.filter((h) => h.id !== id));
+      await holidayDelete.mutateAsync(id);
       toast({ title: "Feriado removido" });
     } catch {
       toast({ title: "Erro ao remover feriado", variant: "destructive" });
@@ -642,7 +618,7 @@ export default function Settings() {
             <p className="text-sm text-muted-foreground mb-4">Feriados são respeitados pelo Chatbot no horário de atendimento.</p>
 
             <div className="space-y-1.5 max-h-60 overflow-y-auto scrollbar-thin mb-4">
-              {loadingHolidays ? (
+              {loadingHolidaysData ? (
                 <div className="text-center py-4 text-muted-foreground text-sm">
                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                 </div>

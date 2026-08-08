@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { ixcApi } from "@/functions/ixcApi";
 import { agreementApi } from "@/functions/agreementApi";
@@ -13,14 +14,9 @@ const ICONS = {
 };
 
 export default function CustomerTimeline({ phone, clientId }) {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { loadTimeline(); }, [phone, clientId]);
-
-  const loadTimeline = async () => {
-    setLoading(true);
-    try {
+  const { data: events = [], isLoading: loading } = useQuery({
+    queryKey: ["customerTimeline", phone, clientId],
+    queryFn: async () => {
       const [conversations, billingResponse, contractsResponse, osResponse, agreementsResponse] = await Promise.all([
         phone ? base44.entities.Conversation.filter({ phone }, "-last_message_time", 30) : Promise.resolve([]),
         clientId ? ixcApi({ action: "faturas_cliente", clientId }) : Promise.resolve(null),
@@ -104,13 +100,11 @@ export default function CustomerTimeline({ phone, clientId }) {
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 100);
 
-      setEvents(merged);
-    } catch {
-      setEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return merged;
+    },
+    staleTime: 30_000,
+    enabled: !!(phone || clientId),
+  });
 
   if (loading) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Carregando linha do tempo...</p>;

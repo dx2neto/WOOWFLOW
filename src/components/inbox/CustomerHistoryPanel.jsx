@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import React from "react";
+import { useEntityFilter } from "@/hooks/useEntityQueries";
 import { ChannelBadge, StatusBadge } from "@/components/Badges";
 import { History, MessageCircle } from "lucide-react";
 
@@ -9,30 +9,16 @@ function formatDate(value) {
 }
 
 export default function CustomerHistoryPanel({ conversation, onSelect }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const phone = conversation?.phone;
+  const { data: conversations = [], isLoading: loading } = useEntityFilter(
+    "Conversation",
+    { phone },
+    "-last_message_time",
+    50,
+    { enabled: !!phone }
+  );
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const phone = conversation?.phone;
-        if (!phone) {
-          if (active) setHistory([]);
-          return;
-        }
-        const results = await base44.entities.Conversation.filter({ phone }, "-last_message_time", 50);
-        if (active) setHistory(results.filter((c) => c.id !== conversation.id));
-      } catch {
-        if (active) setHistory([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    load();
-    return () => { active = false; };
-  }, [conversation?.id, conversation?.phone]);
+  const history = conversations.filter((c) => c.id !== conversation?.id);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
