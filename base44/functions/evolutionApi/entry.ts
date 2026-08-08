@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
 
     const base = BASE(Deno.env.get('EVOLUTION_API_URL') || '');
     const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-    const envInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || '';
+    const envInst = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'woow';
 
     if (!base) return Response.json({ success: false, error: { code: 'EVOLUTION_API_URL_NOT_SET', message: 'Variável EVOLUTION_API_URL não configurada.' } }, { status: 500 });
     if (!apiKey) return Response.json({ success: false, error: { code: 'EVOLUTION_API_KEY_NOT_SET', message: 'Variável EVOLUTION_API_KEY não configurada.' } }, { status: 500 });
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       }
       const instances = normalizeInstanceList(r.data);
       await log(action, 'sucesso', `instâncias: ${instances.length}`);
-      return Response.json({ success: true, instances, defaultInstance: defaultInst });
+      return Response.json({ success: true, instances, defaultInstance: envInst });
     }
 
     // ── create_instance ──────────────────────────────────────────────────────
@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
 
       // Se a instância informada não existir, tenta encontrar uma conectada
       let instName = instanceName;
-      if (instName === defaultInst) {
+      if (instName === envInst) {
         const instList = await evoFetch(`${base}/instance/fetchInstances`, { headers: authHeaders });
         const instances = normalizeInstanceList(instList.data);
         const connected = instances.find((i) => i.state === 'connected');

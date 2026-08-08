@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
       try {
         const evoBase = Deno.env.get('EVOLUTION_API_URL') || '';
         const evoKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-        let instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || instanceId;
+        let instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'woow';
         // Auto-detecta instância conectada se a padrão não estiver ativa
         if (evoBase && evoKey && instanceName) {
           try {
