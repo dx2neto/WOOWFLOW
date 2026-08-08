@@ -1,0 +1,93 @@
+{
+  "name": "Contrato Autom\u00e1tico p\u00f3s-Aprova\u00e7\u00e3o de Cr\u00e9dito",
+  "description": "Ap\u00f3s o ValidaCadastro aprovar o cr\u00e9dito do lead, gera o contrato no IXCSoft e envia o link de assinatura ZapSign via WhatsApp",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Sale",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ (.trigger.changed_fields // []) | index(\"credit_decision\") != null and (.trigger.data.credit_decision == \"approved\" or .trigger.data.credit_decision == \"approved_with_warning\") }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_contract_after_credit_approval",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "make_decision": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "make_decision",
+              "sale_id": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "check_decision",
+          "x-base44": {
+            "title": "Avaliar decis\u00e3o final",
+            "description": "Aplica motor de decis\u00e3o combinando cr\u00e9dito + risco IXC"
+          }
+        }
+      },
+      {
+        "check_decision": {
+          "switch": [
+            {
+              "when": "${ .make_decision.decision == \"approved\" or .make_decision.decision == \"approved_with_warning\" }",
+              "then": "create_contract"
+            },
+            {
+              "when": "${ true }",
+              "then": "end"
+            }
+          ],
+          "x-base44": {
+            "title": "Decis\u00e3o aprovada?",
+            "description": "S\u00f3 prossegue se o cr\u00e9dito foi aprovado"
+          }
+        }
+      },
+      {
+        "create_contract": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "create_ixc_contract",
+              "sale_id": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "send_signature",
+          "x-base44": {
+            "title": "Gerar contrato no IXCSoft",
+            "description": "Cria cliente e contrato no IXC"
+          }
+        }
+      },
+      {
+        "send_signature": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "send_for_signature",
+              "sale_id": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar assinatura ZapSign",
+            "description": "Cria documento e envia link via WhatsApp"
+          }
+        }
+      }
+    ]
+  }
+}
