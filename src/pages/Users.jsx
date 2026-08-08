@@ -25,7 +25,7 @@ export default function Users() {
 
   const handleInvite = async (email, role) => {
     try {
-      await /** @type {any} */ (base44).users.inviteUser(email, role);
+      await base44.users.inviteUser(email, role);
       setShowInvite(false);
     } catch (e) {
       console.error("Erro ao convidar usuário:", e);
