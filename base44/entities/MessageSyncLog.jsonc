@@ -1,0 +1,105 @@
+{
+  "name": "MessageSyncLog",
+  "type": "object",
+  "properties": {
+    "phone": {
+      "type": "string",
+      "description": "Telefone do contato (sem @s.whatsapp.net)"
+    },
+    "wa_message_id": {
+      "type": "string",
+      "description": "ID nativo da mensagem no WhatsApp"
+    },
+    "conversation_id": {
+      "type": "string"
+    },
+    "instance": {
+      "type": "string",
+      "description": "Nome da inst\u00e2ncia da Evolution API"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out",
+        "system",
+        "ai"
+      ]
+    },
+    "sync_status": {
+      "type": "string",
+      "enum": [
+        "synced",
+        "duplicate",
+        "error",
+        "filtered",
+        "rate_limited"
+      ],
+      "default": "synced",
+      "description": "Status da sincroniza\u00e7\u00e3o da mensagem"
+    },
+    "action": {
+      "type": "string",
+      "description": "A\u00e7\u00e3o executada: message_create, conversation_upsert, status_update, ai_response"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Mensagem de erro detalhada (se sync_status=error)"
+    },
+    "message_preview": {
+      "type": "string",
+      "description": "Preview do conte\u00fado da mensagem (primeiros 100 chars)"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Tipo do evento do webhook: messages.upsert, messages.update, connection.update"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "ID do batch de processamento (para agrupar mensagens do mesmo webhook)"
+    }
+  },
+  "required": [
+    "sync_status"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

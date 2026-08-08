@@ -89,6 +89,10 @@ Deno.serve(async (req) => {
     // ── Rate limiting por IP ────────────────────────────────────────────────
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
     if (!rateLimitOk(clientIp)) {
+      await base44.asServiceRole.entities.MessageSyncLog.create({
+        sync_status: 'rate_limited', action: 'rate_limit',
+        error_message: `IP ${clientIp} excedeu o limite de ${RATE_LIMIT_MAX} req/min`,
+      }).catch(() => {});
       return Response.json({ error: 'Rate limit exceeded — too many webhook calls' }, { status: 429 });
     }
 
@@ -101,6 +105,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const event = String(body.event || body.type || '');
     const instanceId = String(body.instance || body.instanceName || body.instanceId || '');
+    const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // ── messages.upsert (nova mensagem recebida ou enviada) ─────────────────
     if (event === 'messages.upsert' || event === 'message' || event === 'messages') {
@@ -150,8 +155,6 @@ Deno.serve(async (req) => {
         try {
           const key = asRecord(msg.key || msg.Key);
           const chat = String(key.remoteJid || key.RemoteJid || key.Chat || '');
-          if (!chat || chat.endsWith('@g.us')) continue;
-
           const waId = String(key.id || key.ID || key.messageId || '');
           const phone = chat.replace(/@.*$/, '');
           const fromMe = !!(key.fromMe ?? key.FromMe ?? key.IsFromMe);
@@ -163,8 +166,27 @@ Deno.serve(async (req) => {
           const timestamp = normalizeTimestamp(msg.messageTimestamp || key.Timestamp || msg.Timestamp);
           const mediaInfo = extractMediaInfo(msgBody);
 
+          // Filtro: grupos ou sem chat
+          if (!chat || chat.endsWith('@g.us')) {
+            await base44.asServiceRole.entities.MessageSyncLog.create({
+              phone: phone || null, wa_message_id: waId || null, instance: instanceId,
+              direction: fromMe ? 'out' : 'in', sync_status: 'filtered', action: 'message_create',
+              error_message: chat ? 'Mensagem de grupo ignorada' : 'Chat vazio',
+              message_preview: content.slice(0, 100), event_type: event, batch_id: batchId,
+            }).catch(() => {});
+            continue;
+          }
+
           // Deduplicação (batch)
-          if (waId && existingMsgIds.has(waId)) { skipped++; continue; }
+          if (waId && existingMsgIds.has(waId)) {
+            skipped++;
+            await base44.asServiceRole.entities.MessageSyncLog.create({
+              phone, wa_message_id: waId, instance: instanceId,
+              direction: fromMe ? 'out' : 'in', sync_status: 'duplicate', action: 'message_create',
+              message_preview: content.slice(0, 100), event_type: event, batch_id: batchId,
+            }).catch(() => {});
+            continue;
+          }
 
           // Upsert Conversation
           let conversation = convMap.get(phone);
@@ -234,7 +256,19 @@ Deno.serve(async (req) => {
             } catch { /* não bloqueia o fluxo principal */ }
           }
           saved++;
-         } catch { errors++; /* uma mensagem com erro não derruba o batch */ }
+          await base44.asServiceRole.entities.MessageSyncLog.create({
+            phone, wa_message_id: waId, conversation_id: conversation.id as string, instance: instanceId,
+            direction: fromMe ? 'out' : 'in', sync_status: 'synced', action: 'message_create',
+            message_preview: content.slice(0, 100), event_type: event, batch_id: batchId,
+          }).catch(() => {});
+         } catch (err) {
+           errors++;
+           await base44.asServiceRole.entities.MessageSyncLog.create({
+             sync_status: 'error', action: 'message_create',
+             error_message: (err as Error)?.message?.slice(0, 500) || 'Erro desconhecido',
+             event_type: event, batch_id: batchId, instance: instanceId,
+           }).catch(() => {});
+         }
        }
 
       // ── Auto-resposta via IA (orquestrador) ──────────────────────────────────
