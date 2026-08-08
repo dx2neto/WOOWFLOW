@@ -3,7 +3,7 @@ import { useEntityList, useEntityFilter } from "@/hooks/useEntityQueries";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import AlertFeed from "@/components/audit/AlertFeed";
 import ErrorLogTable from "@/components/audit/ErrorLogTable";
-import IntegrationStatusGrid from "@/components/audit/IntegrationStatusGrid";
+import IntegrationTabPanel from "@/components/audit/IntegrationTabPanel";
 import DependencyMap from "@/components/audit/DependencyMap";
 import {
   ShieldCheck, AlertTriangle, Plug, Activity, RefreshCw, ListChecks,
@@ -188,54 +188,12 @@ export default function AuditCenter() {
 
       {/* ── Status de Integrações ─────────────────────────────────────────── */}
       {tab === "integ" && (
-        <div className="space-y-4">
-          <Card title="Status das Integrações" className="p-5">
-            <IntegrationStatusGrid configs={configs} loading={loadingConfigs} />
-          </Card>
-
-          <Card title="Falhas — Evolution API" className="p-5">
-            {loadingEvo ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" /> Carregando falhas...
-              </div>
-            ) : evoFailCount === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <MessageCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                Nenhuma falha registrada na Evolution API
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {evoFailures.map((log) => (
-                  <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50">
-                    <MessageCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-red-800">{log.action || "Envio de mensagem"}</p>
-                      <p className="text-xs text-red-600 mt-0.5">{log.details || "Falha no envio via Evolution API"}</p>
-                      <p className="text-[10px] text-red-400 mt-1">{new Date(log.created_date).toLocaleString("pt-BR")}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card title="Histórico de Integrações" className="p-5">
-            {loadingIntLogs ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">Carregando...</div>
-            ) : (
-              <div className="space-y-1.5 max-h-96 overflow-y-auto scrollbar-thin">
-                {integrationLogs.slice(0, 50).map((log) => (
-                  <div key={log.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-card text-sm">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${log.status === "sucesso" ? "bg-emerald-500" : "bg-red-500"}`} />
-                    <span className="font-medium flex-shrink-0">{log.integration}</span>
-                    <span className="text-muted-foreground truncate flex-1">{log.action}</span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">{new Date(log.created_date).toLocaleString("pt-BR")}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
+        <IntegrationTabPanel
+          configs={configs}
+          logs={integrationLogs}
+          errors={errorLogs}
+          loading={loadingConfigs}
+        />
       )}
 
       {/* ── Erros Detalhados ──────────────────────────────────────────────── */}
