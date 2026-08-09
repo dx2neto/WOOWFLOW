@@ -399,56 +399,48 @@ export default async function(req: Request): Promise<Response> {
       if (!sale_id) return Response.json({ error: 'sale_id e obrigatorio' }, { status: 400 });
       const sale = await base44.asServiceRole.entities.Sale.get(sale_id);
       if (!sale) return Response.json({ error: 'Venda nao encontrada' }, { status: 404 });
+      if (!sale.ixc_customer_id) return Response.json({ error: 'Venda sem ixc_customer_id — crie o contrato no IXC primeiro' }, { status: 400 });
 
-      // Cria documento ZapSign via zapsignApi existente
+      // Seleciona template: explicito ou o mais utilizado (fallback automatico)
+      let templateId = template_id;
+      if (!templateId) {
+        const allTemplates = await base44.asServiceRole.entities.ContractTemplate.filter({ active: true });
+        const top = (allTemplates || []).sort((a: { usage_count?: number }, b: { usage_count?: number }) => (b.usage_count || 0) - (a.usage_count || 0))[0];
+        if (!top) return Response.json({ success: false, error: 'Nenhum template ativo encontrado' }, { status: 400 });
+        templateId = top.id;
+      }
+
+      // Cria documento ZapSign via zapsignApi (ja envia WhatsApp internamente)
       const zapsignResp = await base44.functions.invoke('zapsignApi', {
         action: 'create_from_ixc',
-        ixc_customer_id: sale.ixc_customer_id,
-        ixc_contract_id: sale.ixc_contract_id,
-        template_id,
-        customer_name: sale.customer_name,
-        customer_cpf_cnpj: sale.cpf_cnpj,
-        phone: sale.phone,
-        email: sale.email || '',
-        plan_name: sale.plan_name,
-        plan_value: sale.monthly_fee,
+        ixcCustomerId: sale.ixc_customer_id,
+        ixcContractId: sale.ixc_contract_id,
+        templateId,
+        sendWhatsApp: true,
       });
       const zapsignData = zapsignResp?.data?.data || zapsignResp?.data || {};
-      const docToken = zapsignData.token || zapsignData.zapsign_doc_token || '';
-      const signUrl = zapsignData.open_id ? 'https://app.zapsign.com.br/sign/' + zapsignData.open_id : zapsignData.sign_url || '';
+      const docToken = zapsignData.zapsign_doc_token || zapsignData.token || '';
+      const signUrl = zapsignData.sign_url || (zapsignData.open_id ? 'https://app.zapsign.com.br/sign/' + zapsignData.open_id : '');
+      const whatsappSent = !!zapsignData.whatsapp_sent;
 
       if (!docToken) return Response.json({ success: false, error: 'Falha ao criar documento ZapSign' }, { status: 500 });
 
-      // Envia link via Evolution API
-      const evolutionUrl = secrets.get('EVOLUTION_API_URL') || '';
-      const evolutionKey = secrets.get('EVOLUTION_API_KEY') || '';
-      const instanceName = secrets.get('EVOLUTION_INSTANCE_NAME') || '';
-      const phone = normalizePhoneBR(sale.phone);
-      const messageText = 'Ola ' + sale.customer_name + '! Seu contrato esta pronto para assinatura. Acesse: ' + signUrl;
-
-      let waResult = { success: false, error: 'Configuracao Evolution incompleta' };
-      if (evolutionUrl && evolutionKey && instanceName && phone) {
-        waResult = await sendWhatsAppMessage({
-          base: evolutionUrl, apiKey: evolutionKey, instanceName, number: phone, text: messageText,
-        });
-      }
-
       await base44.asServiceRole.entities.Sale.update(sale_id, {
         stage: 'assinatura_enviada',
+        signature_request_id: zapsignData.id || undefined,
         zapsign_doc_token: docToken,
         sign_url: signUrl,
-        whatsapp_sent: waResult.success,
-        whatsapp_message_id: waResult.wa_message_id || '',
-        whatsapp_status: waResult.success ? 'sent' : 'failed',
-        timeline: [...(sale.timeline || []), buildTimelineEntry('assinatura_enviada', 'Documento ZapSign criado e enviado via WhatsApp: ' + (waResult.success ? 'enviado' : 'falha'))],
+        whatsapp_sent: whatsappSent,
+        whatsapp_status: whatsappSent ? 'sent' : 'failed',
+        timeline: [...(sale.timeline || []), buildTimelineEntry('assinatura_enviada', 'Documento ZapSign criado' + (whatsappSent ? ' e enviado via WhatsApp' : ' (WhatsApp falhou)'))],
       });
 
       return Response.json({
         success: true,
         zapsign_doc_token: docToken,
         sign_url: signUrl,
-        whatsapp_sent: waResult.success,
-        whatsapp_status: waResult.success ? 'sent' : 'failed',
+        whatsapp_sent: whatsappSent,
+        whatsapp_status: whatsappSent ? 'sent' : 'failed',
       });
     }
 

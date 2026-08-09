@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     const ixcToken  = Deno.env.get('IXC_API_TOKEN');
     const evoBase   = Deno.env.get('EVOLUTION_API_URL') || '';
     const evoKey    = Deno.env.get('EVOLUTION_API_KEY') || '';
-    const evoInst   = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'CONNECT';
+    const evoInst   = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'woow';
 
     const body = await req.json().catch(() => ({}));
     const { action } = body;
