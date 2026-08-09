@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import FinancialPanel from "@/components/dashboard/FinancialPanel";
+import ZapSignPanel from "@/components/dashboard/ZapSignPanel";
 import { ixcApi } from "@/functions/ixcApi";
 import { agreementApi } from "@/functions/agreementApi";
 import { useConversations, useLeads } from "@/hooks/useEntityQueries";
@@ -406,6 +407,7 @@ export default function Dashboard() {
       {/* ── Painéis IXC e Acordos (já buscam seus próprios dados) ─────────────── */}
       <AgreementPanel />
       <IxcPanel />
+      <ZapSignPanel />
       <FinancialPanel />
 
       {/* ── Stats do Inbox ────────────────────────────────────────────────────── */}
