@@ -1,0 +1,41 @@
+{
+  "name": "Contrato ZapSign na Etapa Contrato",
+  "description": "Envia automaticamente o contrato via ZapSign quando uma venda muda para a etapa 'contrato_gerado' no pipeline de vendas",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Sale",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.stage == \"contrato_gerado\" and .trigger.old_data.stage != \"contrato_gerado\" }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "contract_zapsign_on_contrato_stage",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_signature": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "salesPipelineApi",
+            "args": {
+              "action": "send_for_signature",
+              "sale_id": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Enviar contrato via ZapSign",
+            "description": "Cria documento no ZapSign e envia link de assinatura por WhatsApp"
+          }
+        }
+      }
+    ]
+  }
+}
