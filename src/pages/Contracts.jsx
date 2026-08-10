@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
+import { base44 } from "@/api/base44Client";
 import { ixcApi } from "@/functions/ixcApi";
-import { Search, FileText, CheckCircle, XCircle, Download, RefreshCw, Wifi, WifiOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, FileText, CheckCircle, XCircle, Download, RefreshCw, Wifi, WifiOff, ChevronLeft, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
 import ZapSignStatusPanel from "@/components/contracts/ZapSignStatusPanel";
 
@@ -22,6 +23,7 @@ const INTERNET_MAP = {
 };
 
 export default function Contracts() {
+  const [activeTab, setActiveTab] = useState("contratos");
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
@@ -29,6 +31,8 @@ export default function Contracts() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage]           = useState(1);
   const [total, setTotal]         = useState(0);
+  const [pendingSigs, setPendingSigs] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(true);
 
   const load = useCallback(async (pg = 1, st = statusFilter) => {
     setLoading(true);
@@ -53,6 +57,20 @@ export default function Contracts() {
   }, [statusFilter]);
 
   useEffect(() => { load(1); }, [load]);
+
+  const loadPending = useCallback(async () => {
+    setLoadingPending(true);
+    try {
+      const data = await base44.entities.SignatureRequest.filter({ status: "pendente" }, "-created_date", 200);
+      setPendingSigs(data);
+    } catch {
+      setPendingSigs([]);
+    } finally {
+      setLoadingPending(false);
+    }
+  }, []);
+
+  useEffect(() => { if (activeTab === "pendentes") loadPending(); }, [activeTab, loadPending]);
 
   const filtered = contracts.filter((c) => {
     const q = search.toLowerCase();
@@ -104,110 +122,198 @@ export default function Contracts() {
         <StatCard title="Online"     value={online.length}     icon={Wifi}        color="indigo" />
       </div>
 
-      <div className="mb-6">
-        <ZapSignStatusPanel />
+      {/* Abas */}
+      <div className="flex gap-1 mb-4 border-b border-border">
+        <button
+          onClick={() => setActiveTab("contratos")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === "contratos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Contratos IXC
+        </button>
+        <button
+          onClick={() => setActiveTab("pendentes")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === "pendentes" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Clock className="w-4 h-4" />
+          Pendentes de Assinatura
+          {pendingSigs.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{pendingSigs.length}</span>
+          )}
+        </button>
       </div>
 
-      {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
-
-      <Card className="overflow-hidden">
-        <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por cliente, plano, cidade ou vendedor..."
-              className="w-full h-10 pl-9 pr-4 bg-muted/60 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div className="flex gap-1.5">
-            {[["all", "Todos"], ["A", "Ativos"], ["CA", "Cancelados"]].map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => { setStatusFilter(k); load(1, k); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
+      {activeTab === "contratos" && (
+        <div className="mb-6">
+          <ZapSignStatusPanel />
         </div>
+      )}
 
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left font-semibold px-4 py-3">ID</th>
-                <th className="text-left font-semibold px-4 py-3">Cliente</th>
-                <th className="text-left font-semibold px-4 py-3">Plano / Velocidade</th>
-                <th className="text-left font-semibold px-4 py-3">Cidade</th>
-                <th className="text-left font-semibold px-4 py-3">Vendedor</th>
-                <th className="text-left font-semibold px-4 py-3">Internet</th>
-                <th className="text-left font-semibold px-4 py-3">Status</th>
-                <th className="text-left font-semibold px-4 py-3">Vencimento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Carregando contratos...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Nenhum contrato encontrado</td></tr>
-              ) : (
-                filtered.map((c) => {
-                  const st   = STATUS_MAP[c.status] || { label: c.status || "—", color: "bg-muted text-muted-foreground" };
-                  const inet = INTERNET_MAP[c.internet_status] || null;
-                  return (
-                    <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground text-xs">#{c.id}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{c.customer_name || "—"}</p>
-                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-muted-foreground">{c.plan_name || "—"}</p>
-                        {(c.download || c.upload) && (
-                          <p className="text-xs text-muted-foreground">{c.download}/{c.upload}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.vendor_name || "—"}</td>
-                      <td className="px-4 py-3">
-                        {inet ? (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${inet.color}`}>
-                            <inet.icon className="w-3 h-3" />{inet.label}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${st.color}`}>{st.label}</span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {c.renewal_date ? new Date(c.renewal_date).toLocaleDateString("pt-BR") : "—"}
-                      </td>
-                    </tr>
-                  );
-                })
+      {error && activeTab === "contratos" && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
+
+      {activeTab === "contratos" && (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, plano, cidade ou vendedor..."
+                className="w-full h-10 pl-9 pr-4 bg-muted/60 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              {[["all", "Todos"], ["A", "Ativos"], ["CA", "Cancelados"]].map(([k, l]) => (
+                <button
+                  key={k}
+                  onClick={() => { setStatusFilter(k); load(1, k); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left font-semibold px-4 py-3">ID</th>
+                  <th className="text-left font-semibold px-4 py-3">Cliente</th>
+                  <th className="text-left font-semibold px-4 py-3">Plano / Velocidade</th>
+                  <th className="text-left font-semibold px-4 py-3">Cidade</th>
+                  <th className="text-left font-semibold px-4 py-3">Vendedor</th>
+                  <th className="text-left font-semibold px-4 py-3">Internet</th>
+                  <th className="text-left font-semibold px-4 py-3">Status</th>
+                  <th className="text-left font-semibold px-4 py-3">Vencimento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Carregando contratos...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Nenhum contrato encontrado</td></tr>
+                ) : (
+                  filtered.map((c) => {
+                    const st   = STATUS_MAP[c.status] || { label: c.status || "—", color: "bg-muted text-muted-foreground" };
+                    const inet = INTERNET_MAP[c.internet_status] || null;
+                    return (
+                      <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-muted-foreground text-xs">#{c.id}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{c.customer_name || "—"}</p>
+                          {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-muted-foreground">{c.plan_name || "—"}</p>
+                          {(c.download || c.upload) && (
+                            <p className="text-xs text-muted-foreground">{c.download}/{c.upload}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.vendor_name || "—"}</td>
+                        <td className="px-4 py-3">
+                          {inet ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${inet.color}`}>
+                              <inet.icon className="w-3 h-3" />{inet.label}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${st.color}`}>{st.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {c.renewal_date ? new Date(c.renewal_date).toLocaleDateString("pt-BR") : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span>Exibindo {filtered.length} de {contracts.length} contrato(s) {total > PAGE_SIZE && `— Página ${page} de ${Math.ceil(total / PAGE_SIZE)}`}</span>
+              {suspensos.length > 0 && (
+                <span className="text-amber-600 font-medium">• {suspensos.length} suspenso(s)</span>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span>Exibindo {filtered.length} de {contracts.length} contrato(s) {total > PAGE_SIZE && `— Página ${page} de ${Math.ceil(total / PAGE_SIZE)}`}</span>
-            {suspensos.length > 0 && (
-              <span className="text-amber-600 font-medium">• {suspensos.length} suspenso(s)</span>
+            </div>
+            {total > PAGE_SIZE && (
+              <div className="flex gap-2">
+                <button disabled={page <= 1 || loading} onClick={() => load(page - 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
+                <button disabled={page >= Math.ceil(total / PAGE_SIZE) || loading} onClick={() => load(page + 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+              </div>
             )}
           </div>
-          {total > PAGE_SIZE && (
-            <div className="flex gap-2">
-              <button disabled={page <= 1 || loading} onClick={() => load(page - 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
-              <button disabled={page >= Math.ceil(total / PAGE_SIZE) || loading} onClick={() => load(page + 1)} className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+        </Card>
+      )}
+
+      {activeTab === "pendentes" && (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-sm">Documentos Pendentes de Assinatura</h3>
+              <p className="text-xs text-muted-foreground">{pendingSigs.length} documento(s) aguardando assinatura</p>
             </div>
-          )}
-        </div>
-      </Card>
+            <button onClick={loadPending} disabled={loadingPending} className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-muted">
+              <RefreshCw className={`w-4 h-4 ${loadingPending ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left font-semibold px-4 py-3">Cliente</th>
+                  <th className="text-left font-semibold px-4 py-3">Telefone</th>
+                  <th className="text-left font-semibold px-4 py-3">Tipo do Documento</th>
+                  <th className="text-left font-semibold px-4 py-3">Data de Envio</th>
+                  <th className="text-left font-semibold px-4 py-3">Expira em</th>
+                  <th className="text-left font-semibold px-4 py-3">Status</th>
+                  <th className="text-left font-semibold px-4 py-3">Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingPending ? (
+                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando documentos...</td></tr>
+                ) : pendingSigs.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">Nenhum documento pendente de assinatura</td></tr>
+                ) : (
+                  pendingSigs.map((s) => (
+                    <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{s.customer_name || "—"}</p>
+                        {s.email && <p className="text-xs text-muted-foreground">{s.email}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{s.phone || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground capitalize">{(s.document_type || "contrato").replace(/_/g, " ")}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {s.created_date ? new Date(s.created_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {s.expires_at ? new Date(s.expires_at).toLocaleDateString("pt-BR") : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-100 text-amber-700">
+                          <Clock className="w-3 h-3" /> Pendente
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.sign_url ? (
+                          <a href={s.sign_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs font-medium">Abrir</a>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </PageContainer>
   );
 }
