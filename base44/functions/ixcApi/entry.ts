@@ -852,6 +852,80 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, data: { created, updated, total: registros.length }, message: `${created} novos, ${updated} atualizados` });
     }
 
+    // ── SINCRONIZAR CONTRATOS (IXC → IxcContract entity) ────────────────────────
+    if (action === 'sync_contratos') {
+      const baseBody: Record<string, string> = { qtype: 'cliente_contrato.id', query: '1', oper: '>=', sortname: 'cliente_contrato.data_ativacao', sortorder: 'desc' };
+      const { ok, registros } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/cliente_contrato', baseBody, 500);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'sync_contratos', status: 'falha' });
+        return Response.json({ success: false, error: 'Falha ao buscar contratos do IXC Provedor' }, { status: 500 });
+      }
+
+      // Busca contratos já sincronizados para upsert
+      const existing = await base44.asServiceRole.entities.IxcContract.list('-ixc_contract_id', 500);
+      const existingMap: Record<string, any> = {};
+      for (const c of existing) existingMap[String(c.ixc_contract_id)] = c;
+
+      // Busca nomes de clientes em lote (para contratos sem nome_cliente direto)
+      const clientIds = [...new Set(registros.map((r: any) => String(r.id_cliente)).filter(Boolean))];
+      let clientsById: Record<string, any> = {};
+      if (clientIds.length > 0) {
+        const { res: cr, data: cd } = await ixcPost('cliente', { qtype: 'cliente.id', query: clientIds.join(','), oper: 'IN', page: '1', rp: String(Math.min(clientIds.length, 500)) });
+        if (cr.ok) for (const c of (cd.registros || [])) clientsById[String(c.id)] = c;
+      }
+
+      const { mapa: cidadesById } = await carregarMapaCidades();
+      const now = new Date().toISOString();
+      let created = 0;
+      let updated = 0;
+
+      for (const r of registros) {
+        const contractId = String(r.id);
+        const client = clientsById[String(r.id_cliente)] || {};
+        const customerName = r.nome_cliente || client.razao || client.fantasia || `Cliente #${r.id_cliente}`;
+        const statusRaw = String(r.status || '');
+        const statusNorm = statusRaw === 'A' ? 'ativo' : statusRaw === 'CA' ? 'cancelado' : statusRaw === 'S' ? 'suspenso' : 'outro';
+
+        const normalized = {
+          ixc_contract_id: contractId,
+          ixc_customer_id: String(r.id_cliente || ''),
+          customer_name: customerName,
+          plan_name: r.descricao_plano || r.plano || '',
+          ixc_plan_id: String(r.id_plano || ''),
+          vendor_name: r.vendedor || '',
+          ixc_vendor_id: String(r.id_vendedor || ''),
+          city: cidadesById[String(r.cidade || r.id_cidade)] || r.cidade_nome || '',
+          status: statusNorm,
+          internet_status: r.status_internet || '',
+          start_date: r.data_ativacao || '',
+          end_date: r.data_vencimento_contrato || r.data_expiracao || '',
+          download: r.velocidade_down || r.download || '',
+          upload: r.velocidade_up || r.upload || '',
+          ip: r.ip || '', mac: r.mac || '',
+          olt: r.nome_olt || r.olt || '', cto: r.nome_cto || r.cto || '',
+          address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', ') || '',
+          active: statusRaw === 'A',
+          raw_data: JSON.stringify(r).slice(0, 5000),
+          last_synced_at: now,
+        };
+
+        const existingContract = existingMap[contractId];
+        if (existingContract) {
+          await base44.asServiceRole.entities.IxcContract.update(existingContract.id, normalized);
+          updated++;
+        } else {
+          await base44.asServiceRole.entities.IxcContract.create(normalized);
+          created++;
+        }
+      }
+
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'ixcApi', action: 'sync_contratos', status: 'sucesso',
+        details: `${created} novos, ${updated} atualizados, ${registros.length} total`,
+      });
+      return Response.json({ success: true, data: { created, updated, total: registros.length }, message: `${created} novos, ${updated} atualizados` });
+    }
+
     // ── VENDEDORES ─────────────────────────────────────────────────────────────
     if (action === 'vendedores') {
       const baseBody: Record<string, string> = { qtype: 'vendedor.id', query: '1', oper: '>=', sortname: 'vendedor.nome', sortorder: 'asc' };

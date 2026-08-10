@@ -1,32 +1,6 @@
 {
-  "definition": {
-    "document": {
-      "dsl": "1.0.0",
-      "name": "sync_ixc_plans",
-      "version": "1.0",
-      "namespace": "base44"
-    },
-    "do": [
-      {
-        "sync_plans": {
-          "call": "invoke_backend_function",
-          "with": {
-            "function_name": "ixcApi",
-            "args": {
-              "action": "sync_plans"
-            }
-          },
-          "then": "end",
-          "x-base44": {
-            "title": "Sincronizar Planos IXC",
-            "description": "Busca planos no IXCSoft e atualiza a entidade IxcPlan"
-          }
-        }
-      }
-    ]
-  },
-  "description": "Sincroniza os planos de internet do IXCSoft para a entidade IxcPlan diariamente \u00e0s 03:00",
-  "name": "Sincroniza\u00e7\u00e3o Di\u00e1ria de Planos IXC",
+  "name": "Sincroniza\u00e7\u00e3o Di\u00e1ria de Planos e Contratos IXC",
+  "description": "Sincroniza planos e contratos do IXCSoft para as entidades IxcPlan e IxcContract diariamente \u00e0s 03:00",
   "trigger": {
     "condition": null,
     "config": {
@@ -43,5 +17,47 @@
       "ends_on_date": null,
       "ends_after_count": null
     }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_ixc_plans_contracts",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "sync_plans": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "ixcApi",
+            "args": {
+              "action": "sync_plans"
+            }
+          },
+          "then": "sync_contratos",
+          "x-base44": {
+            "title": "Sincronizar Planos IXC",
+            "description": "Busca planos no IXCSoft e atualiza a entidade IxcPlan"
+          }
+        }
+      },
+      {
+        "sync_contratos": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "ixcApi",
+            "args": {
+              "action": "sync_contratos"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Sincronizar Contratos IXC",
+            "description": "Busca contratos no IXCSoft e atualiza a entidade IxcContract"
+          }
+        }
+      }
+    ]
   }
 }
