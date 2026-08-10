@@ -54,6 +54,10 @@
       "type": "string",
       "description": "ID do vendedor correspondente no IXCSoft"
     },
+    "plans_config": {
+      "type": "string",
+      "description": "JSON array de planos vinculados: [{plan_name, ixc_plan_id, contract_template_id, terms}]"
+    },
     "total_sales": {
       "type": "number",
       "default": 0
