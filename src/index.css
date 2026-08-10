@@ -91,6 +91,9 @@
 }
 
 @layer utilities {
+  .input-base {
+    @apply w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary;
+  }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
