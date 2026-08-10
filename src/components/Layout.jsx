@@ -36,6 +36,7 @@ const pageTitles = {
   "/vendors": "Fornecedores",
   "/agreements": "Verificação de Acordos",
   "/agreements/settings": "Configurações de Acordos",
+  "/central-cobranca": "Central de Cobrança",
 };
 
 export default function Layout() {

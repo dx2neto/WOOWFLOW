@@ -1,0 +1,100 @@
+{
+  "name": "CollectionAttempt",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "whatsapp",
+        "call",
+        "email",
+        "manual"
+      ],
+      "default": "whatsapp"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "lembrete",
+        "oferta_negociacao",
+        "contato_manual",
+        "follow_up_promessa"
+      ],
+      "default": "lembrete"
+    },
+    "message": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "enviado",
+        "falha",
+        "sem_resposta",
+        "promessa",
+        "recusa"
+      ],
+      "default": "enviado"
+    },
+    "performed_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "case_id",
+    "channel",
+    "result"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

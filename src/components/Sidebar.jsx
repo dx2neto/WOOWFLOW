@@ -59,6 +59,7 @@ const menuGroups = [
       { label: "Cobranças",                  path: "/charges",     icon: DollarSign },
       { label: "Financeiro / Inadimplência", path: "/financial",   icon: TrendingDown },
       { label: "Verificação de Acordo",      path: "/agreements",  icon: Shield },
+      { label: "Central de Cobrança",        path: "/central-cobranca", icon: PhoneCall },
       { label: "Ordens de Serviço",          path: "/work-orders", icon: Wrench },
       { label: "NOC",                        path: "/noc",         icon: WifiOff },
       { label: "Teste IXCSoft",              path: "/ixc-test",    icon: TestTube2 },

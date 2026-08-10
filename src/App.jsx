@@ -53,6 +53,8 @@ const Vendors = lazy(() => import('@/pages/Vendors'));
 const IxcTest = lazy(() => import('@/pages/IxcTest'));
 const Agreements = lazy(() => import('@/pages/Agreements'));
 const AgreementDetail = lazy(() => import('@/pages/AgreementDetail'));
+const CollectionsCenter = lazy(() => import('@/pages/CollectionsCenter'));
+const CollectionCaseDetail = lazy(() => import('@/pages/CollectionCaseDetail'));
 const AgreementSettings = lazy(() => import('@/pages/AgreementSettings'));
 const SystemAudit = lazy(() => import('@/pages/SystemAudit'));
 const AuditCenter = lazy(() => import('@/pages/AuditCenter'));
@@ -136,6 +138,8 @@ const AuthenticatedApp = () => {
           {/* Dados financeiros — exigem permissão especial */}
           <Route element={<RequirePermission special="access_financial_data" />}>
             <Route path="/financial"   element={<Financial />} />
+            <Route path="/central-cobranca"     element={<CollectionsCenter />} />
+            <Route path="/central-cobranca/:id" element={<CollectionCaseDetail />} />
           </Route>
 
           {/* Módulo de Verificação de Acordo */}
