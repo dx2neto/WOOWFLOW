@@ -802,6 +802,56 @@ Deno.serve(async (req) => {
       return Response.json(paginate(planos, planos.length));
     }
 
+    // ── SINCRONIZAR PLANOS (IXC → IxcPlan entity) ───────────────────────────────
+    if (action === 'sync_plans') {
+      const baseBody: Record<string, string> = { qtype: 'plano.id', query: '1', oper: '>=', sortname: 'plano.nome', sortorder: 'asc' };
+      const { ok, registros } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/plano', baseBody, 500);
+      if (!ok) {
+        await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'sync_plans', status: 'falha' });
+        return Response.json({ success: false, error: 'Falha ao buscar planos do IXC Provedor' }, { status: 500 });
+      }
+
+      // Busca planos já sincronizados para upsert
+      const existing = await base44.asServiceRole.entities.IxcPlan.list('-ixc_plan_id', 500);
+      const existingMap = {};
+      for (const p of existing) existingMap[String(p.ixc_plan_id)] = p;
+
+      const now = new Date().toISOString();
+      let created = 0;
+      let updated = 0;
+
+      for (const r of registros) {
+        const planId = String(r.id);
+        const normalized = {
+          ixc_plan_id: planId,
+          name: r.nome || r.descricao || `Plano #${planId}`,
+          download: r.velocidade_down || r.download || '',
+          upload: r.velocidade_up || r.upload || '',
+          price: parseFloat(r.valor || '0'),
+          active: r.ativo === 'S',
+          type: r.tipo_plano || r.tecnologia || '',
+          fidelity: r.fidelidade || '',
+          raw_data: JSON.stringify(r).slice(0, 5000),
+          last_synced_at: now,
+        };
+
+        const existingPlan = existingMap[planId];
+        if (existingPlan) {
+          await base44.asServiceRole.entities.IxcPlan.update(existingPlan.id, normalized);
+          updated++;
+        } else {
+          await base44.asServiceRole.entities.IxcPlan.create(normalized);
+          created++;
+        }
+      }
+
+      await base44.asServiceRole.entities.IntegrationLog.create({
+        integration: 'ixcApi', action: 'sync_plans', status: 'sucesso',
+        details: `${created} novos, ${updated} atualizados, ${registros.length} total`,
+      });
+      return Response.json({ success: true, data: { created, updated, total: registros.length }, message: `${created} novos, ${updated} atualizados` });
+    }
+
     // ── VENDEDORES ─────────────────────────────────────────────────────────────
     if (action === 'vendedores') {
       const baseBody: Record<string, string> = { qtype: 'vendedor.id', query: '1', oper: '>=', sortname: 'vendedor.nome', sortorder: 'asc' };

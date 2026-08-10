@@ -1,0 +1,92 @@
+{
+  "name": "IxcPlan",
+  "type": "object",
+  "properties": {
+    "ixc_plan_id": {
+      "type": "string",
+      "description": "ID do plano no IXCSoft"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome do plano"
+    },
+    "download": {
+      "type": "string",
+      "description": "Velocidade de download (Mbps)"
+    },
+    "upload": {
+      "type": "string",
+      "description": "Velocidade de upload (Mbps)"
+    },
+    "price": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor mensal do plano"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o plano est\u00e1 ativo no IXCSoft"
+    },
+    "type": {
+      "type": "string",
+      "description": "Tecnologia/tipo do plano"
+    },
+    "fidelity": {
+      "type": "string",
+      "description": "Per\u00edodo de fidelidade"
+    },
+    "raw_data": {
+      "type": "string",
+      "description": "JSON snapshot dos dados brutos do IXC"
+    },
+    "last_synced_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "ixc_plan_id",
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
