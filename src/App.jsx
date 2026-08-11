@@ -60,6 +60,7 @@ const SalesPipeline = lazy(() => import('@/pages/SalesPipeline'));
 const Resellers = lazy(() => import('@/pages/Resellers'));
 const AIAssistant = lazy(() => import('@/pages/AIAssistant'));
 const AIPanels = lazy(() => import('@/pages/AIPanels'));
+const FlowMap = lazy(() => import('@/pages/FlowMap'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -158,6 +159,7 @@ const AuthenticatedApp = () => {
           {/* Assistente IA */}
           <Route path="/ai-assistant" element={<AIAssistant />} />
           <Route path="/ai-panels" element={<AIPanels />} />
+          <Route path="/flow-map" element={<FlowMap />} />
         </Route>
       </Route>
 
