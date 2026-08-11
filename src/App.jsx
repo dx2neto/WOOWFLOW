@@ -63,6 +63,7 @@ const AIPanels = lazy(() => import('@/pages/AIPanels'));
 const FlowMap = lazy(() => import('@/pages/FlowMap'));
 const FlowDocumentation = lazy(() => import('@/pages/FlowDocumentation'));
 const FlowPanel = lazy(() => import('@/pages/FlowPanel'));
+const IntegrationMonitor = lazy(() => import('@/pages/IntegrationMonitor'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -164,6 +165,7 @@ const AuthenticatedApp = () => {
           <Route path="/flow-map" element={<FlowMap />} />
           <Route path="/flow-docs" element={<FlowDocumentation />} />
           <Route path="/flow-panel" element={<FlowPanel />} />
+          <Route path="/integration-monitor" element={<IntegrationMonitor />} />
         </Route>
       </Route>
 

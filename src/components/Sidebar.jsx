@@ -8,7 +8,7 @@ import {
   ChevronLeft, UserCog, Tags, ScrollText, CalendarDays, PhoneCall,
   AlertTriangle, MessageSquareText, Workflow, Bot as BotIcon,
   FileText, Wifi, TrendingDown, Wrench, WifiOff, ShoppingBag, TestTube2,
-  Shield, History, ShieldCheck, Store, GitBranch
+  Shield, History, ShieldCheck, Store, GitBranch, Activity
 } from "lucide-react";
 
 // ── Hook: contagem de conversas não lidas em tempo real ───────────────────────
@@ -92,6 +92,7 @@ const menuGroups = [
       { label: "Logs do Sistema",    path: "/system-logs",         icon: AlertTriangle },
       { label: "Central de Alertas",   path: "/audit-center",      icon: AlertTriangle },
       { label: "Auditoria do Sistema", path: "/system-audit",      icon: ShieldCheck },
+      { label: "Monitor de Integrações", path: "/integration-monitor", icon: Activity },
       { label: "Logs Sync WhatsApp", path: "/evolution-sync-logs", icon: History },
       { label: "Configurações",      path: "/settings",            icon: Settings },
     ],
