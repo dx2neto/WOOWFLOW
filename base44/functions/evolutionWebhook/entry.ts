@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { logError } from '../../shared/errorLogger.ts';
+import { validateWebhookRequest } from '../../shared/webhookSecurity.ts';
 
 // Webhook handler para a Evolution API oficial (Baileys).
 // Formato do evento: { event: "messages.upsert", instance: "nome", data: { key, message, messageTimestamp, pushName } }
@@ -59,63 +60,24 @@ function detectMsgType(key: AnyRecord, msgBody: AnyRecord): string {
   return 'text';
 }
 
-// ── Rate limiting em memória (janela deslizante de 60s) ─────────────────────
-// Limita a 120 requests por minuto por IP de origem. Evita sobrecarga por
-// replay de webhooks ou flood de uma instância mal configurada.
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 120;
-const ipHits = new Map<string, number[]>();
-
-function rateLimitOk(ip: string): boolean {
-  const now = Date.now();
-  const hits = (ipHits.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  if (hits.length >= RATE_LIMIT_MAX) return false;
-  hits.push(now);
-  ipHits.set(ip, hits);
-  // Limpa entradas antigas periodicamente (evita memory leak)
-  if (ipHits.size > 1000) {
-    for (const [k, v] of ipHits) {
-      const fresh = v.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-      if (fresh.length === 0) ipHits.delete(k);
-      else ipHits.set(k, fresh);
-    }
-  }
-  return true;
-}
-
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   try {
-    // ── Rate limiting por IP ────────────────────────────────────────────────
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
-    if (!rateLimitOk(clientIp)) {
-      await base44.asServiceRole.entities.MessageSyncLog.create({
-        sync_status: 'rate_limited', action: 'rate_limit',
-        error_message: `IP ${clientIp} excedeu o limite de ${RATE_LIMIT_MAX} req/min`,
-      }).catch(() => {});
-      return Response.json({ error: 'Rate limit exceeded — too many webhook calls' }, { status: 429 });
-    }
-
-    // ── Autenticação do webhook (fail-closed) ────────────────────────────────
-    const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-    if (!apiKey) return Response.json({ error: 'Webhook secret not configured' }, { status: 500 });
-    const providedKey = new URL(req.url).searchParams.get('key') || req.headers.get('x-webhook-secret') || req.headers.get('apikey');
-    if (providedKey !== apiKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
-    // ── Validação de origem (fail-closed) ─────────────────────────────────────
-    // Aceita apenas requisições da URL base da Evolution API configurada.
-    const evoUrl = Deno.env.get('EVOLUTION_API_URL') || '';
-    const originHost = req.headers.get('origin') || req.headers.get('referer') || '';
-    if (evoUrl && originHost) {
-      try {
-        const allowedHost = new URL(evoUrl).hostname;
-        const reqHost = new URL(originHost).hostname;
-        if (reqHost !== allowedHost) {
-          return Response.json({ error: 'Forbidden — origin not allowed' }, { status: 403 });
-        }
-      } catch {
-        // Se não conseguir parsear, ignora (não bloqueia requisições legítimas sem origin header)
+    // ── Validação de origem e segurança (fail-closed) ────────────────────────
+    // Rate limiting + API key + validação de origem via módulo compartilhado.
+    const security = validateWebhookRequest(req, {
+      apiKeyEnv: 'EVOLUTION_API_KEY',
+      allowedOriginEnv: 'EVOLUTION_API_URL',
+      rateLimitMax: 120,
+    });
+    if (!security.ok) {
+      if (security.status === 429) {
+        await base44.asServiceRole.entities.MessageSyncLog.create({
+          sync_status: 'rate_limited', action: 'rate_limit',
+          error_message: `IP ${security.clientIp} excedeu o limite de req/min`,
+        }).catch(() => {});
       }
+      return Response.json({ error: security.error }, { status: security.status });
     }
 
     const body = await req.json().catch(() => ({}));
