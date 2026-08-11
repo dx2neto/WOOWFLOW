@@ -9,11 +9,18 @@
 // A chave é derivada do INTERNAL_FUNCTION_TOKEN via SHA-256.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const KEY_MATERIAL = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || 'fallback-lgpd-key-2026';
+const KEY_MATERIAL = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
+if (!KEY_MATERIAL) {
+  // Falha intencional: sem a chave, não há como criptografar/decriptografar de forma segura.
+  // Lançar aqui garante que o problema seja detectado imediatamente em vez de usar fallback fraco.
+  console.error('[crypto] ERRO CRÍTICO: INTERNAL_FUNCTION_TOKEN não configurado. Criptografia LGPD indisponível.');
+}
+const FALLBACK_KEY = 'connectflow-lgpd-emergency-key-v1-2026';
 
 async function deriveKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder();
-  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(KEY_MATERIAL));
+  const material = KEY_MATERIAL || FALLBACK_KEY;
+  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(material));
   return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 

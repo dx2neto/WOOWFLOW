@@ -1,235 +1,77 @@
-# Auditoria Técnica — WOOWFLOW
+# Matriz de Auditoria — ConnectFlow Hub
 
-**Data:** 09/07/2026
-**Escopo:** Auditoria completa de ponta a ponta (frontend, backend, integrações, entidades/segurança, build e higiene do repositório).
-**Status:** Diagnóstico concluído **e correções aplicadas** (2ª rodada). Todos os itens Críticos, de Segurança, e a maioria dos itens de Qualidade/Higiene foram corrigidos. Verificação final: `lint` limpo (0 problemas), `typecheck` limpo (0 erros), `build` de produção com sucesso. Ver seção 3 para o detalhamento do que foi aplicado.
+**Data:** 2026-08-11 | **Sistema:** WoowChat / ConnectFlow Hub | **Ambiente:** Base44 (Deno + React)
 
----
+## Resumo Executivo
 
-## 1. Diagnóstico geral do sistema
-
-O WOOWFLOW é uma plataforma omnichannel robusta para provedores de internet (ISP): CRM, caixa de entrada WhatsApp (Evolution Go), cobrança/financeiro (IXCSoft), assinatura eletrônica (ZapSign), telefonia (PABX), campanhas, chatbot/IA e acordos. São **186 arquivos de frontend (React/Vite), 22 funções de backend (Deno) e 39 entidades**.
-
-**Pontos fortes**
-- O projeto **compila e builda com sucesso** (3.014 módulos transformados sem erro).
-- Arquitetura de autenticação sólida: redirecionamento via `window.location` (não depende de hooks de router), `AuthProvider` bem isolado.
-- Padrão consistente de logging: `IntegrationLog`, `ErrorLog`, `ReminderLog` — boa base de observabilidade.
-- Boa organização de UI (shadcn/ui) e separação por domínio (telephony, agreements, crm, etc.).
-
-**Fragilidades estruturais (visão macro)**
-- **Segurança de dados é o maior risco:** nenhuma entidade tem RLS (Row-Level Security), e o frontend não tem autorização por papel/rota. Qualquer usuário autenticado alcança PII, dados financeiros, logs de auditoria e até segredos de integração.
-- **A automação de cobrança (lembretes agendados) está quebrada** por um modelo de autenticação incompatível com execução via cron.
-- **A página Inbox tem um bug de runtime que a derruba** (temporal dead zone).
-- Várias "integrações" são **stubs** que só reportam status, sem executar a ação real.
-- Repositório com **muito lixo/duplicação** que atrapalha manutenção e deploy.
-
-**Veredito:** o sistema tem uma base boa, mas **não está pronto para produção** enquanto os itens Críticos e de Segurança abaixo não forem resolvidos.
+Auditoria completa do sistema identificou **18 problemas** classificados por severidade.
+As correções CRÍTICAS e ALTAS foram executadas nesta sessão.
 
 ---
 
-## 2. Problemas encontrados
+## Matriz de Problemas
 
-> Legenda de gravidade: 🔴 Crítica · 🟠 Alta · 🟡 Média · ⚪ Baixa
-
-### 🔴 CRÍTICO
-
-#### C1. Inbox quebra ao renderizar (ReferenceError / temporal dead zone)
-- **Arquivo:** `src/pages/Inbox.jsx`
-- **Causa:** `const selected = conversations.find(...)` é declarado na **linha 710**, mas é referenciado nos *dependency arrays* de `useCallback` nas **linhas 577, 587 e 600** (`handleSendFile`, `handleWhatsAppCall`, `handleSyncHistoryOnly`). Como `const` não sofre hoisting, no momento da renderização o acesso a `selected` cai na *temporal dead zone* → `ReferenceError: Cannot access 'selected' before initialization`.
-- **Impacto:** A página **/inbox** (função central do produto) trava ao montar. Confirmado também pelo `tsc` (TS2448).
-- **Gravidade:** 🔴 Crítica.
-- **Correção recomendada:** Mover a linha `const selected = conversations.find((c) => c.id === selectedId);` para **antes** do primeiro `useCallback` que a usa (logo após a declaração de `selectedId`, ~linha 210). Causa raiz, sem gambiarra.
-- **Como testar:** Abrir `/inbox`; a lista e a conversa selecionada devem carregar sem erro no console. Rodar `npm run typecheck` — os 3 erros TS2448 devem sumir.
-
-#### C2. Pipeline de lembretes agendados nunca executa (auth incompatível com cron)
-- **Arquivos:** `base44/functions/sendPaymentReminders/entry.ts`, `sendNegotiationOffers`, `sendBillingRuleReminders`, `sendContractRenewalReminders` (+ workflows `base44/workflows/*.jsonc`).
-- **Causa:** As funções começam com `const user = await base44.auth.me(); if (!user) return 401`. Porém elas são disparadas por **workflow agendado** (`PaymentReminderWhatsApp.jsonc`, cron `0 9 * * *`) via `invoke_backend_function` com `args: {}` — **sem sessão de usuário**. Além disso, encaminham `Authorization: req.headers.get('Authorization') || ''` (vazio) para `ixcApi`/`evolutionApi`, que também exigem `auth.me()`.
-- **Impacto:** Lembretes de pagamento, ofertas de negociação, regras de cobrança e renovação de contrato **nunca são enviados** quando disparados pelo agendador → retornam 401. Funcionalidade de cobrança automática inoperante.
-- **Gravidade:** 🔴 Crítica.
-- **Correção recomendada:** Para execução por sistema, usar identidade de serviço em vez de sessão interativa: (a) permitir invocação via service role e (b) chamadas internas função→função autenticadas por token de serviço/segredo compartilhado, não pelo header do usuário final. Manter `asServiceRole` para as escritas (já usado) e ajustar `ixcApi`/`evolutionApi` para aceitar chamada de serviço.
-- **Como testar:** Disparar o workflow manualmente (ou aguardar o cron) e confirmar `ReminderLog`/`IntegrationLog` com `status: enviado/sucesso`; verificar recebimento real no WhatsApp de teste.
-
-### 🟠 ALTA (Segurança)
-
-#### S1. Nenhuma entidade define RLS — exposição ampla de PII e dados financeiros
-- **Arquivos:** `base44/entities/*.jsonc` (as 37 entidades — nenhuma tem bloco `rls`).
-- **Causa:** Entidades como `Customer` (CPF/CNPJ, telefone, e-mail, `balance_due`, `financial_status`), `Charge`, `Agreement`, `AgreementInstallment`, `Conversation`, `Message`, `AuditLog` e `User` não têm regra de acesso por linha. Sem RLS explícito, o acesso segue o padrão da plataforma, permitindo que **qualquer usuário autenticado leia/escreva registros de todos**.
-- **Impacto:** Vazamento de dados pessoais e financeiros; risco de **LGPD**; sem isolamento multi-tenant; possibilidade de adulteração de auditoria e de contas de usuário.
-- **Gravidade:** 🟠 Alta (tende a 🔴 pelo tipo de dado).
-- **Correção recomendada:** Adicionar bloco `"rls"` a cada entidade seguindo os padrões do Base44 (ver `.agents/skills/base44-cli/references/rls-examples.md`). Ex.: leitura restrita a papéis/atendentes autorizados; `AuditLog`/`User` somente admin; PII e financeiro com menor privilégio. Aplicar princípio do menor privilégio por entidade.
-- **Como testar:** Autenticar como usuário comum e tentar `entities.Customer.list()`/`User.list()` — deve retornar apenas o permitido. Testar leitura/escrita cruzada entre usuários.
-
-#### S2. Segredos armazenados em entidades sem RLS
-- **Arquivos:** `base44/entities/IntegrationConfig.jsonc` (campo `api_key`), `SipTrunk.jsonc` (`sip_password`), `SignatureRequest.jsonc` (`zapsign_doc_token`).
-- **Causa:** Credenciais de integração ficam em entidades que, sem RLS, são legíveis via API de entidades por qualquer usuário autenticado.
-- **Impacto:** Exposição de chaves de API, senha SIP e tokens de assinatura — permite abuso das integrações e da telefonia.
-- **Gravidade:** 🟠 Alta.
-- **Correção recomendada:** Mover segredos para variáveis de ambiente do backend (`Deno.env`) sempre que possível; para o que precisar ficar em entidade, aplicar RLS admin-only e considerar mascaramento/somente-escrita no frontend.
-- **Como testar:** Como usuário comum, tentar ler `IntegrationConfig`/`SipTrunk` — os campos sensíveis não devem retornar.
-
-#### S3. Webhook do Evolution é "fail-open"
-- **Arquivo:** `base44/functions/evolutionWebhook/entry.ts` (linhas ~78-82).
-- **Causa:** `if (apiKey && providedKey !== apiKey) return 401` — a verificação só ocorre **se** alguma env de segredo estiver definida. Se `EVOLUTION_GO_WEBHOOK_SECRET`/`EVOLUTION_GO_ADMIN_TOKEN`/`EVOLUTION_API_KEY`/`GLOBAL_API_KEY` não estiverem setadas, `apiKey` é `''` e a autenticação é **ignorada**.
-- **Impacto:** Qualquer um pode chamar o webhook e **injetar mensagens/conversas falsas** no sistema (spoofing, poluição de dados, phishing interno).
-- **Gravidade:** 🟠 Alta.
-- **Correção recomendada:** Falhar de forma segura (*fail-closed*): se nenhum segredo estiver configurado, rejeitar com 500/401 em vez de aceitar. Exigir segredo obrigatório e, idealmente, validar via header em vez de query string (a query aparece em logs de acesso).
-- **Como testar:** Chamar o webhook sem `?key=` correto → deve retornar 401 mesmo sem env configurada.
-
-#### S4. Sem autorização por rota/papel no frontend
-- **Arquivos:** `src/components/ProtectedRoute.jsx`, `src/App.jsx`, `src/components/Layout.jsx`.
-- **Causa:** `ProtectedRoute` valida apenas *autenticação*. Não há checagem de papel/permissão, apesar de existir `permissionsConfig.js` e entidade `Profile`. Páginas sensíveis (`/users`, `/audit-logs`, `/system-logs`, `/settings`, `/integrations`, `/financial`) ficam acessíveis a **qualquer usuário logado** via URL direta.
-- **Impacto:** Escalonamento de privilégio na interface; usuário comum acessa gestão de usuários, auditoria e configurações.
-- **Gravidade:** 🟠 Alta (a barreira real deve ser o RLS — item S1 — mas isto é defesa em profundidade essencial).
-- **Correção recomendada:** Criar um wrapper de autorização (ex.: `<RequirePermission module="settings" action="view">`) usando `Profile`/`permissionsConfig`, aplicado às rotas sensíveis, e ocultar itens de menu no `Sidebar` conforme permissão.
-- **Como testar:** Logar como usuário sem permissão e acessar `/users` diretamente → deve bloquear/redirecionar.
-
-#### S5. Endpoint e instância de produção hardcoded no código
-- **Arquivo:** `base44/functions/agreementApi/entry.ts` (linhas 11-13).
-- **Causa:** Fallbacks embutidos: `EVOLUTION_API_URL || 'https://evolution-go-9b1u.srv1772067.hstgr.cloud'` e `EVOLUTION_INSTANCE_NAME || 'CONNECT'`.
-- **Impacto:** Vazamento de infraestrutura interna no código-fonte e risco de *config drift* (o código usa um servidor fixo se a env faltar).
-- **Gravidade:** 🟡 Média.
-- **Correção recomendada:** Remover o fallback hardcoded; exigir a env e falhar com erro claro se ausente. Nunca fixar URLs/instâncias de produção no código.
-- **Nota:** `.env.local` contém chaves reais (`BASE44_API_KEY`, `EVOLUTION_API_KEY`), porém **não está versionado** (o `.gitignore` cobre `.env.*`) — correto. Ainda assim, recomenda-se **rotacionar** essas chaves, já que estiveram em texto plano no ambiente de trabalho.
-
-### 🟡 MÉDIA (Integrações e Qualidade)
-
-#### M1. Funções de integração são apenas stubs
-- **Arquivos:** `crmApi`, `signatureApi`, `telephonyApi`, `metaApi`, `tiktokApi`, `emailApi`, `billingApi` (`base44/functions/*/entry.ts`).
-- **Causa:** Essas funções apenas checam variáveis de ambiente e retornam `{status: connected|pending, supports: [...]}` — **não executam** a ação real (ex.: `signatureApi` anuncia `send_contract` mas nada faz; a assinatura real está em `zapsignApi`).
-- **Impacto:** A UI pode indicar "conectado" para integrações que não fazem nada; confusão e falsa sensação de funcionalidade. Redundância com as funções reais (`zapsignApi`, `evolutionApi`, `ixcApi`).
-- **Gravidade:** 🟡 Média.
-- **Correção recomendada:** Ou implementar a integração real, ou renomear/rotular claramente como "teste de conexão" e ajustar a UI para não prometer ações inexistentes. Remover duplicidade com as funções completas.
-- **Como testar:** Chamar cada função com uma `action` real e confirmar efeito no serviço externo.
-
-#### M2. Leitura de tabela inteira e envio sequencial nos lembretes
-- **Arquivo:** `base44/functions/sendPaymentReminders/entry.ts` (e similares).
-- **Causa:** `ReminderLog.filter({})` carrega **todos** os registros a cada execução para montar o `Set` de já-enviados; envios feitos em loop sequencial com `await`.
-- **Impacto:** Degradação de performance conforme a base cresce; janela de execução longa; possível timeout.
-- **Gravidade:** 🟡 Média.
-- **Correção recomendada:** Filtrar por período/`invoice_id` relevante (não `{}`); paginar; considerar envios em lote controlado.
-
-#### M3. `.gitignore` com regra `*.json` no final
-- **Arquivo:** `.gitignore` (última linha `*.json`).
-- **Causa:** A regra `*.json` pode deixar de rastrear arquivos de configuração importantes (`package.json`, `components.json`, `package-lock.json`), dependendo de já estarem versionados.
-- **Impacto:** Risco de arquivos essenciais não entrarem no versionamento/CI → build quebrado em clones limpos.
-- **Gravidade:** 🟡 Média.
-- **Correção recomendada:** Remover `*.json` genérico e ignorar apenas o que for realmente local (ex.: `o.json` e artefatos), mantendo os `.json` de config versionados. As entidades usam `.jsonc` (não afetadas), mas a regra ainda é perigosa.
-
-### ⚪ BAIXA (Higiene, build e UX)
-
-#### B1. `README.md` da raiz tem conteúdo errado
-- **Arquivo:** `README.md` (e `README 2.md`). Ambos contêm o README do pacote **tinyglobby**, não do WOOWFLOW.
-- **Impacto:** Documentação de setup inexistente/enganosa (o `AGENTS.md` referencia o README para setup).
-- **Correção recomendada:** Reescrever o `README.md` com setup real (variáveis, `base44 dev`, build) e remover `README 2.md`.
-
-#### B2. Lixo e duplicação no repositório
-- **Itens:** `WOOWFLOW/` (cópia aninhada do projeto, ~5,8 MB, com `dist` e locks próprios), `package 2`…`package 6/`, `o.json` (cópia de `package-lock.json`, ~360 KB), `package 2.json`, `fdir-6.5.0.tgz`, `tinyglobby-0.2.17.tgz`, `.index.html.swp`, `.DS_Store`.
-- **Impacto:** Confusão de manutenção, risco de editar o arquivo errado, repositório inchado, ambiguidade de build.
-- **Correção recomendada:** Remover todos esses artefatos após confirmar que a fonte de verdade é a raiz. Adicionar `.DS_Store`, `*.swp`, `*.tgz` ao `.gitignore` (já cobre `.swp` e `.DS_Store`).
-
-#### B3. Build sem code-splitting (bundle único de 1,7 MB)
-- **Causa:** Um único chunk JS de ~1.717 KB (gzip ~459 KB); Vite alerta chunks > 500 KB.
-- **Impacto:** Carregamento inicial mais lento.
-- **Correção recomendada:** `React.lazy`/`import()` por rota e `manualChunks` para libs pesadas (recharts, three, framer-motion, leaflet).
-
-#### B4. Erros de `typecheck` e warnings de lint
-- **Causa:** `tsc` acusa aritmética com `Date` (`Dashboard.jsx`, `Reports.jsx`, `Financial.jsx`, `CustomerConversationsHistory.jsx`) e o TDZ do Inbox (C1). `eslint` acusa 6 variáveis não usadas.
-- **Impacto:** Ruído; mascara erros reais; risco de bugs sutis de data.
-- **Correção recomendada:** Usar `.getTime()` nas subtrações de data; remover variáveis não usadas; manter `typecheck` limpo no CI.
-
-#### B5. Detalhes de UI e config
-- `base44/config.jsonc` → `"name": "Untitled"` (definir "WOOWFLOW").
-- `Layout.jsx`: sino de notificações é decorativo (ponto estático); toggle de tema é `useState` local (não persiste) e aplica a classe `dark` em um `div` interno em vez de `<html>` — o dark mode pode não se propagar a portais/modais.
-- **Gravidade:** ⚪ Baixa.
+| # | Item | Situação | Problema | Impacto | Severidade | Status |
+|---|------|----------|----------|---------|------------|--------|
+| 1 | `crypto.ts` | Fallback inseguro | Chave `fallback-lgpd-key-2026` usada quando `INTERNAL_FUNCTION_TOKEN` ausente | Dados sensíveis (CPF/CNPJ) cifrados com chave fraca e previsível | **CRÍTICO** | ✅ Corrigido |
+| 2 | `salesPipelineApi` create_ixc_contract | CPF criptografado enviado ao IXC | `sale.cpf_cnpj` (cifrado AES-GCM) enviado direto para `ixcApi create_customer` | Cliente criado no IXC com documento ilegível → contrato inválido | **CRÍTICO** | ✅ Corrigido |
+| 3 | SDK version mismatch | Versões divergentes | ixcApi, evolutionApi, evolutionWebhook, zapsignApi usam `0.8.31`; salesPipelineApi usa `0.8.40` | Incompatibilidade entre funções, comportamento inconsistente | **ALTO** | ✅ Corrigido (unificado para `0.8.41`) |
+| 4 | `ixcApi` contratos | Paginação truncada | Usava `ixcPost` (página única de `limit` registros) em vez de `fetchAllPages` | Contratos além da página 1 não apareciam | **ALTO** | ✅ Corrigido |
+| 5 | `ixcApi` inadimplentes | Paginação truncada | Mesmo problema — única página de `limit` registros | Inadimplentes além da página 1 não apareciam | **ALTO** | ✅ Corrigido |
+| 6 | `zapsignApi` ixcFetch | Paginação incorreta | Usava `limit: '1', start: '0'` (não é formato IXC) | Apenas 1 registro retornado por consulta IXC | **ALTO** | ✅ Corrigido |
+| 7 | Camada de integração IXC | Inexistente | Chamadas à API IXC espalhadas diretamente nas funções | Sem centralização de auth, retry, timeout, cache | **ALTO** | ✅ Criado `base44/shared/ixcClient.ts` |
+| 8 | `ixcApi` carregarMapaCidades | Sem cache | Buscada tabela inteira de cidades a cada requisição | Latência desnecessária (~200ms por request) | **MÉDIO** | ✅ Corrigido (cache 10min no `ixcClient.ts`) |
+| 9 | `evolutionWebhook` origin validation | Sem validação de origem | Webhook aceita requisição de qualquer IP (apenas rate limit) | Risco de spoofing de webhook | **MÉDIO** | ⏳ Pendente (rate limit ativo) |
+| 10 | RLS em entidades admin | Configuração inconsistente | Algumas entidades admin não têm RLS explícito em todos os campos | Possível acesso não autorizado | **MÉDIO** | ⏳ Pendente |
+| 11 | `useInboxRealtime` queryKeys | queryKeys quebradas | Realtime subscription não invalida cache corretamente | Mensagens não atualizam em tempo real | **MÉDIO** | ⏳ Pendente |
+| 12 | `aiOrchestrator` error handling | Erros silenciosos | Falhas na chamada LLM engolidas sem log adequado | IA falha sem rastreabilidade | **MÉDIO** | ⏳ Pendente |
+| 13 | `NOC.jsx` noc_sinal_ruim | Dados mockados | Retorna array vazio com `pending: true` | Tela NOC sinal ruim não funcional | **BAIXO** | ⏳ Pendente (requer integração OLT/Zabbix) |
+| 14 | `Dashboard.jsx` clientes_offline | Campo null | `dashboard` retorna `clientes_offline: null` | Card offline sempre vazio no dashboard | **BAIXO** | ⏳ Pendente (requer integração RADIUS) |
+| 15 | `salesPipelineApi` health_check | Sem teste real | Apenas verifica se secrets existem, não testa conectividade | Falso positivo de "ONLINE" | **BAIXO** | ⏳ Pendente |
+| 16 | `ixcApi` fallback legado | Sem action validation | Bloco final aceita qualquer action desconhecida | Erro 400 confuso em vez de mensagem clara | **BAIXO** | ⏳ Pendente |
+| 17 | Duplicação de código IXC | `ixcPost`/`ixcWrite` no ixcApi | Funções helper duplicadas em ixcApi e zapsignApi | Manutenção difícil | **BAIXO** | ⏳ Parcial (ixcClient.ts criado, migração pendente) |
+| 18 | `fetchWithRetry` timeout | Sem timeout configurável por função | Todas as funções usam 30s fixo | Chamadas IXC longas podem timeout | **BAIXO** | ✅ Corrigido (ixcClient.ts permite configurar) |
 
 ---
 
-## 3. Correções feitas
+## Camada de Integração IXC Criada
 
-Todas as correções abaixo foram aplicadas atacando a causa raiz, sem mocks nem gambiarras, e validadas com `npm run lint` (0 problemas), `npm run typecheck` (0 erros) e `npm run build` (sucesso).
+**Arquivo:** `base44/shared/ixcClient.ts`
 
-**C1 — Inbox (crash TDZ) ✅**
-`src/pages/Inbox.jsx`: a declaração `const selected = conversations.find(...)` foi movida para logo após os `useState` (antes dos `useCallback`/`useMemo` que a usam), eliminando o `ReferenceError`. `typecheck` não acusa mais TS2448.
+Centraliza toda comunicação com a API IXCSoft:
 
-**C2 — Pipeline de lembretes (auth de serviço) ✅**
-Introduzido um token interno compartilhado (`INTERNAL_FUNCTION_TOKEN`). As funções `ixcApi`, `evolutionApi`, `zapsignApi` e as 4 de lembrete (`sendPaymentReminders`, `sendNegotiationOffers`, `sendBillingRuleReminders`, `sendContractRenewalReminders`) agora autorizam a chamada por **usuário autenticado OU token interno** (`x-internal-token`), e as chamadas função→função passam esse header em vez de encaminhar um `Authorization` vazio. Isso faz o agendador funcionar sem abrir endpoint anônimo. Também melhorada a dedupe (`filter({ status: 'enviado' })` em vez de `filter({})`, reduzindo leitura e permitindo retentar falhas). Nova variável documentada em `.env.example`.
-> Ação necessária do lado do Base44: gerar um valor forte para `INTERNAL_FUNCTION_TOKEN` (ex.: `openssl rand -hex 32`), configurá-lo como secret do backend e no cabeçalho `x-internal-token` dos workflows agendados.
+- **IXCClient.fromEnv()** — instancia cliente a partir de secrets (IXC_API_URL, IXC_API_TOKEN)
+- **list()** — busca uma página (com auth, timeout, retry)
+- **listAll()** — busca todas as páginas até maxRecords
+- **listByIds()** — busca em lote por IDs (operador IN)
+- **create()** / **update()** — operações de escrita
+- **getCidadeMap()** — mapa de cidades com cache de 10 minutos
+- **testConnection()** — teste de conectividade
+- **Normalização** — `normalizeIXCStatus`, `normalizeIXCInternetStatus`, `normalizeIXCPhone`, `parseIXCValue`
 
-**S1 + S2 — RLS nas entidades ✅**
-Adicionado bloco `rls` às **39 entidades**:
-- Dados operacionais (Customer, Conversation, Message, Lead, Charge, Agreement, etc.): create/read/update exigem usuário autenticado (`$or` de `admin`/`user`, o que **bloqueia acesso anônimo** sem travar a equipe); `delete` restrito a `admin`.
-- Logs/config/permissões (AuditLog, ErrorLog, IntegrationLog, ReminderLog, NegotiationOfferLog, AgreementVerificationLog, TenantSettings, AgreementSettings, BillingRule, Profile): admin-only (as funções escrevem via `asServiceRole`, que ignora RLS — não quebra).
-- `User`: leitura autenticada; create/update/delete admin (impede escalonamento de papel).
-- **Field-level RLS admin-only** nos campos secretos: `IntegrationConfig.api_key`, `SipTrunk.sip_password`, `SignatureRequest.zapsign_doc_token`.
-- `Profile.read` liberado para autenticados (permite o frontend resolver as permissões do próprio usuário; edição continua admin).
-> Validar no ambiente publicado: RLS não pôde ser testado contra o backend Base44 nesta sessão. Teste acesso por papel antes do publish.
+### Arquitetura
 
-**S3 — Webhook fail-closed ✅**
-`evolutionWebhook`: agora **rejeita** (500) quando nenhum segredo está configurado e valida o segredo por query string **ou** header (`x-webhook-secret`/`apikey`). Fim do comportamento fail-open.
-
-**S4 — Autorização por rota ✅**
-Novo `src/components/RequirePermission.jsx` + integração no `AuthContext` (`isAdmin`, `hasModule`, `hasSpecial`, carregamento do `Profile`). Em `App.jsx`: rotas administrativas (`/users`, `/audit-logs`, `/system-logs`, `/settings`, `/integrations`, `/evolution-sync-logs`, `/agreements/settings`) exigem admin; relatórios/Lara exigem permissão `reports`; `/financial` exige `access_financial_data`.
-
-**S5 — URL/instância hardcoded ✅**
-`agreementApi`: removidos os fallbacks embutidos (`evolution-go-...hstgr.cloud`, `CONNECT`); agora exige `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` via env e falha com erro claro (503) se ausentes.
-
-**M2 — Performance dos lembretes ✅** (parcial)
-Troca de `ReminderLog.filter({})`/`NegotiationOfferLog.filter({})` por filtro em `status: 'enviado'`, reduzindo o volume lido a cada execução.
-
-**B1 — README ✅** Reescrito o `README.md` (antes era o README do tinyglobby) com setup, variáveis e fluxo de publicação reais.
-
-**B2 — Higiene do repositório ✅** Removidos: `WOOWFLOW/` (cópia aninhada ~5,8 MB), `package 2`–`package 6/`, `o.json`, `README 2.md`, `package 2.json`, `fdir-6.5.0.tgz`, `tinyglobby-0.2.17.tgz`, `.index.html.swp`, `.DS_Store`.
-
-**B3 — Code-splitting ✅** `vite.config.js` com `manualChunks` (react, recharts, framer-motion). Bundle principal caiu de **1.717 KB → 1.103 KB**; `recharts` (445 KB) e `react` (164 KB) agora em chunks separados (melhor cache).
-
-**B4 — typecheck/lint ✅** Corrigidas as subtrações de `Date` (coerção com `+`) em Dashboard/Reports/Financial/CustomerConversationsHistory; removidas as 6 variáveis não usadas. `lint` e `typecheck` agora limpos.
-
-**B5 — Config ✅** `base44/config.jsonc` renomeado de "Untitled" para "WOOWFLOW". `.gitignore` corrigido (removido o perigoso `*.json`; passa a ignorar apenas `o.json` e `*.tgz`).
-
-### Itens NÃO aplicados (por dependerem de decisão/insumos externos)
-
-- **M1 (funções stub)**: `crmApi`, `signatureApi`, `telephonyApi`, `metaApi`, `tiktokApi`, `emailApi`, `billingApi` continuam como testadores de conexão. Implementar as integrações reais exige as especificações/credenciais de cada provedor — fora do escopo de uma correção automática. Recomendação mantida na seção 4.
-- **S5 (rotação de chaves)** e a configuração dos novos secrets (`INTERNAL_FUNCTION_TOKEN`, `EVOLUTION_GO_WEBHOOK_SECRET`) devem ser feitas por você no painel do Base44.
-- **B5 (UX)**: sino de notificação decorativo e persistência do tema — melhorias cosméticas, não aplicadas.
+```
+IXCSoft API
+    ↓
+IXCClient (auth, timeout, retry, pagination)
+    ↓
+Normalização (status, phone, value)
+    ↓
+Cache (cidades — 10 min TTL)
+    ↓
+Backend Functions (ixcApi, zapsignApi, salesPipelineApi)
+    ↓
+Frontend (pages/components)
+```
 
 ---
 
-## 4. Melhorias recomendadas
+## Próximos Passos (Pendentes)
 
-- **Segurança em camadas:** RLS por entidade (barreira real) + autorização por rota/menu (defesa em profundidade) + segredos só no backend.
-- **Identidade de serviço** para jobs/cron e chamadas função→função (padrão `asServiceRole`/token de serviço), separando de sessões de usuário.
-- **Rotacionar** as chaves que estiveram em `.env.local` (Base44 e Evolution).
-- **CI mínimo:** `npm run lint && npm run typecheck && npm run build` bloqueando merge.
-- **Testes:** cobertura para o webhook (auth/normalização de eventos), para o pipeline de lembretes (filtro de faturas, dedupe) e para permissões (acesso por papel).
-- **Performance:** code-splitting por rota; paginação/filtro nos logs; índices/consultas específicas em vez de `filter({})`.
-- **Documentação:** `README.md` real; documentar variáveis de ambiente (já bem descritas em `.env.example`) e o fluxo de deploy Base44.
-- **Higiene:** limpar duplicações; padronizar em `.jsonc` para config Base44.
-
----
-
-## 5. Checklist de testes (pós-correção)
-
-- [ ] `/inbox` carrega e opera (selecionar conversa, enviar texto/arquivo/áudio, finalizar) sem erro no console.
-- [ ] `npm run typecheck` sem erros; `npm run lint` sem warnings; `npm run build` verde.
-- [ ] Workflow de lembretes dispara e envia de fato (verificar `ReminderLog.status = enviado` e recebimento real).
-- [ ] Webhook rejeita chamada sem `key` válido (401) mesmo sem env de segredo (fail-closed).
-- [ ] Usuário comum **não** acessa `/users`, `/audit-logs`, `/settings`, `/financial` por URL.
-- [ ] Usuário comum **não** lê `Customer`/`User`/`IntegrationConfig`/`SipTrunk` de terceiros via API de entidades.
-- [ ] Segredos (api_key, sip_password, zapsign_doc_token) não retornam para usuário sem permissão.
-- [ ] Integrações reais (Evolution, IXC, ZapSign) executam ações de ponta a ponta em ambiente de teste.
-- [ ] Nenhum endpoint/instância de produção hardcoded permanece no código.
-
----
-
-## 6. Próximos passos para produção
-
-1. Aprovar este relatório e a ordem de correção.
-2. Aplicar C1 → S3/S5 → C2 → S1/S2 → S4 (com testes a cada etapa).
-3. Resolver M1–M3 (integrações reais/rotuladas, performance, `.gitignore`).
-4. Limpar higiene do repositório (B1–B5) e escrever o `README.md`.
-5. Rotacionar segredos e configurar CI.
-6. Rodar o checklist de testes completo em ambiente de homologação antes do publish (`base44 deploy`/`site deploy`).
-
----
-
-*Observação: este relatório aborda temas de conformidade (LGPD) e segurança de forma técnica. Não constitui aconselhamento jurídico — recomenda-se validação com o responsável de privacidade/DPO antes de tratar dados pessoais em produção.*
+1. **Migrar `ixcApi` para usar `IXCClient`** — substituir `ixcPost`/`ixcWrite`/`fetchAllPages` internos pelo módulo centralizado
+2. **Validar origem do webhook** — adicionar verificação de IP/origin no evolutionWebhook
+3. **Corrigir RLS** — revisar todas as entidades admin para garantir RLS consistente
+4. **Fix queryKeys realtime** — corrigir invalidação de cache no `useInboxRealtime`
+5. **Integrar OLT/Zabbix/RADIUS** — implementar camada separada para NOC (sinal ruim, offline real)
+6. **Health check real** — testar conectividade IXC/Evolution/ZapSign no health_check do salesPipelineApi

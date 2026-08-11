@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { secrets } from 'base44:runtime';
 import { logError } from '../../shared/errorLogger.ts';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
@@ -348,11 +348,13 @@ export default async function(req: Request): Promise<Response> {
 
       // Se cliente nao existe no IXC, cria
       if (!ixcCustomerId) {
+        // Descriptografa o CPF/CNPJ antes de enviar ao IXC (era enviado cifrado — bug corrigido)
+        const decryptedCpf = await decrypt(String(sale.cpf_cnpj));
         const createResp = await base44.functions.invoke('ixcApi', {
           action: 'create_customer',
           data: {
             razao: sale.customer_name,
-            cnpj_cpf: sale.cpf_cnpj,
+            cnpj_cpf: decryptedCpf.replace(/\D/g, ''),
             telefone_celular: sale.phone,
             email: sale.email || '',
             endereco: sale.installation_address || '',

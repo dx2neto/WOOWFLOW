@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { sendWhatsAppMessage } from '../../shared/evolutionSend.ts';
 import { logError } from '../../shared/errorLogger.ts';
 import { normalizePhoneBR } from '../../shared/salesUtils.ts';
@@ -36,10 +36,11 @@ function ixcHeaders(ixcToken: string) {
 
 async function ixcFetch(baseUrl: string, token: string, endpoint: string, body = {}) {
   const url = `${baseUrl.replace(/\/$/, '')}/${endpoint}`;
+  // IXCSoft usa page/rp para paginação (não limit/start). Garantimos rp mínimo.
   const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: ixcHeaders(token),
-    body: JSON.stringify({ ...body, limit: '1', start: '0' }),
+    body: JSON.stringify({ ...body, page: body.page || '1', rp: body.rp || '50' }),
   });
   const text = await res.text();
   try { return { ok: res.ok, data: JSON.parse(text) }; }

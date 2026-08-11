@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { logError } from '../../shared/errorLogger.ts';
 import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
 
@@ -262,14 +262,15 @@ Deno.serve(async (req) => {
         contratoBaseBody.query = String(clientId);
         contratoBaseBody.oper = '=';
       }
-      const { res, data: dataContratos } = await ixcPost('cliente_contrato', { ...contratoBaseBody, page: String(page), rp: String(limit) });
-      if (!res.ok) {
+      // Usa fetchAllPages para não truncar contratos (antes limitado a uma página de `limit` registros)
+      const contratosUrl = baseUrl.replace(/\/$/, '') + '/cliente_contrato';
+      const { ok: contratosOk, registros: rawRegistros, data: dataContratos } = await fetchAllPages(contratosUrl, contratoBaseBody, 2000);
+      if (!contratosOk) {
         await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'contratos', status: 'falha', details: JSON.stringify(dataContratos).slice(0, 500) });
         return Response.json({ error: 'Falha ao buscar contratos do IXC Provedor', details: dataContratos }, { status: 500 });
       }
 
-      const rawRegistros = dataContratos.registros || [];
-      const totalCount = parseInt(dataContratos.total || '0', 10) || rawRegistros.length;
+      const totalCount = rawRegistros.length;
 
       const clientIds = [...new Set(rawRegistros.map((r: any) => r.id_cliente).filter(Boolean))];
       let clientsById: Record<string, any> = {};
@@ -974,12 +975,12 @@ Deno.serve(async (req) => {
         qtype: 'fn_areceber.data_vencimento',
         query: hoje, oper: '<',
         sortname: 'fn_areceber.data_vencimento', sortorder: 'asc',
-        page: String(pg), rp: String(lim),
       };
-      const { res, data } = await ixcPost('fn_areceber', baseBody);
-      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar inadimplentes', details: data }, { status: res.status });
+      // Busca todas as páginas para não truncar inadimplentes (antes limitado a uma página)
+      const { ok: inadOk, registros: rawRegistros, data: inadData } = await fetchAllPages(baseUrl.replace(/\/$/, '') + '/fn_areceber', baseBody, 2000);
+      if (!inadOk) return Response.json({ success: false, error: 'Falha ao buscar inadimplentes', details: inadData }, { status: 500 });
 
-      const rawList = (data.registros || []).filter((r: any) => r.status === 'A');
+      const rawList = rawRegistros.filter((r: any) => r.status === 'A');
       const clientIds = [...new Set(rawList.map((r: any) => r.id_cliente).filter(Boolean))];
       let clientsById: Record<string, any> = {};
       if (clientIds.length > 0) {
@@ -1007,7 +1008,7 @@ Deno.serve(async (req) => {
       });
 
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'inadimplentes', status: 'sucesso', details: `${inadimplentes.length} inadimplentes` });
-      return Response.json(paginate(inadimplentes, data.total || inadimplentes.length, pg, lim));
+      return Response.json(paginate(inadimplentes, inadimplentes.length, pg, lim));
     }
 
     // ── SEGUNDA VIA ────────────────────────────────────────────────────────────
