@@ -102,6 +102,22 @@ Deno.serve(async (req) => {
     const providedKey = new URL(req.url).searchParams.get('key') || req.headers.get('x-webhook-secret') || req.headers.get('apikey');
     if (providedKey !== apiKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // ── Validação de origem (fail-closed) ─────────────────────────────────────
+    // Aceita apenas requisições da URL base da Evolution API configurada.
+    const evoUrl = Deno.env.get('EVOLUTION_API_URL') || '';
+    const originHost = req.headers.get('origin') || req.headers.get('referer') || '';
+    if (evoUrl && originHost) {
+      try {
+        const allowedHost = new URL(evoUrl).hostname;
+        const reqHost = new URL(originHost).hostname;
+        if (reqHost !== allowedHost) {
+          return Response.json({ error: 'Forbidden — origin not allowed' }, { status: 403 });
+        }
+      } catch {
+        // Se não conseguir parsear, ignora (não bloqueia requisições legítimas sem origin header)
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const event = String(body.event || body.type || '');
     const instanceId = String(body.instance || body.instanceName || body.instanceId || '');

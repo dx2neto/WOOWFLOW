@@ -497,25 +497,43 @@ export default async function(req: Request): Promise<Response> {
     if (action === 'health_check') {
       const results: Record<string, any> = {};
 
-      // IXC
-      const ixcUrl = secrets.get('IXC_API_URL') || '';
-      const ixcToken = secrets.get('IXC_API_TOKEN') || '';
-      results.ixc = { configured: !!(ixcUrl && ixcToken), url: ixcUrl ? ixcUrl.replace(/\/$/, '') : '', status: ixcUrl && ixcToken ? 'ONLINE' : 'OFFLINE' };
+      // IXC — teste de conectividade real
+      try {
+        const ixcResp = await base44.functions.invoke('ixcApi', { action: 'test_connection' });
+        const ixcData = ixcResp?.data || ixcResp;
+        results.ixc = { configured: true, status: ixcData.success ? 'ONLINE' : 'OFFLINE', response_ms: ixcData.response_ms, message: ixcData.message || ixcData.error || '' };
+      } catch (e) {
+        results.ixc = { configured: false, status: 'OFFLINE', error: (e as Error).message };
+      }
 
-      // Evolution
-      const evoUrl = secrets.get('EVOLUTION_API_URL') || '';
-      const evoKey = secrets.get('EVOLUTION_API_KEY') || '';
-      const evoInst = secrets.get('EVOLUTION_INSTANCE_NAME') || '';
-      results.evolution = { configured: !!(evoUrl && evoKey), url: evoUrl, instance: evoInst, status: evoUrl && evoKey ? 'ONLINE' : 'OFFLINE' };
+      // Evolution — teste de conectividade real
+      try {
+        const evoResp = await base44.functions.invoke('evolutionApi', { action: 'server_health' });
+        const evoData = evoResp?.data || evoResp;
+        results.evolution = { configured: true, status: evoData.success ? 'ONLINE' : 'OFFLINE', instance: secrets.get('EVOLUTION_INSTANCE_NAME') || '' };
+      } catch (e) {
+        results.evolution = { configured: false, status: 'OFFLINE', error: (e as Error).message };
+      }
 
-      // Credit Provider
+      // Credit Provider — verifica se credenciais existem (não testa API para não consumir créditos)
       const creditUrl = secrets.get('CREDIT_API_URL') || '';
       const creditKey = secrets.get('CREDIT_ACCESS_KEY') || '';
-      results.credit_provider = { configured: !!(creditUrl && creditKey), url: creditUrl, product: secrets.get('CREDIT_PRODUCT_CODE') || '', status: creditUrl && creditKey ? 'ONLINE' : 'OFFLINE' };
+      results.credit_provider = { configured: !!(creditUrl && creditKey), url: creditUrl, product: secrets.get('CREDIT_PRODUCT_CODE') || '', status: creditUrl && creditKey ? 'CONFIGURED' : 'OFFLINE' };
 
-      // ZapSign
-      const zsToken = secrets.get('ZAPSIGN_API_TOKEN') || '';
-      results.zapsign = { configured: !!zsToken, url: 'https://api.zapsign.com.br/api/v1/', status: zsToken ? 'ONLINE' : 'OFFLINE' };
+      // ZapSign — teste de conectividade real (GET /users/me)
+      try {
+        const zsToken = secrets.get('ZAPSIGN_API_TOKEN') || '';
+        if (!zsToken) {
+          results.zapsign = { configured: false, status: 'OFFLINE' };
+        } else {
+          const zsRes = await fetchWithRetry('https://api.zapsign.com.br/api/v1/users/me', {
+            headers: { Authorization: `Bearer ${zsToken}` },
+          });
+          results.zapsign = { configured: true, status: zsRes.ok ? 'ONLINE' : 'OFFLINE', http_status: zsRes.status };
+        }
+      } catch (e) {
+        results.zapsign = { configured: false, status: 'OFFLINE', error: (e as Error).message };
+      }
 
       return Response.json({ success: true, data: results });
     }

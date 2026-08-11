@@ -48,7 +48,7 @@ export function useInboxRealtime({
   // ── Realtime: invalida cache de conversas ─────────────────────────────────
   useEffect(() => {
     const unsub = base44.entities.Conversation.subscribe(() => {
-      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["Conversation"] });
     });
     return unsub;
   }, [qc]);
@@ -57,8 +57,10 @@ export function useInboxRealtime({
   useEffect(() => {
     if (!selectedId) return;
     const unsub = base44.entities.Message.subscribe((event) => {
-      if (event.data.conversation_id !== selectedId) return;
-      qc.invalidateQueries({ queryKey: ["messages", selectedId] });
+      // event.data pode ser o registro direto ou estar aninhado conforme o tipo de evento
+      const rec = event.data?.data || event.data || {};
+      if (rec.conversation_id && rec.conversation_id !== selectedId) return;
+      qc.invalidateQueries({ queryKey: ["Message"] });
     });
     return unsub;
   }, [selectedId, qc]);
