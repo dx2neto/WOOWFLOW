@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { logError } from '../../shared/errorLogger.ts';
-import { fetchWithRetry } from '../../shared/fetchWithRetry.ts';
+import { IXCClient } from '../../shared/ixcClient.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -18,6 +18,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Credenciais do IXC Provedor não configuradas' }, { status: 500 });
     }
 
+    // Cliente IXC centralizado — gerencia auth, timeout, retry e paginação
+    const ixc = new IXCClient({ baseUrl, token });
+
     const {
       cpfCnpj, action, search, clientId,
       contratoId, osId,
@@ -34,71 +37,54 @@ Deno.serve(async (req) => {
       message: 'OK',
     });
 
-    // Helper de fetch POST ao IXCSoft
+    // Helper de fetch POST ao IXCSoft (delegado ao IXCClient)
     const ixcPost = async (endpoint, body) => {
-      const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
-      const res = await fetchWithRetry(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
-        body: JSON.stringify(body),
+      const result = await ixc.list(endpoint, {
+        qtype: body.qtype,
+        query: body.query,
+        oper: body.oper || '=',
+        sortname: body.sortname || 'id',
+        sortorder: body.sortorder || 'asc',
+        page: Number(body.page) || 1,
+        rp: Number(body.rp) || 60,
       });
-      return { res, data: await res.json().catch(() => ({})) };
+      return {
+        res: { ok: result.ok, status: result.status },
+        data: result.raw || { registros: result.registros, total: String(result.total) },
+      };
     };
 
     // Helper de PUT/PATCH ao IXCSoft (criar/atualizar recursos)
     const ixcWrite = async (endpoint, body, method = 'POST') => {
-      const url = baseUrl.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
-      const res = await fetchWithRetry(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}` },
-        body: JSON.stringify(body),
-      });
-      return { res, data: await res.json().catch(() => ({})) };
+      if (method === 'PUT') {
+        // endpoint pode incluir /id (ex: cliente/123)
+        const parts = endpoint.split('/');
+        const id = parts.pop() || '';
+        const base = parts.join('/');
+        const result = await ixc.update(base, id, body);
+        return { res: { ok: result.ok, status: result.status }, data: result.data || {} };
+      }
+      const result = await ixc.create(endpoint, body);
+      return { res: { ok: result.ok, status: result.status }, data: result.data || {} };
     };
 
     const fetchAllPages = async (url, baseBody, maxRecords = 2000) => {
-      const rp = 200;
-      let page = 1;
-      let all = [];
-      let total = Infinity;
-      while (all.length < total && all.length < maxRecords) {
-        const res = await fetchWithRetry(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}`, ixcsoft: 'listar' },
-          body: JSON.stringify({ ...baseBody, page: String(page), rp: String(rp) }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) return { ok: false, data, registros: all };
-        const registros = data.registros || [];
-        all = all.concat(registros);
-        total = parseInt(data.total || '0', 10) || all.length;
-        if (registros.length === 0) break;
-        page += 1;
-      }
-      return { ok: true, registros: all };
+      const endpoint = url.replace(baseUrl.replace(/\/$/, '') + '/', '').replace(/^\//, '');
+      const result = await ixc.listAll(endpoint, {
+        qtype: baseBody.qtype,
+        query: baseBody.query,
+        oper: baseBody.oper || '>=',
+        sortname: baseBody.sortname || 'id',
+        sortorder: baseBody.sortorder || 'asc',
+      }, maxRecords);
+      return { ok: result.ok, registros: result.registros, data: result.raw || {} };
     };
 
-    // ── NOVO: resolve o nome das cidades ──────────────────────────────────
-    // No IXC o campo cliente.cidade é um ID que referencia a tabela "cidade".
-    // Sem isso, o nome da cidade chega em branco no sistema. Buscamos a tabela
-    // uma vez e montamos { id_cidade: "Nome - UF" } para reaproveitar.
+    // ── resolve o nome das cidades (com cache de 10 min no IXCClient) ──────
     const carregarMapaCidades = async () => {
-      const cidadeUrl = baseUrl.replace(/\/$/, '') + '/cidade';
-      const { ok, registros } = await fetchAllPages(
-        cidadeUrl,
-        { qtype: 'cidade.id', query: '1', oper: '>=', sortname: 'cidade.id', sortorder: 'asc' },
-        20000, // há muitas cidades no Brasil; deixamos folga
-      );
-      const mapa = {};
-      if (ok) {
-        for (const c of registros) {
-          // fallback de campo: varia por versão do IXC
-          const nome = c.nome || c.cidade || c.descricao || '';
-          const uf = c.uf_sigla || c.sigla_uf || c.uf || '';
-          mapa[String(c.id)] = uf ? `${nome} - ${uf}` : nome;
-        }
-      }
-      return { mapa, ok, total: registros.length };
+      const mapa = await ixc.getCidadeMap();
+      const total = Object.keys(mapa).length;
+      return { mapa, ok: total > 0, total };
     };
 
     // ── NOVO: action dedicada para listar cidades (ex.: alimentar dropdown) ─
