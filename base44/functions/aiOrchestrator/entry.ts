@@ -414,6 +414,160 @@ async function fetchBehaviorReport(base44: any, customerContext: any): Promise<S
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSFER SUMMARY — resumo automático consolidado para o atendente humano
+// Consolida: histórico de pagamentos, sinal da fibra e tickets recentes
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildTransferSummary(
+  customerContext: any,
+  specialistData: SpecialistData,
+  behaviorReport: SpecialistData,
+  classification: any,
+  message: string,
+): string {
+  const lines: string[] = [];
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+  // ── Cabeçalho ────────────────────────────────────────────────────────────
+  const cliente = customerContext || {};
+  lines.push('═══ RESUMO DE TRANSFERÊNCIA — LARA IA ═══');
+  lines.push(`Data: ${now}`);
+  lines.push(`Cliente: ${cliente.name || 'Não identificado'}`);
+  lines.push(`Telefone: ${cliente.phone || 'N/A'}`);
+  lines.push(`Cidade: ${cliente.city || 'N/A'}`);
+  lines.push(`Status IXC: ${cliente.is_active ? 'Ativo' : 'Inativo'}`);
+  lines.push(`Protocolo: ${cliente.protocol || 'N/A'}`);
+  lines.push('');
+
+  // ── Motivo da transferência ───────────────────────────────────────────────
+  lines.push('📌 MOTIVO DA TRANSFERÊNCIA:');
+  lines.push(`- Intenção: ${classification?.intent || 'N/A'}`);
+  lines.push(`- Especialista: ${classification?.specialist || 'N/A'}`);
+  lines.push(`- Sentimento: ${classification?.sentiment || 'N/A'}`);
+  lines.push(`- Urgência: ${classification?.urgency || 'N/A'}`);
+  lines.push(`- Confiança: ${Math.round((classification?.confidence || 0) * 100)}%`);
+  lines.push(`- Motivo: ${classification?.escalation_reason || 'Solicitado pelo cliente ou confiança baixa'}`);
+  lines.push('');
+  lines.push('💬 Mensagem do cliente:');
+  lines.push(`"${message}"`);
+  lines.push('');
+
+  // ── Dados do especialista (contratos, financeiro) ─────────────────────────
+  if (specialistData?.fetched && specialistData.raw_data) {
+    const sd = specialistData.raw_data;
+    const sdCliente = sd.cliente || {};
+    const sdContratos = sd.contratos || [];
+    const sdFaturas = sd.faturas || {};
+
+    lines.push('📋 DADOS DO CLIENTE:');
+    lines.push(`- Nome: ${sdCliente.name || cliente.name || 'N/A'}`);
+    lines.push(`- CPF/CNPJ: ${sdCliente.cpf_cnpj || 'N/A'}`);
+    lines.push(`- ID IXC: ${sdCliente.id || 'N/A'}`);
+    lines.push('');
+    lines.push('💰 FINANCEIRO:');
+    lines.push(`- Faturas em aberto: ${sdFaturas.abertas ?? 0}`);
+    lines.push(`- Faturas vencidas: ${sdFaturas.vencidas ?? 0}`);
+    lines.push(`- Total devido: R$ ${(sdFaturas.total_devido || 0).toFixed(2)}`);
+    lines.push(`- Risco financeiro: ${sdFaturas.risk || 'N/A'}`);
+    lines.push('');
+
+    if (sdContratos.length > 0) {
+      lines.push('📡 CONTRATOS:');
+      for (const c of sdContratos.slice(0, 3)) {
+        lines.push(`  • ${c.plan_name || 'N/A'} | Status: ${c.status || 'N/A'} | Internet: ${c.internet_status || 'N/A'}`);
+        if (c.download) lines.push(`    Velocidade: ↓ ${c.download} / ↑ ${c.upload || 'N/A'} Mbps`);
+        if (c.ip) lines.push(`    IP: ${c.ip} | MAC: ${c.mac || 'N/A'}`);
+        if (c.olt) lines.push(`    OLT: ${c.olt} | CTO: ${c.cto || 'N/A'}`);
+        // PPPoE e sinal de fibra por contrato
+        if (c.pppoe && c.pppoe.length > 0) {
+          for (const p of c.pppoe.slice(0, 2)) {
+            lines.push(`    PPPoE: ${p.login} | Status: ${p.status || 'N/A'}${p.potencia_rx ? ` | Sinal: ${p.potencia_rx} dBm` : ''}`);
+          }
+        }
+      }
+      lines.push('');
+    }
+  }
+
+  // ── Relatório comportamental ──────────────────────────────────────────────
+  if (behaviorReport?.fetched && behaviorReport.raw_data) {
+    const br = behaviorReport.raw_data;
+    const pay = br.payment_history || {};
+    const pppoe = br.pppoe_disconnections || {};
+    const comp = br.complaints || {};
+    const tick = br.tickets || {};
+    const sig = br.signal || [];
+    const summ = br.summary || {};
+
+    lines.push('📊 HISTÓRICO DE PAGAMENTOS:');
+    lines.push(`- Total de faturas: ${pay.total_invoices || 0}`);
+    lines.push(`- Pagas em dia: ${pay.paid_on_time || 0}`);
+    lines.push(`- Pagas com atraso: ${pay.paid_late || 0}`);
+    lines.push(`- Em aberto: ${pay.open || 0}`);
+    lines.push(`- Vencidas: ${pay.overdue || 0}`);
+    lines.push(`- Atraso médio: ${pay.avg_days_late || 0} dias`);
+    lines.push(`- Maior atraso: ${pay.max_days_late || 0} dias`);
+    lines.push(`- Score de pagamento: ${pay.payment_score || 0}%`);
+    lines.push(`- Comportamento: ${pay.behavior || 'N/A'}`);
+    // Últimos 3 meses
+    const monthly = (pay.monthly_summary || []).slice(0, 3);
+    if (monthly.length > 0) {
+      lines.push(`- Últimos meses: ${monthly.map((m: any) => `${m.month}: ${m.late}/${m.total} atrasadas`).join(', ')}`);
+    }
+    lines.push('');
+
+    lines.push('📡 SINAL DA FIBRA:');
+    if (sig.length > 0) {
+      for (const s of sig.slice(0, 3)) {
+        const rx = s.potencia_rx;
+        const quality = rx != null ? (Number(rx) >= -25 ? 'Excelente' : Number(rx) >= -28 ? 'Bom' : 'Ruim') : 'N/A';
+        lines.push(`  • ${s.login} | Status: ${s.status || 'N/A'}${rx != null ? ` | Sinal: ${rx} dBm (${quality})` : ''}${s.olt ? ` | OLT: ${s.olt}` : ''}`);
+      }
+    } else {
+      lines.push('  Sem dados de sinal disponíveis.');
+    }
+    lines.push('');
+
+    lines.push('🔌 ESTABILIDADE DA CONEXÃO:');
+    lines.push(`- Total de sessões: ${pppoe.total_sessions || 0}`);
+    lines.push(`- Desconexões: ${pppoe.total_disconnections || 0}`);
+    lines.push(`- Última desconexão: ${pppoe.last_disconnect || 'N/A'}`);
+    lines.push(`- Tempo médio de sessão: ${pppoe.avg_session_time_min || 0} min`);
+    lines.push(`- Estabilidade: ${summ.pppoe_stability || 'N/A'}`);
+    const causes = (pppoe.top_causes || []).slice(0, 3);
+    if (causes.length > 0) {
+      lines.push(`- Principais causas: ${causes.map((c: any) => `${c.cause} (${c.count}x)`).join(', ')}`);
+    }
+    lines.push('');
+
+    lines.push('🎫 TICKETS RECENTES:');
+    lines.push(`- Total: ${tick.total || 0}`);
+    lines.push(`- Abertos: ${tick.open || 0}`);
+    lines.push(`- Últimos 30 dias: ${tick.last_30_days || 0}`);
+    lines.push('');
+
+    lines.push('📝 RECLAMAÇÕES:');
+    lines.push(`- Total: ${comp.total || 0}`);
+    lines.push(`- Em aberto: ${comp.open || 0}`);
+    lines.push(`- Últimos 30 dias: ${comp.last_30_days || 0}`);
+    lines.push(`- Risco de reclamação: ${summ.complaint_risk || 'N/A'}`);
+    const recentComp = (comp.recent || []).slice(0, 3);
+    if (recentComp.length > 0) {
+      for (const r of recentComp) {
+        lines.push(`  • #${r.id} ${r.subject || 'Sem assunto'} (${r.date || 'N/A'}) — ${r.status || 'N/A'}`);
+      }
+    }
+    lines.push('');
+
+    lines.push(`⚠️ RISCO GERAL DO CLIENTE: ${summ.overall_risk || 'N/A'}`);
+    lines.push('');
+  }
+
+  lines.push('═══ FIM DO RESUMO ═══');
+  return lines.join('\n');
+}
+
 async function fetchGeneralData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
   // Especialista general busca dados do cliente quando CPF foi detectado,
   // retornando status do contrato e financeiro para o atendente.
@@ -754,6 +908,12 @@ Deno.serve(async (req) => {
       } catch { /* ticket creation failure doesn't block the response */ }
     }
 
+    // ── Gera resumo de transferência quando a Lara encaminha para humano ───────
+    const needsTransfer = responseResult.needs_human || classification?.escalation_needed;
+    const transfer_summary = needsTransfer
+      ? buildTransferSummary(customer_context, specialistData, behaviorReport, classification, message)
+      : null;
+
     return Response.json({
       success: true,
       orchestrator: {
@@ -770,6 +930,7 @@ Deno.serve(async (req) => {
           data: behaviorReport.raw_data,
         } : null,
         response: responseResult,
+        transfer_summary,
         mode,
         channel,
         timestamp: new Date().toISOString(),

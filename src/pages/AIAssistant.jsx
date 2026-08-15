@@ -303,6 +303,25 @@ export default function AIAssistant() {
                 </div>
               )}
 
+              {/* Transfer Summary — resumo automático para atendente humano */}
+              {lastResult.transfer_summary && (
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Resumo de Transferência</p>
+                  </div>
+                  <pre className="text-[11px] whitespace-pre-wrap bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-foreground/80 font-mono max-h-80 overflow-y-auto scrollbar-thin">
+{lastResult.transfer_summary}
+                  </pre>
+                  <button
+                    onClick={() => navigator.clipboard?.writeText(lastResult.transfer_summary)}
+                    className="mt-2 text-xs px-2 py-1 rounded-md bg-card border border-border hover:bg-muted flex items-center gap-1"
+                  >
+                    <FileText className="w-3 h-3" /> Copiar resumo
+                  </button>
+                </div>
+              )}
+
               {/* Response metadata */}
               {lastResult.response && (
                 <>
