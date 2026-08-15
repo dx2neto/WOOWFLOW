@@ -168,15 +168,42 @@ async function autoFetchCustomer360(base44: any, message: string, phone: string,
     const resp = await base44.functions.invoke('ixcApi', { action: 'pre_analise', search: rawPhone });
     const d = resp?.data?.data || resp?.data || resp;
     if (d?.found) {
+      const clienteCpf = d.cliente?.cpf_cnpj ? String(d.cliente.cpf_cnpj).replace(/\D/g, '') : '';
+      const ixcId = d.cliente?.id ? String(d.cliente.id) : existingContext?.ixc_customer_id || null;
+
+      // Se a pré-análise retornou CPF/CNPJ, busca a visão 360 completa (contratos, PPPoE, tickets, sinal)
+      if (clienteCpf.length >= 11) {
+        try {
+          const resp360 = await base44.functions.invoke('ixcApi', { action: 'customer_360', cpfCnpj: clienteCpf });
+          const d360 = resp360?.data?.data || resp360?.data || resp360;
+          if (d360?.found) {
+            return {
+              ...existingContext,
+              cpf_cnpj: clienteCpf,
+              name: d360.cliente?.name || d.cliente?.name || existingContext?.name || null,
+              phone: d360.cliente?.phone || d.cliente?.phone || phone || existingContext?.phone || null,
+              city: d360.cliente?.city || d.cliente?.city || existingContext?.city || null,
+              is_active: d360.cliente?.is_active ?? d.cliente?.is_active ?? existingContext?.is_active ?? null,
+              financial_risk: d360.faturas?.risk || d.faturas?.risk || existingContext?.financial_risk || null,
+              overdue_count: d360.faturas?.vencidas ?? d.faturas?.vencidas ?? existingContext?.overdue_count ?? null,
+              ixc_customer_id: d360.cliente?.id ? String(d360.cliente.id) : ixcId,
+              _auto_fetched_360: true,
+            };
+          }
+        } catch { /* fallback para dados da pré-análise */ }
+      }
+
+      // Fallback: usa os dados limitados da pré-análise
       return {
         ...existingContext,
+        cpf_cnpj: clienteCpf || existingContext?.cpf_cnpj || null,
         name: d.cliente?.name || existingContext?.name || null,
         phone: d.cliente?.phone || phone || existingContext?.phone || null,
         city: d.cliente?.city || existingContext?.city || null,
         is_active: d.cliente?.is_active ?? existingContext?.is_active ?? null,
         financial_risk: d.faturas?.risk || existingContext?.financial_risk || null,
         overdue_count: d.faturas?.vencidas ?? existingContext?.overdue_count ?? null,
-        ixc_customer_id: d.cliente?.id ? String(d.cliente.id) : existingContext?.ixc_customer_id || null,
+        ixc_customer_id: ixcId,
         _auto_fetched_360: true,
       };
     }
