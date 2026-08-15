@@ -46,7 +46,7 @@ export function useInboxMessaging({ selected, selectedInstance, msgCreate, convU
         ...(waMessageId ? { wa_message_id: waMessageId, provider_message_id: waMessageId } : {}),
       });
       if (direction !== "internal") {
-        await convUpdate.mutateAsync({ id: selected.id, data: { last_message: content, last_message_time: now, status: "em_atendimento", unread: false } });
+        await convUpdate.mutateAsync({ id: selected.id, data: { last_message: content, last_message_time: now, status: "em_atendimento", unread: false, ai_enabled: false, is_ai: false } });
       }
     } catch { toast({ title: "Erro ao enviar mensagem", variant: "destructive" }); }
     finally { setSending(false); }
