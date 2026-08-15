@@ -106,6 +106,31 @@ Deno.serve(async (req) => {
 
     const log = (a: string, s: string, d = '') => b44.asServiceRole.entities.IntegrationLog.create({ integration: 'evolutionApi', action: a, status: s, details: d.slice(0, 500) }).catch(() => {});
 
+    // ── set_webhook ─────────────────────────────────────────────────────────
+    // POST /webhook/set/{instanceName}  body: { webhook: { url, events, enabled } }
+    if (action === 'set_webhook' || action === 'configure_webhook') {
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const reqOrigin = new URL(req.url).origin;
+      const webhookUrl = String(body.webhookUrl || body.webhook_url || `${reqOrigin}/functions/evolutionWebhook?key=${encodeURIComponent(apiKey)}`);
+      const events = body.events || ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'];
+      const r = await evoFetch(`${base}/webhook/set/${encodeURIComponent(instanceName)}`, {
+        method: 'POST', headers: jsonHeaders,
+        body: JSON.stringify({ webhook: { url: webhookUrl, events, enabled: true } }),
+      });
+      if (!r.ok) { await log('set_webhook', 'falha', JSON.stringify(r.data)); return Response.json({ success: false, error: 'Falha ao configurar webhook', details: r.data }, { status: r.status || 502 }); }
+      await log('set_webhook', 'sucesso', `instance: ${instanceName}, url: ${webhookUrl}`);
+      return Response.json({ success: true, result: r.data, webhookUrl });
+    }
+
+    // ── find_webhook / get_webhook ──────────────────────────────────────────
+    // GET /webhook/find/{instanceName}
+    if (action === 'find_webhook' || action === 'get_webhook') {
+      if (!instanceName) return Response.json({ error: 'instanceName é obrigatório' }, { status: 400 });
+      const r = await evoFetch(`${base}/webhook/find/${encodeURIComponent(instanceName)}`, { headers: authHeaders });
+      if (!r.ok) return Response.json({ success: false, error: 'Falha ao buscar webhook', details: r.data }, { status: r.status || 502 });
+      return Response.json({ success: true, result: r.data });
+    }
+
     // ── list_instances / test_connection ────────────────────────────────────
     // GET /instance/fetchInstances
     if (action === 'list_instances' || action === 'get_instances' || action === 'test_connection' || !body.action) {
@@ -115,6 +140,35 @@ Deno.serve(async (req) => {
         return Response.json({ success: false, error: 'Falha ao conectar à Evolution API', details: r.data }, { status: r.status || 502 });
       }
       const instances = normalizeInstanceList(r.data);
+
+      // ── Auto-configura webhook para instâncias conectadas sem webhook ────────
+      // Garante que toda instância conectada tenha o webhook apontando para o
+      // evolutionWebhook, para que mensagens cheguem em tempo real.
+      const reqOrigin = new URL(req.url).origin;
+      const webhookUrl = `${reqOrigin}/functions/evolutionWebhook?key=${encodeURIComponent(apiKey)}`;
+      const webhookEvents = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'];
+      for (const inst of instances) {
+        if (inst.state !== 'connected') continue;
+        try {
+          const wfRes = await evoFetch(`${base}/webhook/find/${encodeURIComponent(inst.name)}`, { headers: authHeaders });
+          const wfData = asRecord(wfRes.data);
+          const wfList = Array.isArray(wfData) ? wfData : (wfData.webhooks ? wfData.webhooks : [wfData]);
+          let needsSet = true;
+          for (const w of wfList) {
+            const wr = asRecord(w);
+            const wUrl = String(wr.url || '');
+            if (wUrl.includes('/functions/evolutionWebhook') && wr.enabled !== false) { needsSet = false; break; }
+          }
+          if (needsSet) {
+            await evoFetch(`${base}/webhook/set/${encodeURIComponent(inst.name)}`, {
+              method: 'POST', headers: jsonHeaders,
+              body: JSON.stringify({ webhook: { url: webhookUrl, events: webhookEvents, enabled: true } }),
+            });
+            await log('auto_set_webhook', 'sucesso', `instance: ${inst.name}`);
+          }
+        } catch { /* não bloqueia listagem */ }
+      }
+
       await log(action, 'sucesso', `instâncias: ${instances.length}`);
       return Response.json({ success: true, instances, defaultInstance: envInst });
     }
