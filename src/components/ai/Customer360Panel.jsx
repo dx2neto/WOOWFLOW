@@ -106,7 +106,7 @@ export default function Customer360Panel({ onCustomerFound }) {
   const tickets = data?.tickets || [];
   const faturas = data?.faturas || {};
   const summary = data?.summary || {};
-  const hasData = data && data.found !== false && cliente.name;
+  const hasData = data && data.found !== false;
 
   return (
     <div className="space-y-4">
