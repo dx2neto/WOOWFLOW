@@ -4,6 +4,7 @@ import { aiOrchestrator } from "@/functions/aiOrchestrator";
 import { ixcApi } from "@/functions/ixcApi";
 import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, FileText, Wrench, Package, UserCheck, CreditCard } from "lucide-react";
 import SpecialistDataView from "@/components/ai/SpecialistDataView";
+import BehaviorReportView from "@/components/ai/BehaviorReportView";
 import Customer360Panel from "@/components/ai/Customer360Panel";
 
 const SPECIALIST_META = {
@@ -300,6 +301,17 @@ export default function AIAssistant() {
                 <div className="border-t border-border pt-4">
                   <p className="text-xs text-muted-foreground uppercase font-semibold mb-2">{lastResult.specialist_data.label}</p>
                   <SpecialistDataView specialist={lastResult.specialist} data={lastResult.specialist_data.data} />
+                </div>
+              )}
+
+              {/* Behavior Report — relatório comportamental 360 */}
+              {lastResult.behavior_report && lastResult.behavior_report.fetched && (
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">{lastResult.behavior_report.label}</p>
+                  </div>
+                  <BehaviorReportView data={lastResult.behavior_report.data} />
                 </div>
               )}
 
