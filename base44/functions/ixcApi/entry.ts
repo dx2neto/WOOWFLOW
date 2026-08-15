@@ -790,6 +790,8 @@ Deno.serve(async (req) => {
         monthly_fee: parseFloat(r.valor_mensalidade || r.valor || '0'),
         ip: r.ip || '', mac: r.mac || '', olt: r.nome_olt || r.olt || '', cto: r.nome_cto || r.cto || '',
         address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', ') || '',
+        vendor_name: r.vendedor || r.nome_vendedor || '', vendor_id: r.id_vendedor || '',
+        city: cidadesById[String(r.cidade || r.id_cidade)] || r.cidade_nome || '',
       }));
 
       // Faturas
@@ -816,6 +818,7 @@ Deno.serve(async (req) => {
       const tickets = (tickRes.ok ? tickData.registros || [] : []).map((r: any) => ({
         id: r.id, subject: r.assunto || r.titulo || '', status: r.status || '', date: r.data_abertura || '',
         contrato_id: r.id_contrato || '', priority: r.prioridade || '', sector: r.setor || '',
+        tech_name: r.nome_tecnico || r.tecnico || '', attendant_name: r.nome_atendente || r.atendente || r.funcionario || '',
       }));
 
       // Agrupa PPPoE e tickets por contrato
@@ -839,6 +842,15 @@ Deno.serve(async (req) => {
         c.open_tickets_count = c.tickets.filter((t: any) => t.status === 'A' || t.status === 'AB').length;
       }
 
+      // Último técnico e último atendente que atenderam o cliente (tickets ordenados por data desc)
+      const sortedTickets = [...tickets].sort((a: any, b: any) => {
+        const da = a.date ? new Date(a.date).getTime() : 0;
+        const db = b.date ? new Date(b.date).getTime() : 0;
+        return db - da;
+      });
+      const last_technician = sortedTickets.find((t: any) => t.tech_name)?.tech_name || null;
+      const last_attendant = sortedTickets.find((t: any) => t.attendant_name)?.attendant_name || null;
+
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'customer_360', status: 'sucesso', details: `cliente ${clientId}` });
       return Response.json({
         success: true,
@@ -847,6 +859,7 @@ Deno.serve(async (req) => {
           faturas: { abertas: faturasAbertas.length, vencidas: faturasVencidas.length, total_devido: totalDevido, risk: financial_risk,
             recentes: allFaturas.slice(0, 10).map((r: any) => ({ id: r.id, due_date: r.data_vencimento, value: parseFloat(r.valor_aberto || r.valor || '0'), status: r.status })) },
           pppoe, tickets,
+          last_technician, last_attendant,
           summary: { is_active: cliente.is_active, has_overdue: faturasVencidas.length > 0, overdue_count: faturasVencidas.length, total_devido: totalDevido, financial_risk, contracts_count: contratos.length, active_contracts: contratos.filter((c) => c.status === 'ativo').length, tickets_count: tickets.length },
         },
       });

@@ -155,6 +155,24 @@ export default function Customer360Panel({ onCustomerFound }) {
             </div>
           </div>
 
+          {/* Último técnico e atendente */}
+          {(data.last_technician || data.last_attendant) && (
+            <div className="grid grid-cols-2 gap-2">
+              {data.last_technician && (
+                <div className="p-2.5 rounded-lg border border-border bg-muted/30 text-xs">
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Último Técnico</p>
+                  <p className="font-medium truncate">{data.last_technician}</p>
+                </div>
+              )}
+              {data.last_attendant && (
+                <div className="p-2.5 rounded-lg border border-border bg-muted/30 text-xs">
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Último Atendente</p>
+                  <p className="font-medium truncate">{data.last_attendant}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Financial Risk */}
           <div className={`p-3 rounded-lg border text-sm ${RISK_COLORS[data.summary.financial_risk] || "bg-muted"}`}>
             <div className="flex items-center justify-between">
@@ -191,9 +209,11 @@ export default function Customer360Panel({ onCustomerFound }) {
                         </span>
                       )}
                     </div>
-                    {/* OLT / CTO / IP */}
-                    {(c.olt || c.cto || c.ip) && (
+                    {/* OLT / CTO / IP / Cidade / Vendedor */}
+                    {(c.olt || c.cto || c.ip || c.city || c.vendor_name) && (
                       <div className="flex flex-wrap gap-2 text-muted-foreground/70">
+                        {c.city && <span>📍 {c.city}</span>}
+                        {c.vendor_name && <span>👤 {c.vendor_name}</span>}
                         {c.olt && <span>OLT: {c.olt}</span>}
                         {c.cto && <span>CTO: {c.cto}</span>}
                         {c.ip && <span>IP: {c.ip}</span>}
