@@ -750,10 +750,21 @@ Deno.serve(async (req) => {
       const doc = String(cpfCnpj || search || '').replace(/\D/g, '');
       if (!doc || doc.length < 11) return Response.json({ success: false, error: 'CPF/CNPJ inválido' }, { status: 400 });
 
-      const { res, data } = await ixcPost('cliente', { qtype: 'cliente.cnpj_cpf', query: doc, oper: '=', page: '1', rp: '5', sortname: 'cliente.id', sortorder: 'desc' });
-      if (!res.ok) return Response.json({ success: false, error: 'Falha ao buscar cliente', details: data }, { status: res.status });
+      // IXCSoft pode armazenar o CPF/CNPJ com máscara ou sem — tenta ambos formatos
+      const maskDoc = doc.length === 11
+        ? doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+        : doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      const queriesToTry = [doc, maskDoc];
 
-      const clienteRaw = (data.registros || [])[0];
+      let clienteRaw: any = null;
+      let lastError: any = null;
+      for (const q of queriesToTry) {
+        const { res, data } = await ixcPost('cliente', { qtype: 'cliente.cnpj_cpf', query: q, oper: '=', page: '1', rp: '5', sortname: 'cliente.id', sortorder: 'desc' });
+        if (!res.ok) { lastError = data; continue; }
+        clienteRaw = (data.registros || [])[0];
+        if (clienteRaw) break;
+      }
+      if (!clienteRaw && lastError) return Response.json({ success: false, error: 'Falha ao buscar cliente', details: lastError }, { status: 500 });
       if (!clienteRaw) return Response.json({ success: true, data: { found: false, message: 'Cliente não encontrado' } });
 
       const clientId = String(clienteRaw.id);
