@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { sendClosingSummaryToCrm } from "@/functions/sendClosingSummaryToCrm";
 import { useToast } from "@/components/ui/use-toast";
 
 /**
@@ -59,6 +60,22 @@ export function useInboxActions({
           direction: "internal", type: "system", timestamp: now, sender_name: "Sistema",
         });
       }
+
+      // ── Lara envia resumo de encerramento com dados 360 para o CRM ──────────
+      try {
+        const crmResp = await sendClosingSummaryToCrm({
+          conversation_id: selected.id,
+          phone: selected.phone,
+          customer_name: selected.customer_name,
+          attendant_note: finalizeNote.trim(),
+        });
+        const crmData = crmResp?.data || crmResp;
+        if (crmData?.needs_followup) {
+          toast({ title: "CRM atualizado — follow-up necessário", description: crmData.followup_reason || "" });
+        }
+        qc.invalidateQueries({ queryKey: ["Lead"] });
+      } catch { /* não bloqueia o fluxo de finalização */ }
+
       setShowFinalizeModal(false);
       setFinalizeNote("");
       toast({ title: "Atendimento finalizado com sucesso!" });
