@@ -52,7 +52,7 @@ export function useInboxActions({
     setFinalizing(true);
     try {
       const now = new Date().toISOString();
-      await convUpdate.mutateAsync({ id: selected.id, data: { status: "finalizado", resolved_at: now } });
+      await convUpdate.mutateAsync({ id: selected.id, data: { status: "finalizado", resolved_at: now, ai_enabled: true, is_ai: true } });
       if (finalizeNote.trim()) {
         await msgCreate.mutateAsync({
           conversation_id: selected.id, content: `[Encerrado] ${finalizeNote.trim()}`,
@@ -76,7 +76,7 @@ export function useInboxActions({
       await convUpdate.mutateAsync({
         id: selected.id,
         data: {
-          sector: transferSector, status: "aguardando_atendimento",
+          sector: transferSector, status: "aguardando_atendimento", ai_enabled: false, is_ai: false,
           ...(attendantName ? { attendant_name: attendantName, assigned_user_id: transferAttendant } : { attendant_name: null, assigned_user_id: null }),
         },
       });

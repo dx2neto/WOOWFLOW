@@ -172,6 +172,7 @@ Deno.serve(async (req) => {
             conversation = await base44.asServiceRole.entities.Conversation.create({
               customer_name: pushName, phone, channel: 'whatsapp', instance: instanceId, provider: 'evolution_api',
               provider_contact_id: chat, status: 'novo', last_message: content, last_message_time: timestamp, unread: !fromMe,
+              ai_enabled: true, is_ai: true, ai_mode: 'auto',
             }) as AnyRecord;
             convMap.set(phone, conversation);
             // Pré-vinculação automática com IXCSoft (busca cliente por telefone)
@@ -287,6 +288,8 @@ Deno.serve(async (req) => {
           if (!phone) continue;
           const conversation = convMap.get(phone) as AnyRecord | undefined;
           if (!conversation || !(conversation.ai_enabled)) continue;
+          // Pula se humano já está atendendo ativamente
+          if (conversation.assigned_user_id && conversation.status === 'em_atendimento') continue;
 
           const textContent = extractText(asRecord(msg.message || msg.Message || {}));
           if (!textContent) continue;
@@ -314,6 +317,7 @@ Deno.serve(async (req) => {
               phone,
               city: (conversation.city as string) || null,
               greeting,
+              conversation_id: conversation.id as string,
             },
             mode: 'auto',
           }) as AnyRecord;
