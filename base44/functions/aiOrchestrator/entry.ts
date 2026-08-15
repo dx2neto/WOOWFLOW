@@ -115,6 +115,55 @@ function routeByKeywords(message: string): { specialist: string; intent: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CPF/CNPJ EXTRACTION — extrai documento da mensagem do cliente
+// ═══════════════════════════════════════════════════════════════════════════
+
+function extractCpfCnpj(text: string): string | null {
+  if (!text) return null;
+  // Remove máscara: pontos, traços, barras, espaços
+  const digits = text.replace(/[\D]/g, '');
+  // CPF = 11 dígitos, CNPJ = 14 dígitos
+  if (digits.length === 11) return digits;
+  if (digits.length === 14) return digits;
+  // Também aceita CPF/CNPJ com máscara parcial no meio do texto
+  const cpfMatch = text.match(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/);
+  if (cpfMatch) return cpfMatch[0].replace(/\D/g, '');
+  const cnpjMatch = text.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/);
+  if (cnpjMatch) return cnpjMatch[0].replace(/\D/g, '');
+  return null;
+}
+
+async function autoFetchCustomer360(base44: any, message: string, existingContext: any): Promise<any> {
+  // Se já temos CPF no contexto, não precisa extrair da mensagem
+  const existingDoc = existingContext?.cpf_cnpj ? String(existingContext.cpf_cnpj).replace(/\D/g, '') : '';
+  if (existingDoc.length >= 11) return existingContext;
+
+  // Extrai CPF/CNPJ da mensagem
+  const doc = extractCpfCnpj(message);
+  if (!doc) return existingContext;
+
+  try {
+    const resp = await base44.functions.invoke('ixcApi', { action: 'customer_360', cpfCnpj: doc });
+    const d = resp?.data?.data || resp?.data || resp;
+    if (d?.found) {
+      return {
+        ...existingContext,
+        cpf_cnpj: doc,
+        name: d.cliente?.name || existingContext?.name || null,
+        phone: d.cliente?.phone || existingContext?.phone || null,
+        city: d.cliente?.city || existingContext?.city || null,
+        is_active: d.cliente?.is_active ?? existingContext?.is_active ?? null,
+        financial_risk: d.faturas?.risk || existingContext?.financial_risk || null,
+        overdue_count: d.faturas?.vencidas ?? existingContext?.overdue_count ?? null,
+        ixc_customer_id: d.cliente?.id ? String(d.cliente.id) : existingContext?.ixc_customer_id || null,
+        _auto_fetched_360: true,
+      };
+    }
+  } catch { /* fallback silencioso */ }
+  return existingContext;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SPECIALIST DATA FETCHERS — buscam dados REAIS no IXC por especialista
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -273,8 +322,43 @@ async function fetchRetentionData(base44: any, phone: string, customerContext: a
   return { fetched: true, context_label: 'Dados de Retenção IXC', raw_data: { ...pre, churn_risk: churnRisk }, formatted };
 }
 
+async function fetchGeneralData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
+  // Especialista general busca dados do cliente quando CPF foi detectado,
+  // retornando status do contrato e financeiro para o atendente.
+  const pre = await fetchCustomerData(base44, phone, customerContext);
+  if (!pre) return { fetched: false, context_label: 'Dados do Cliente IXC', raw_data: null, formatted: 'Cliente não identificado na base IXC.' };
+
+  const cliente = pre.cliente || {};
+  const contratos = pre.contratos || [];
+  const faturas = pre.faturas || {};
+
+  const contratosText = contratos.length > 0
+    ? contratos.map((c: any, i: number) =>
+        `Contrato #${i + 1}: ${c.plan_name || 'N/A'} | Status: ${c.status} | Internet: ${c.internet_status || 'N/A'}${c.ip ? ` | IP: ${c.ip}` : ''}`
+      ).join('\n')
+    : 'Nenhum contrato encontrado.';
+
+  const formatted = [
+    `CLIENTE: ${cliente.name || 'N/A'} (ID: ${cliente.id || 'N/A'})`,
+    `Status: ${cliente.is_active ? 'Ativo' : 'Inativo'}`,
+    `Cidade: ${cliente.city || 'N/A'}`,
+    '',
+    'CONTRATOS:',
+    contratosText,
+    '',
+    'FINANCEIRO:',
+    `- Faturas em aberto: ${faturas.abertas || 0}`,
+    `- Faturas vencidas: ${faturas.vencidas || 0}`,
+    `- Total devido: R$ ${(faturas.total_devido || 0).toFixed(2)}`,
+    `- Risco financeiro: ${faturas.risk || 'N/A'}`,
+  ].join('\n');
+
+  return { fetched: true, context_label: 'Dados do Cliente IXC', raw_data: pre, formatted };
+}
+
 async function fetchSpecialistData(base44: any, specialist: string, phone: string, customerContext: any): Promise<SpecialistData> {
   switch (specialist) {
+    case 'general':   return fetchGeneralData(base44, phone, customerContext);
     case 'finance':   return fetchFinanceData(base44, phone, customerContext);
     case 'tech':      return fetchTechData(base44, phone, customerContext);
     case 'sales':     return fetchSalesData(base44);
@@ -295,13 +379,17 @@ Deno.serve(async (req) => {
     const {
       message, phone, customer_name,
       conversation_history = [],
-      customer_context = null,
       channel = 'whatsapp',
       mode = 'auto',
       specialist_override = null,
     } = body;
 
     if (!message) return Response.json({ success: false, error: 'message é obrigatório' }, { status: 400 });
+
+    // ── Extração automática de CPF/CNPJ da mensagem ───────────────────────────
+    // Se o cliente envia um CPF/CNPJ, consulta a visão 360 no IXC automaticamente
+    // e enriquece o customer_context com nome, status, contratos e financeiro.
+    let customer_context = await autoFetchCustomer360(base44, message, body.customer_context || null);
 
     // ── Constrói contexto da conversa ────────────────────────────────────────
     const historyText = Array.isArray(conversation_history) && conversation_history.length > 0
