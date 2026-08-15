@@ -322,6 +322,77 @@ async function fetchRetentionData(base44: any, phone: string, customerContext: a
   return { fetched: true, context_label: 'Dados de Retenção IXC', raw_data: { ...pre, churn_risk: churnRisk }, formatted };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BEHAVIOR REPORT — relatório comportamental para o atendente
+// Agrega desconexões PPPoE, histórico de pagamento, reclamações e sinal
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function fetchBehaviorReport(base44: any, customerContext: any): Promise<SpecialistData> {
+  const ixcId = customerContext?.ixc_customer_id || customerContext?.id;
+  if (!ixcId) return { fetched: false, context_label: 'Relatório Comportamental', raw_data: null, formatted: 'Cliente não identificado no IXC para relatório comportamental.' };
+
+  try {
+    const resp = await base44.functions.invoke('ixcApi', { action: 'customer_behavior', clientId: String(ixcId) });
+    const d = resp?.data?.data || resp?.data || resp;
+    if (!d?.found) return { fetched: false, context_label: 'Relatório Comportamental', raw_data: null, formatted: 'Sem dados comportamentais disponíveis.' };
+
+    const pppoe = d.pppoe_disconnections || {};
+    const pay = d.payment_history || {};
+    const comp = d.complaints || {};
+    const tick = d.tickets || {};
+    const sig = d.signal || [];
+    const summ = d.summary || {};
+
+    const causesText = (pppoe.top_causes || []).map((c: any) => `${c.cause} (${c.count}x)`).join(', ') || 'N/A';
+    const monthlyLateText = (pay.monthly_summary || []).slice(0, 6).map((m: any) => `${m.month}: ${m.late}/${m.total} atrasadas`).join(', ') || 'N/A';
+    const signalText = sig.length > 0
+      ? sig.map((s: any) => `${s.login} | ${s.status} | Sinal: ${s.potencia_rx || 'N/A'} dBm | OLT: ${s.olt || 'N/A'}`).join('\n')
+      : 'Sem dados de sinal.';
+
+    const formatted = [
+      '═══ RELATÓRIO COMPORTAMENTAL DO CLIENTE ═══',
+      '',
+      '📊 CONEXÃO / PPPoE:',
+      `- Total de sessões: ${pppoe.total_sessions || 0}`,
+      `- Desconexões: ${pppoe.total_disconnections || 0}`,
+      `- Última desconexão: ${pppoe.last_disconnect || 'N/A'}`,
+      `- Tempo médio de sessão: ${pppoe.avg_session_time_min || 0} min`,
+      `- Principais causas: ${causesText}`,
+      `- Estabilidade: ${summ.pppoe_stability || 'N/A'}`,
+      '',
+      '💳 COMPORTAMENTO DE PAGAMENTO:',
+      `- Total de faturas: ${pay.total_invoices || 0}`,
+      `- Pagas em dia: ${pay.paid_on_time || 0}`,
+      `- Pagas com atraso: ${pay.paid_late || 0}`,
+      `- Em aberto: ${pay.open || 0}`,
+      `- Vencidas: ${pay.overdue || 0}`,
+      `- Atraso médio: ${pay.avg_days_late || 0} dias`,
+      `- Maior atraso: ${pay.max_days_late || 0} dias`,
+      `- Score de pagamento: ${pay.payment_score || 0}%`,
+      `- Comportamento: ${pay.behavior || 'N/A'}`,
+      `- Últimos 6 meses: ${monthlyLateText}`,
+      '',
+      '📝 RECLAMAÇÕES:',
+      `- Total: ${comp.total || 0}`,
+      `- Em aberto: ${comp.open || 0}`,
+      `- Últimos 30 dias: ${comp.last_30_days || 0}`,
+      `- Risco de reclamação: ${summ.complaint_risk || 'N/A'}`,
+      ...((comp.recent || []).slice(0, 3).map((r: any) => `  • #${r.id} ${r.subject} (${r.date})`)),
+      '',
+      '📡 SINAL / EQUIPAMENTO:',
+      signalText,
+      '',
+      `Tickets totais: ${tick.total || 0} | Abertos: ${tick.open || 0} | 30d: ${tick.last_30_days || 0}`,
+      '',
+      `⚠️ RISCO GERAL: ${summ.overall_risk || 'N/A'}`,
+    ].join('\n');
+
+    return { fetched: true, context_label: 'Relatório Comportamental', raw_data: d, formatted };
+  } catch {
+    return { fetched: false, context_label: 'Relatório Comportamental', raw_data: null, formatted: 'Não foi possível gerar o relatório comportamental neste momento.' };
+  }
+}
+
 async function fetchGeneralData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
   // Especialista general busca dados do cliente quando CPF foi detectado,
   // retornando status do contrato e financeiro para o atendente.
@@ -495,6 +566,9 @@ Deno.serve(async (req) => {
     // ── Passo 2: Busca dados REAIS no IXC conforme o especialista ─────────────
     const specialistData = await fetchSpecialistData(base44, specialist, phone, customer_context);
 
+    // ── Passo 2b: Busca relatório comportamental (para o atendente) ──────────
+    const behaviorReport = await fetchBehaviorReport(base44, customer_context);
+
     // ── Passo 3: Gera resposta com o especialista + dados reais ──────────────
     const specialistPrompt = SPECIALIST_PROMPTS[specialist] || SPECIALIST_PROMPTS.general;
 
@@ -517,6 +591,9 @@ Deno.serve(async (req) => {
       '',
       `═══ ${specialistData.context_label} ═══`,
       specialistData.formatted || 'Nenhum dado adicional disponível.',
+      '',
+      `═══ ${behaviorReport.context_label} ═══`,
+      behaviorReport.formatted || 'Nenhum dado comportamental disponível.',
       '',
       'Mensagem atual do cliente:',
       `"${message}"`,
@@ -665,6 +742,11 @@ Deno.serve(async (req) => {
           label: specialistData.context_label,
           fetched: true,
           data: specialistData.raw_data,
+        } : null,
+        behavior_report: behaviorReport.fetched ? {
+          label: behaviorReport.context_label,
+          fetched: true,
+          data: behaviorReport.raw_data,
         } : null,
         response: responseResult,
         mode,

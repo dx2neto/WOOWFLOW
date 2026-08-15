@@ -813,6 +813,169 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── RELATÓRIO COMPORTAMENTAL DO CLIENTE ─────────────────────────────────
+    // Agrega: desconexões PPPoE (radacct), histórico de pagamento atrasado,
+    // reclamações (tickets), sinal/dB (radusuarios) e histórico resumido.
+    if (action === 'customer_behavior') {
+      if (!clientId) return Response.json({ success: false, error: 'clientId é obrigatório' }, { status: 400 });
+      const now = new Date();
+      const hoje = now.toISOString().slice(0, 10);
+
+      // Busca PPPoE do cliente para obter logins
+      const { res: pppoeRes, data: pppoeData } = await ixcPost('radusuarios', { qtype: 'radusuarios.id_cliente', query: clientId, oper: '=', page: '1', rp: '20' });
+      const pppoeUsers = pppoeRes.ok ? (pppoeData.registros || []) : [];
+
+      // Busca radacct (sessões RADIUS) para cada login PPPoE
+      let totalDesconexoes = 0;
+      let totalSessions = 0;
+      let totalSessionTime = 0;
+      let ultimoDesligamento: string | null = null;
+      const terminateCauses: Record<string, number> = {};
+
+      for (const p of pppoeUsers) {
+        const login = p.login || p.usuario || '';
+        if (!login) continue;
+        const { res: radRes, data: radData } = await ixcPost('radacct', { qtype: 'radacct.username', query: login, oper: '=', sortname: 'radacct.acctstarttime', sortorder: 'desc', page: '1', rp: '100' });
+        if (radRes.ok) {
+          const sessions = radData.registros || [];
+          totalSessions += sessions.length;
+          for (const s of sessions) {
+            if (s.acctstoptime) {
+              totalDesconexoes++;
+              const cause = String(s.acctterminatecause || 'Desconhecido').trim();
+              terminateCauses[cause] = (terminateCauses[cause] || 0) + 1;
+              const stop = new Date(s.acctstoptime);
+              if (stop.getTime() > new Date(ultimoDesligamento || 0).getTime()) ultimoDesligamento = s.acctstoptime;
+            }
+            if (s.acctsessiontime) totalSessionTime += parseInt(s.acctsessiontime, 10) || 0;
+          }
+        }
+      }
+
+      // Histórico de pagamento: analisa todas as faturas do cliente
+      const { res: fatRes, data: fatData } = await ixcPost('fn_areceber', { qtype: 'fn_areceber.id_cliente', query: clientId, oper: '=', sortname: 'fn_areceber.data_vencimento', sortorder: 'desc', page: '1', rp: '200' });
+      const allInvoices = fatRes.ok ? (fatData.registros || []) : [];
+      const todayMs = now.setHours(0, 0, 0, 0);
+
+      let totalFaturas = allInvoices.length;
+      let pagasNoPrazo = 0;
+      let pagasAtrasadas = 0;
+      let emAberto = 0;
+      let vencidas = 0;
+      let totalDiasAtraso = 0;
+      let maiorAtraso = 0;
+      const monthlyLate: Record<string, { total: number; late: number }> = {};
+
+      for (const inv of allInvoices) {
+        const venc = inv.data_vencimento ? new Date(inv.data_vencimento) : null;
+        const pagto = inv.data_pagamento ? new Date(inv.data_pagamento) : null;
+        const monthKey = inv.data_vencimento ? String(inv.data_vencimento).slice(0, 7) : '';
+        if (monthKey) {
+          if (!monthlyLate[monthKey]) monthlyLate[monthKey] = { total: 0, late: 0 };
+          monthlyLate[monthKey].total++;
+        }
+
+        if (inv.status === 'P' && venc && pagto) {
+          const diffDays = Math.floor((pagto.getTime() - venc.getTime()) / 86_400_000);
+          if (diffDays <= 0) {
+            pagasNoPrazo++;
+          } else {
+            pagasAtrasadas++;
+            totalDiasAtraso += diffDays;
+            if (diffDays > maiorAtraso) maiorAtraso = diffDays;
+            if (monthKey) monthlyLate[monthKey].late++;
+          }
+        } else if (inv.status === 'A') {
+          if (venc && venc.getTime() < todayMs) {
+            vencidas++;
+            const diffDays = Math.floor((todayMs - venc.getTime()) / 86_400_000);
+            totalDiasAtraso += diffDays;
+            if (diffDays > maiorAtraso) maiorAtraso = diffDays;
+          } else {
+            emAberto++;
+          }
+        }
+      }
+
+      const avgDiasAtraso = pagasAtrasadas + vencidas > 0 ? Math.round(totalDiasAtraso / (pagasAtrasadas + vencidas)) : 0;
+      const paymentScore = totalFaturas > 0 ? Math.round((pagasNoPrazo / totalFaturas) * 100) : 100;
+      const paymentBehavior = paymentScore >= 90 ? 'bom' : paymentScore >= 70 ? 'regular' : 'ruim';
+
+      // Reclamações: tickets com assunto contendo palavras de reclamação
+      const { res: tickRes, data: tickData } = await ixcPost('atendimento', { qtype: 'atendimento.id_cliente', query: clientId, oper: '=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: '1', rp: '100' });
+      const allTickets = tickRes.ok ? (tickData.registros || []) : [];
+      const complaintKeywords = ['reclam', 'insatisf', 'problema', 'defeito', 'lento', 'lentid', 'caiu', 'sem internet', 'ruim', 'pessimo', 'péssimo', 'procon', 'ouvidor', 'cancelar', 'cancelamento', 'concorrente', 'reclame'];
+      const complaints = allTickets.filter((t: any) => {
+        const text = String(t.assunto || t.descricao || '').toLowerCase();
+        return complaintKeywords.some(kw => text.includes(kw));
+      });
+      const ticketsAbertos = allTickets.filter((t: any) => t.status === 'A' || t.status === 'AB').length;
+      const tickets30d = allTickets.filter((t: any) => {
+        if (!t.data_abertura) return false;
+        const d = new Date(t.data_abertura).getTime();
+        return (now.getTime() - d) < 30 * 86_400_000;
+      }).length;
+
+      // Sinal/dB: tenta extrair de radusuarios (campo potencia_rx ou similar)
+      const signalInfo = pppoeUsers.map((p: any) => ({
+        login: p.login || '',
+        ip: p.ip || '',
+        status: p.ativo === 'S' ? 'online' : 'offline',
+        potencia_rx: p.potencia_rx || p.sinal_rx || p.potencia || null,
+        olt: p.nome_olt || p.olt || '',
+        cto: p.nome_cto || p.cto || '',
+      })).filter(s => s.login);
+
+      await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'customer_behavior', status: 'sucesso', details: `cliente ${clientId} | sessoes: ${totalSessions} | desc: ${totalDesconexoes} | faturas: ${totalFaturas} | reclamacoes: ${complaints.length}` });
+      return Response.json({
+        success: true,
+        data: {
+          found: true,
+          pppoe_disconnections: {
+            total_sessions: totalSessions,
+            total_disconnections: totalDesconexoes,
+            last_disconnect: ultimoDesligamento,
+            avg_session_time_min: totalSessions > 0 ? Math.round((totalSessionTime / totalSessions) / 60) : 0,
+            top_causes: Object.entries(terminateCauses).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cause, count]) => ({ cause, count })),
+          },
+          payment_history: {
+            total_invoices: totalFaturas,
+            paid_on_time: pagasNoPrazo,
+            paid_late: pagasAtrasadas,
+            open: emAberto,
+            overdue: vencidas,
+            avg_days_late: avgDiasAtraso,
+            max_days_late: maiorAtraso,
+            payment_score: paymentScore,
+            behavior: paymentBehavior,
+            monthly_summary: Object.entries(monthlyLate).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 12).map(([month, d]) => ({ month, total: d.total, late: d.late })),
+          },
+          complaints: {
+            total: complaints.length,
+            open: complaints.filter((t: any) => t.status === 'A' || t.status === 'AB').length,
+            last_30_days: complaints.filter((t: any) => {
+              if (!t.data_abertura) return false;
+              return (now.getTime() - new Date(t.data_abertura).getTime()) < 30 * 86_400_000;
+            }).length,
+            recent: complaints.slice(0, 5).map((t: any) => ({ id: t.id, subject: t.assunto || '', date: t.data_abertura || '', status: t.status || '' })),
+          },
+          tickets: {
+            total: allTickets.length,
+            open: ticketsAbertos,
+            last_30_days: tickets30d,
+          },
+          signal: signalInfo,
+          summary: {
+            payment_behavior: paymentBehavior,
+            payment_score: paymentScore,
+            pppoe_stability: totalDesconexoes === 0 ? 'estavel' : totalDesconexoes <= 5 ? 'boa' : totalDesconexoes <= 15 ? 'instavel' : 'critica',
+            complaint_risk: complaints.length === 0 ? 'baixo' : complaints.length <= 2 ? 'medio' : 'alto',
+            overall_risk: (paymentBehavior === 'ruim' || totalDesconexoes > 15 || complaints.length > 3) ? 'alto' : (paymentBehavior === 'regular' || totalDesconexoes > 5 || complaints.length > 1) ? 'medio' : 'baixo',
+          },
+        },
+      });
+    }
+
     // ── CONTRATO POR ID ────────────────────────────────────────────────────────
     if (action === 'contrato_por_id') {
       if (!contratoId) return Response.json({ success: false, error: 'contratoId é obrigatório' }, { status: 400 });
