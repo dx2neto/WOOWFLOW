@@ -146,12 +146,12 @@ export default function Customer360Panel({ onCustomerFound }) {
                   <User className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{cliente.name}</p>
-                  <p className="text-xs text-muted-foreground">ID #{cliente.id}</p>
+                  <p className="font-semibold text-sm">{cliente.name || "Cliente sem nome"}</p>
+                  <p className="text-xs text-muted-foreground">ID #{cliente.id || "—"}</p>
                 </div>
               </div>
-              <span className={`px-2 py-1 rounded-md text-xs font-medium ${cliente.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                {cliente.is_active ? "Ativo" : "Inativo"}
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ${cliente.is_active === true ? "bg-green-100 text-green-700" : cliente.is_active === false ? "bg-red-100 text-red-700" : "bg-muted text-muted-foreground"}`}>
+                {cliente.is_active === true ? "Ativo" : cliente.is_active === false ? "Inativo" : "—"}
               </span>
             </div>
             <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
