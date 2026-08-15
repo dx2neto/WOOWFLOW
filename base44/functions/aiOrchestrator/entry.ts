@@ -133,24 +133,45 @@ function extractCpfCnpj(text: string): string | null {
   return null;
 }
 
-async function autoFetchCustomer360(base44: any, message: string, existingContext: any): Promise<any> {
-  // Se já temos CPF no contexto, não precisa extrair da mensagem
+async function autoFetchCustomer360(base44: any, message: string, phone: string, existingContext: any): Promise<any> {
+  // Se já temos CPF no contexto, não precisa buscar novamente
   const existingDoc = existingContext?.cpf_cnpj ? String(existingContext.cpf_cnpj).replace(/\D/g, '') : '';
   if (existingDoc.length >= 11) return existingContext;
 
-  // Extrai CPF/CNPJ da mensagem
+  // 1. Tenta extrair CPF/CNPJ da mensagem do cliente
   const doc = extractCpfCnpj(message);
-  if (!doc) return existingContext;
+  if (doc) {
+    try {
+      const resp = await base44.functions.invoke('ixcApi', { action: 'customer_360', cpfCnpj: doc });
+      const d = resp?.data?.data || resp?.data || resp;
+      if (d?.found) {
+        return {
+          ...existingContext,
+          cpf_cnpj: doc,
+          name: d.cliente?.name || existingContext?.name || null,
+          phone: d.cliente?.phone || phone || existingContext?.phone || null,
+          city: d.cliente?.city || existingContext?.city || null,
+          is_active: d.cliente?.is_active ?? existingContext?.is_active ?? null,
+          financial_risk: d.faturas?.risk || existingContext?.financial_risk || null,
+          overdue_count: d.faturas?.vencidas ?? existingContext?.overdue_count ?? null,
+          ixc_customer_id: d.cliente?.id ? String(d.cliente.id) : existingContext?.ixc_customer_id || null,
+          _auto_fetched_360: true,
+        };
+      }
+    } catch { /* fallback para busca por telefone */ }
+  }
 
+  // 2. Se não achou por CPF (ou não havia CPF), busca por telefone (WhatsApp)
+  const rawPhone = String(phone || '').replace(/\D/g, '');
+  if (rawPhone.length < 8) return existingContext;
   try {
-    const resp = await base44.functions.invoke('ixcApi', { action: 'customer_360', cpfCnpj: doc });
+    const resp = await base44.functions.invoke('ixcApi', { action: 'pre_analise', search: rawPhone });
     const d = resp?.data?.data || resp?.data || resp;
     if (d?.found) {
       return {
         ...existingContext,
-        cpf_cnpj: doc,
         name: d.cliente?.name || existingContext?.name || null,
-        phone: d.cliente?.phone || existingContext?.phone || null,
+        phone: d.cliente?.phone || phone || existingContext?.phone || null,
         city: d.cliente?.city || existingContext?.city || null,
         is_active: d.cliente?.is_active ?? existingContext?.is_active ?? null,
         financial_risk: d.faturas?.risk || existingContext?.financial_risk || null,
@@ -460,7 +481,7 @@ Deno.serve(async (req) => {
     // ── Extração automática de CPF/CNPJ da mensagem ───────────────────────────
     // Se o cliente envia um CPF/CNPJ, consulta a visão 360 no IXC automaticamente
     // e enriquece o customer_context com nome, status, contratos e financeiro.
-    let customer_context = await autoFetchCustomer360(base44, message, body.customer_context || null);
+    let customer_context = await autoFetchCustomer360(base44, message, phone, body.customer_context || null);
 
     // ── Constrói contexto da conversa ────────────────────────────────────────
     const historyText = Array.isArray(conversation_history) && conversation_history.length > 0
