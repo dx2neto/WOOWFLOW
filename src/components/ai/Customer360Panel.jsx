@@ -58,22 +58,23 @@ export default function Customer360Panel({ onCustomerFound }) {
     setData(null);
     try {
       const res = await ixcApi({ action: "customer_360", cpfCnpj: doc });
-      if (!res.data) throw new Error("Resposta inválida");
-      if (res.data.found === false) {
+      const payload = res.data?.data || res.data;
+      if (!payload) throw new Error("Resposta inválida");
+      if (payload.found === false) {
         setError("Cliente não encontrado no IXCSoft");
         setData(null);
         onCustomerFound?.(null);
       } else {
-        setData(res.data);
+        setData(payload);
         onCustomerFound?.({
-          id: res.data.cliente?.id,
-          name: res.data.cliente?.name,
-          cpf_cnpj: res.data.cliente?.cpf_cnpj,
-          phone: res.data.cliente?.phone,
-          city: res.data.cliente?.city,
-          is_active: res.data.cliente?.is_active,
-          financial_risk: res.data.summary?.financial_risk,
-          overdue_count: res.data.summary?.overdue_count,
+          id: payload.cliente?.id,
+          name: payload.cliente?.name,
+          cpf_cnpj: payload.cliente?.cpf_cnpj,
+          phone: payload.cliente?.phone,
+          city: payload.cliente?.city,
+          is_active: payload.cliente?.is_active,
+          financial_risk: payload.summary?.financial_risk,
+          overdue_count: payload.summary?.overdue_count,
         });
       }
     } catch (e) {
