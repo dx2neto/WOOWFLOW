@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ixcApi } from "@/functions/ixcApi";
-import { Search, User, FileText, Wifi, CreditCard, AlertTriangle, Loader2, CheckCircle, XCircle, Phone, Mail, MapPin } from "lucide-react";
+import { Search, User, FileText, Wifi, CreditCard, AlertTriangle, Loader2, Phone, Mail, MapPin, Wrench, Headset } from "lucide-react";
 
 const RISK_COLORS = {
   baixo: "bg-green-100 text-green-700 border-green-200",
@@ -20,6 +20,13 @@ const STATUS_COLORS = {
   vencida: "bg-red-100 text-red-700",
 };
 
+const TICKET_STATUS_COLORS = {
+  A: "bg-amber-100 text-amber-700",
+  AB: "bg-amber-100 text-amber-700",
+  F: "bg-green-100 text-green-700",
+  C: "bg-red-100 text-red-700",
+};
+
 function formatBRL(v) {
   return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -27,6 +34,14 @@ function formatBRL(v) {
 function formatDate(d) {
   if (!d) return "—";
   try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return d; }
+}
+
+function signalQuality(dbm) {
+  const v = Number(dbm);
+  if (!v && v !== 0) return { label: "N/A", color: "text-muted-foreground" };
+  if (v >= -25) return { label: "Excelente", color: "text-green-600" };
+  if (v >= -28) return { label: "Bom", color: "text-amber-600" };
+  return { label: "Ruim", color: "text-red-600" };
 }
 
 export default function Customer360Panel({ onCustomerFound }) {
@@ -84,6 +99,15 @@ export default function Customer360Panel({ onCustomerFound }) {
     }
   };
 
+  // Null-safe accessors
+  const cliente = data?.cliente || {};
+  const contratos = data?.contratos || [];
+  const pppoe = data?.pppoe || [];
+  const tickets = data?.tickets || [];
+  const faturas = data?.faturas || {};
+  const summary = data?.summary || {};
+  const hasData = data && data.found !== false && cliente.name;
+
   return (
     <div className="space-y-4">
       {/* Search */}
@@ -112,7 +136,7 @@ export default function Customer360Panel({ onCustomerFound }) {
         </div>
       )}
 
-      {data && data.found !== false && (
+      {hasData && (
         <>
           {/* Customer Card */}
           <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-2">
@@ -122,35 +146,35 @@ export default function Customer360Panel({ onCustomerFound }) {
                   <User className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{data.cliente.name}</p>
-                  <p className="text-xs text-muted-foreground">ID #{data.cliente.id}</p>
+                  <p className="font-semibold text-sm">{cliente.name}</p>
+                  <p className="text-xs text-muted-foreground">ID #{cliente.id}</p>
                 </div>
               </div>
-              <span className={`px-2 py-1 rounded-md text-xs font-medium ${data.cliente.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                {data.cliente.is_active ? "Ativo" : "Inativo"}
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ${cliente.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                {cliente.is_active ? "Ativo" : "Inativo"}
               </span>
             </div>
             <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">CPF/CNPJ:</span> {data.cliente.cpf_cnpj || "—"}</span>
-              <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {data.cliente.phone || "—"}</span>
-              <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {data.cliente.email || "—"}</span>
-              <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {data.cliente.city || "—"}</span>
-              {data.cliente.address && <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {data.cliente.address}</span>}
+              <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">CPF/CNPJ:</span> {cliente.cpf_cnpj || "—"}</span>
+              <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {cliente.phone || "—"}</span>
+              <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {cliente.email || "—"}</span>
+              <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {cliente.city || "—"}</span>
+              {cliente.address && <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {cliente.address}</span>}
             </div>
           </div>
 
           {/* Summary Stats */}
           <div className="grid grid-cols-3 gap-2">
             <div className="p-3 rounded-lg border border-border text-center">
-              <p className="text-lg font-bold">{data.summary.active_contracts}/{data.summary.contracts_count}</p>
+              <p className="text-lg font-bold">{summary.active_contracts ?? 0}/{summary.contracts_count ?? 0}</p>
               <p className="text-[10px] text-muted-foreground uppercase">Contratos</p>
             </div>
             <div className="p-3 rounded-lg border border-border text-center">
-              <p className="text-lg font-bold text-red-600">{data.summary.overdue_count}</p>
+              <p className="text-lg font-bold text-red-600">{summary.overdue_count ?? 0}</p>
               <p className="text-[10px] text-muted-foreground uppercase">Vencidas</p>
             </div>
             <div className="p-3 rounded-lg border border-border text-center">
-              <p className="text-lg font-bold">{data.summary.tickets_count}</p>
+              <p className="text-lg font-bold">{summary.tickets_count ?? 0}</p>
               <p className="text-[10px] text-muted-foreground uppercase">Tickets</p>
             </div>
           </div>
@@ -160,13 +184,13 @@ export default function Customer360Panel({ onCustomerFound }) {
             <div className="grid grid-cols-2 gap-2">
               {data.last_technician && (
                 <div className="p-2.5 rounded-lg border border-border bg-muted/30 text-xs">
-                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Último Técnico</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5 flex items-center gap-1"><Wrench className="w-2.5 h-2.5" /> Último Técnico</p>
                   <p className="font-medium truncate">{data.last_technician}</p>
                 </div>
               )}
               {data.last_attendant && (
                 <div className="p-2.5 rounded-lg border border-border bg-muted/30 text-xs">
-                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Último Atendente</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5 flex items-center gap-1"><Headset className="w-2.5 h-2.5" /> Último Atendente</p>
                   <p className="font-medium truncate">{data.last_attendant}</p>
                 </div>
               )}
@@ -174,108 +198,133 @@ export default function Customer360Panel({ onCustomerFound }) {
           )}
 
           {/* Financial Risk */}
-          <div className={`p-3 rounded-lg border text-sm ${RISK_COLORS[data.summary.financial_risk] || "bg-muted"}`}>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">Risco Financeiro</span>
-              <span className="font-bold uppercase">{data.summary.financial_risk}</span>
-            </div>
-            {data.summary.total_devido > 0 && (
-              <p className="text-xs mt-1 opacity-80">Débito em atraso: {formatBRL(data.summary.total_devido)}</p>
-            )}
-          </div>
-
-          {/* Contracts */}
-          {data.contratos.length > 0 && (
-            <div>
-              <p className="text-xs text-muted-foreground uppercase font-semibold mb-2 flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Contratos
-              </p>
-              <div className="space-y-2">
-                {data.contratos.slice(0, 5).map((c) => (
-                  <div key={c.id} className="p-2.5 rounded-lg bg-muted/40 text-xs space-y-1.5 border border-border/50">
-                    {/* Header: plano + status */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium truncate flex-1">{c.plan_name || `Contrato #${c.id}`}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[c.status] || "bg-muted"}`}>{c.status}</span>
-                    </div>
-                    {/* Velocidade + valor + internet */}
-                    <div className="flex flex-wrap gap-2 text-muted-foreground">
-                      {c.download && <span className="text-blue-600 font-medium">↓ {c.download} Mbps</span>}
-                      {c.upload && <span className="text-green-600 font-medium">↑ {c.upload} Mbps</span>}
-                      {c.monthly_fee > 0 && <span className="text-foreground font-semibold">{formatBRL(c.monthly_fee)}</span>}
-                      {c.internet_status && (
-                        <span className={c.internet_status === "A" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                          {c.internet_status === "A" ? "● Online" : "● Offline"}
-                        </span>
-                      )}
-                    </div>
-                    {/* OLT / CTO / IP / Cidade / Vendedor */}
-                    {(c.olt || c.cto || c.ip || c.city || c.vendor_name) && (
-                      <div className="flex flex-wrap gap-2 text-muted-foreground/70">
-                        {c.city && <span>📍 {c.city}</span>}
-                        {c.vendor_name && <span>👤 {c.vendor_name}</span>}
-                        {c.olt && <span>OLT: {c.olt}</span>}
-                        {c.cto && <span>CTO: {c.cto}</span>}
-                        {c.ip && <span>IP: {c.ip}</span>}
-                      </div>
-                    )}
-                    {/* PPPoE do contrato */}
-                    {c.pppoe && c.pppoe.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {c.pppoe.map((p, i) => (
-                          <div key={i} className="flex flex-wrap items-center gap-2 p-1.5 rounded bg-background/60 border border-border/30">
-                            <Wifi className="w-3 h-3 text-muted-foreground" />
-                            <span className="font-mono text-[11px]">{p.login}</span>
-                            <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${STATUS_COLORS[p.status] || "bg-muted"}`}>{p.status}</span>
-                            {p.potencia_rx && (
-                              <span className={`text-[10px] font-medium ${Number(p.potencia_rx) < -28 ? "text-red-600" : Number(p.potencia_rx) < -25 ? "text-amber-600" : "text-green-600"}`}>
-                                Sinal: {p.potencia_rx} dBm
-                              </span>
-                            )}
-                            {p.ip && <span className="text-[10px] text-muted-foreground/60">IP: {p.ip}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* Atendimentos do contrato */}
-                    {c.open_tickets_count > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-500" />
-                        <span className="text-amber-600 font-medium">{c.open_tickets_count} atendimento(s) aberto(s)</span>
-                        <span className="text-muted-foreground/60">/ {c.tickets?.length || 0} total</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+          {summary.financial_risk && (
+            <div className={`p-3 rounded-lg border text-sm ${RISK_COLORS[summary.financial_risk] || "bg-muted"}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Risco Financeiro</span>
+                <span className="font-bold uppercase">{summary.financial_risk}</span>
               </div>
+              {summary.total_devido > 0 && (
+                <p className="text-xs mt-1 opacity-80">Débito em atraso: {formatBRL(summary.total_devido)}</p>
+              )}
             </div>
           )}
 
-          {/* PPPoE */}
-          {data.pppoe.length > 0 && (
+          {/* Contracts — detalhado com sinal, velocidade, plano, valor e atendimentos */}
+          {contratos.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground uppercase font-semibold mb-2 flex items-center gap-1">
-                <Wifi className="w-3 h-3" /> PPPoE
+                <FileText className="w-3 h-3" /> Contratos ({contratos.length})
               </p>
-              <div className="space-y-1">
-                {data.pppoe.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/40 text-xs">
-                    <span className="font-mono">{p.login}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[p.status] || "bg-muted"}`}>{p.status}</span>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {contratos.map((c) => {
+                  const openTickets = (c.tickets || []).filter((t) => t.status === "A" || t.status === "AB");
+                  return (
+                    <div key={c.id} className="p-2.5 rounded-lg bg-muted/40 text-xs space-y-2 border border-border/50">
+                      {/* Header: plano + status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium truncate flex-1">{c.plan_name || `Contrato #${c.id}`}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[c.status] || "bg-muted"}`}>{c.status}</span>
+                      </div>
+
+                      {/* Velocidade contratada + valor mensal + status internet */}
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {c.download && <span className="text-blue-600 font-medium">↓ {c.download} Mbps</span>}
+                        {c.upload && <span className="text-green-600 font-medium">↑ {c.upload} Mbps</span>}
+                        {c.monthly_fee > 0 && <span className="text-foreground font-semibold bg-muted px-1.5 py-0.5 rounded">{formatBRL(c.monthly_fee)}/mês</span>}
+                        {c.internet_status && (
+                          <span className={c.internet_status === "A" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {c.internet_status === "A" ? "● Internet ativa" : "● Internet offline"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Cidade / Endereço / Vendedor */}
+                      {(c.city || c.address || c.vendor_name) && (
+                        <div className="flex flex-wrap gap-2 text-muted-foreground/70">
+                          {c.city && <span>📍 {c.city}</span>}
+                          {c.vendor_name && <span>👤 Vendedor: {c.vendor_name}</span>}
+                          {c.address && <span>🏠 {c.address}</span>}
+                        </div>
+                      )}
+
+                      {/* OLT / CTO / IP */}
+                      {(c.olt || c.cto || c.ip || c.mac) && (
+                        <div className="flex flex-wrap gap-2 text-muted-foreground/70">
+                          {c.olt && <span>OLT: {c.olt}</span>}
+                          {c.cto && <span>CTO: {c.cto}</span>}
+                          {c.ip && <span>IP: {c.ip}</span>}
+                          {c.mac && <span>MAC: {c.mac}</span>}
+                        </div>
+                      )}
+
+                      {/* PPPoE do contrato com sinal de fibra */}
+                      {c.pppoe && c.pppoe.length > 0 && (
+                        <div className="mt-1 space-y-1">
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold flex items-center gap-1">
+                            <Wifi className="w-2.5 h-2.5" /> PPPoE / Sinal de Fibra
+                          </p>
+                          {c.pppoe.map((p, i) => {
+                            const sig = p.potencia_rx ? signalQuality(p.potencia_rx) : null;
+                            return (
+                              <div key={i} className="flex flex-wrap items-center gap-2 p-1.5 rounded bg-background/60 border border-border/30">
+                                <span className="font-mono text-[11px]">{p.login}</span>
+                                <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${STATUS_COLORS[p.status] || "bg-muted"}`}>{p.status}</span>
+                                {p.potencia_rx != null && (
+                                  <span className={`text-[10px] font-medium ${sig.color}`}>
+                                    📶 {p.potencia_rx} dBm ({sig.label})
+                                  </span>
+                                )}
+                                {p.ip && <span className="text-[10px] text-muted-foreground/60">IP: {p.ip}</span>}
+                                {p.olt && <span className="text-[10px] text-muted-foreground/60">OLT: {p.olt}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Histórico de atendimentos abertos por contrato */}
+                      {openTickets.length > 0 && (
+                        <div className="mt-1 space-y-1">
+                          <p className="text-[10px] text-amber-600 uppercase font-semibold flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" /> {openTickets.length} Atendimento(s) Aberto(s)
+                          </p>
+                          {openTickets.map((t) => (
+                            <div key={t.id} className="flex flex-wrap items-center gap-2 p-1.5 rounded bg-amber-50/50 border border-amber-200/50">
+                              <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${TICKET_STATUS_COLORS[t.status] || "bg-muted"}`}>
+                                #{t.id}
+                              </span>
+                              <span className="truncate flex-1 text-[11px]">{t.subject || "Sem assunto"}</span>
+                              {t.priority && <span className="text-[10px] text-muted-foreground">P: {t.priority}</span>}
+                              {t.tech_name && <span className="text-[10px] text-blue-600">🔧 {t.tech_name}</span>}
+                              {t.attendant_name && <span className="text-[10px] text-purple-600">🎧 {t.attendant_name}</span>}
+                              <span className="text-[10px] text-muted-foreground/60">{formatDate(t.date)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Total de atendimentos do contrato (incluindo fechados) */}
+                      {c.tickets && c.tickets.length > openTickets.length && (
+                        <p className="text-[10px] text-muted-foreground/60">
+                          {c.tickets.length} atendimento(s) no total neste contrato
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Recent Invoices */}
-          {data.faturas.recentes && data.faturas.recentes.length > 0 && (
+          {faturas.recentes && faturas.recentes.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground uppercase font-semibold mb-2 flex items-center gap-1">
                 <CreditCard className="w-3 h-3" /> Faturas Recentes
               </p>
               <div className="space-y-1">
-                {data.faturas.recentes.map((f) => (
+                {faturas.recentes.map((f) => (
                   <div key={f.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40 text-xs">
                     <span>{formatDate(f.due_date)}</span>
                     <span className="font-medium">{formatBRL(f.value)}</span>
@@ -288,16 +337,17 @@ export default function Customer360Panel({ onCustomerFound }) {
             </div>
           )}
 
-          {/* Tickets */}
-          {data.tickets.length > 0 && (
+          {/* All Tickets */}
+          {tickets.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground uppercase font-semibold mb-2 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Tickets Recentes
+                <AlertTriangle className="w-3 h-3" /> Todos os Atendimentos ({tickets.length})
               </p>
               <div className="space-y-1">
-                {data.tickets.slice(0, 5).map((t) => (
+                {tickets.slice(0, 10).map((t) => (
                   <div key={t.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40 text-xs">
                     <span className="truncate flex-1">{t.subject || `#${t.id}`}</span>
+                    {t.tech_name && <span className="text-[10px] text-blue-600 ml-1">🔧 {t.tech_name}</span>}
                     <span className="text-muted-foreground ml-2">{formatDate(t.date)}</span>
                   </div>
                 ))}
