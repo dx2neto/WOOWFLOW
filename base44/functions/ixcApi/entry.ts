@@ -783,9 +783,11 @@ Deno.serve(async (req) => {
       // Contratos
       const { res: contratosRes, data: contratosData } = await ixcPost('cliente_contrato', { qtype: 'cliente_contrato.id_cliente', query: clientId, oper: '=', sortname: 'cliente_contrato.data_ativacao', sortorder: 'desc', page: '1', rp: '50' });
       const contratos = (contratosRes.ok ? contratosData.registros || [] : []).map((r: any) => ({
-        id: r.id, plan_name: r.descricao_plano || r.plano || '', status: r.status === 'A' ? 'ativo' : 'cancelado',
+        id: r.id, plan_name: r.descricao_plano || r.plano || '', plan_id: r.id_plano || '',
+        status: r.status === 'A' ? 'ativo' : 'cancelado',
         internet_status: r.status_internet || '', start_date: r.data_ativacao || '', end_date: r.data_vencimento_contrato || r.data_expiracao || '',
         download: r.velocidade_down || r.download || '', upload: r.velocidade_up || r.upload || '',
+        monthly_fee: parseFloat(r.valor_mensalidade || r.valor || '0'),
         ip: r.ip || '', mac: r.mac || '', olt: r.nome_olt || r.olt || '', cto: r.nome_cto || r.cto || '',
         address: [r.endereco, r.numero, r.bairro].filter(Boolean).join(', ') || '',
       }));
@@ -799,17 +801,43 @@ Deno.serve(async (req) => {
       const totalDevido = faturasVencidas.reduce((s: number, r: any) => s + parseFloat(r.valor_aberto || r.valor || '0'), 0);
       const financial_risk = faturasVencidas.length === 0 ? 'baixo' : faturasVencidas.length <= 2 ? 'medio' : 'alto';
 
-      // PPPoE
-      const { res: pppoeRes, data: pppoeData } = await ixcPost('radusuarios', { qtype: 'radusuarios.id_cliente', query: clientId, oper: '=', page: '1', rp: '10' });
+      // PPPoE — inclui id_contrato e sinal óptico para vincular com cada contrato
+      const { res: pppoeRes, data: pppoeData } = await ixcPost('radusuarios', { qtype: 'radusuarios.id_cliente', query: clientId, oper: '=', page: '1', rp: '20' });
       const pppoe = (pppoeRes.ok ? pppoeData.registros || [] : []).map((r: any) => ({
-        login: r.login || '', ip: r.ip || '', status: r.ativo === 'S' ? 'online' : 'offline',
+        id: r.id, login: r.login || '', contrato_id: r.id_contrato || '', ip: r.ip || '',
+        status: r.ativo === 'S' ? 'online' : 'offline',
+        senha: r.senha || '', mac: r.mac || '',
+        potencia_rx: r.potencia_rx || r.sinal_rx || r.potencia || null,
+        olt: r.nome_olt || r.olt || '', cto: r.nome_cto || r.cto || '',
       }));
 
-      // Tickets/protocolos recentes
-      const { res: tickRes, data: tickData } = await ixcPost('atendimento', { qtype: 'atendimento.id_cliente', query: clientId, oper: '=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: '1', rp: '10' });
+      // Tickets/protocolos — inclui id_contrato para contagem por contrato
+      const { res: tickRes, data: tickData } = await ixcPost('atendimento', { qtype: 'atendimento.id_cliente', query: clientId, oper: '=', sortname: 'atendimento.data_abertura', sortorder: 'desc', page: '1', rp: '50' });
       const tickets = (tickRes.ok ? tickData.registros || [] : []).map((r: any) => ({
         id: r.id, subject: r.assunto || r.titulo || '', status: r.status || '', date: r.data_abertura || '',
+        contrato_id: r.id_contrato || '', priority: r.prioridade || '', sector: r.setor || '',
       }));
+
+      // Agrupa PPPoE e tickets por contrato
+      const pppoeByContract: Record<string, any[]> = {};
+      for (const p of pppoe) {
+        const key = String(p.contrato_id || '');
+        if (!pppoeByContract[key]) pppoeByContract[key] = [];
+        pppoeByContract[key].push(p);
+      }
+      const ticketsByContract: Record<string, any[]> = {};
+      for (const t of tickets) {
+        const key = String(t.contrato_id || '');
+        if (!ticketsByContract[key]) ticketsByContract[key] = [];
+        ticketsByContract[key].push(t);
+      }
+      // Adiciona pppoe e tickets vinculados + contagem de atendimentos abertos em cada contrato
+      for (const c of contratos) {
+        const cid = String(c.id);
+        c.pppoe = pppoeByContract[cid] || [];
+        c.tickets = ticketsByContract[cid] || [];
+        c.open_tickets_count = c.tickets.filter((t: any) => t.status === 'A' || t.status === 'AB').length;
+      }
 
       await base44.asServiceRole.entities.IntegrationLog.create({ integration: 'ixcApi', action: 'customer_360', status: 'sucesso', details: `cliente ${clientId}` });
       return Response.json({

@@ -174,16 +174,57 @@ export default function Customer360Panel({ onCustomerFound }) {
               </p>
               <div className="space-y-2">
                 {data.contratos.slice(0, 5).map((c) => (
-                  <div key={c.id} className="p-2 rounded-lg bg-muted/40 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium truncate">{c.plan_name || `Contrato #${c.id}`}</span>
+                  <div key={c.id} className="p-2.5 rounded-lg bg-muted/40 text-xs space-y-1.5 border border-border/50">
+                    {/* Header: plano + status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium truncate flex-1">{c.plan_name || `Contrato #${c.id}`}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[c.status] || "bg-muted"}`}>{c.status}</span>
                     </div>
-                    <div className="flex gap-3 text-muted-foreground">
-                      {c.download && <span>↓ {c.download} Mbps</span>}
-                      {c.upload && <span>↑ {c.upload} Mbps</span>}
-                      {c.internet_status && <span className={c.internet_status === "A" ? "text-green-600" : "text-red-600"}>{c.internet_status === "A" ? "Online" : "Offline"}</span>}
+                    {/* Velocidade + valor + internet */}
+                    <div className="flex flex-wrap gap-2 text-muted-foreground">
+                      {c.download && <span className="text-blue-600 font-medium">↓ {c.download} Mbps</span>}
+                      {c.upload && <span className="text-green-600 font-medium">↑ {c.upload} Mbps</span>}
+                      {c.monthly_fee > 0 && <span className="text-foreground font-semibold">{formatBRL(c.monthly_fee)}</span>}
+                      {c.internet_status && (
+                        <span className={c.internet_status === "A" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                          {c.internet_status === "A" ? "● Online" : "● Offline"}
+                        </span>
+                      )}
                     </div>
+                    {/* OLT / CTO / IP */}
+                    {(c.olt || c.cto || c.ip) && (
+                      <div className="flex flex-wrap gap-2 text-muted-foreground/70">
+                        {c.olt && <span>OLT: {c.olt}</span>}
+                        {c.cto && <span>CTO: {c.cto}</span>}
+                        {c.ip && <span>IP: {c.ip}</span>}
+                      </div>
+                    )}
+                    {/* PPPoE do contrato */}
+                    {c.pppoe && c.pppoe.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {c.pppoe.map((p, i) => (
+                          <div key={i} className="flex flex-wrap items-center gap-2 p-1.5 rounded bg-background/60 border border-border/30">
+                            <Wifi className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-mono text-[11px]">{p.login}</span>
+                            <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${STATUS_COLORS[p.status] || "bg-muted"}`}>{p.status}</span>
+                            {p.potencia_rx && (
+                              <span className={`text-[10px] font-medium ${Number(p.potencia_rx) < -28 ? "text-red-600" : Number(p.potencia_rx) < -25 ? "text-amber-600" : "text-green-600"}`}>
+                                Sinal: {p.potencia_rx} dBm
+                              </span>
+                            )}
+                            {p.ip && <span className="text-[10px] text-muted-foreground/60">IP: {p.ip}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Atendimentos do contrato */}
+                    {c.open_tickets_count > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-500" />
+                        <span className="text-amber-600 font-medium">{c.open_tickets_count} atendimento(s) aberto(s)</span>
+                        <span className="text-muted-foreground/60">/ {c.tickets?.length || 0} total</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
