@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { aiOrchestrator } from "@/functions/aiOrchestrator";
-import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye } from "lucide-react";
 import SpecialistDataView from "@/components/ai/SpecialistDataView";
+import Customer360Panel from "@/components/ai/Customer360Panel";
 
 const SPECIALIST_META = {
   general:   { label: "Atendimento Geral", color: "bg-blue-100 text-blue-700",     icon: Bot },
@@ -21,6 +22,7 @@ export default function AIAssistant() {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
+  const [rightTab, setRightTab] = useState("360");
   const endRef = useRef(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -131,15 +133,31 @@ export default function AIAssistant() {
           </div>
         </Card>
 
-        {/* AI Analysis Panel */}
-        <Card className="overflow-y-auto scrollbar-thin">
-          <div className="px-5 py-4 border-b border-border">
-            <h3 className="font-semibold font-heading flex items-center gap-2">
-              <Zap className="w-4 h-4 text-primary" /> Análise da IA
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1">Classificação, confiança e roteamento</p>
+        {/* Right Panel — Tabs: Visão 360 / Análise IA */}
+        <Card className="overflow-hidden flex flex-col">
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setRightTab("360")}
+              className={`flex-1 px-4 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${rightTab === "360" ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Eye className="w-4 h-4" /> Visão 360
+            </button>
+            <button
+              onClick={() => setRightTab("analysis")}
+              className={`flex-1 px-4 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${rightTab === "analysis" ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Zap className="w-4 h-4" /> Análise da IA
+            </button>
           </div>
 
+          <div className={`overflow-y-auto scrollbar-thin flex-1 ${rightTab === "360" ? "block" : "hidden"}`}>
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground mb-3">Busque um cliente pelo CPF/CNPJ para ver todos os dados integrados do IXCSoft.</p>
+              <Customer360Panel />
+            </div>
+          </div>
+
+          <div className={`overflow-y-auto scrollbar-thin flex-1 ${rightTab === "analysis" ? "block" : "hidden"}`}>
           {!lastResult ? (
             <div className="p-8 text-center text-muted-foreground text-sm">
               Envie uma mensagem para ver a análise da IA.
@@ -253,6 +271,7 @@ export default function AIAssistant() {
               )}
             </div>
           )}
+          </div>
         </Card>
       </div>
     </PageContainer>
