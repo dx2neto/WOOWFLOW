@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { PageContainer, Card } from "@/components/ui/app-card";
 import { aiOrchestrator } from "@/functions/aiOrchestrator";
-import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye } from "lucide-react";
+import { ixcApi } from "@/functions/ixcApi";
+import { Send, Bot, User, Zap, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, FileText, Wrench, Package, UserCheck, CreditCard } from "lucide-react";
 import SpecialistDataView from "@/components/ai/SpecialistDataView";
 import Customer360Panel from "@/components/ai/Customer360Panel";
 
@@ -23,6 +24,8 @@ export default function AIAssistant() {
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [rightTab, setRightTab] = useState("360");
+  const [customer360, setCustomer360] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
   const endRef = useRef(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -37,11 +40,21 @@ export default function AIAssistant() {
     try {
       const res = await aiOrchestrator({
         message: userMsg.content,
-        phone: phone.replace(/\D/g, "") || null,
+        phone: phone.replace(/\D/g, "") || customer360?.phone || null,
         conversation_history: messages.map((m) => ({
           direction: m.role === "user" ? "in" : "out",
           content: m.content,
         })),
+        customer_context: customer360 ? {
+          name: customer360.name,
+          phone: customer360.phone,
+          cpf_cnpj: customer360.cpf_cnpj,
+          ixc_customer_id: String(customer360.id),
+          city: customer360.city,
+          is_active: customer360.is_active,
+          financial_risk: customer360.financial_risk,
+          overdue_count: customer360.overdue_count,
+        } : null,
         mode: "auto",
       });
 
@@ -58,6 +71,39 @@ export default function AIAssistant() {
       setLoading(false);
     }
   };
+
+  const runQuickAction = useCallback(async (action) => {
+    if (!customer360) return;
+    setActionLoading(action);
+    try {
+      const clientId = String(customer360.id);
+      let res;
+      if (action === "segunda_via") {
+        res = await ixcApi({ action: "segunda_via", clientId });
+        const faturas = res?.data?.data || res?.data || [];
+        if (!Array.isArray(faturas) || faturas.length === 0) {
+          setMessages((prev) => [...prev, { role: "assistant", content: `${customer360.name} não possui faturas em aberto no momento.` }]);
+        } else {
+          const f = faturas[0];
+          setMessages((prev) => [...prev, { role: "assistant", content: `📄 Segunda via gerada para ${customer360.name}:\n\n• Vencimento: ${new Date(f.due_date).toLocaleDateString("pt-BR")}\n• Valor: R$ ${(f.value || 0).toFixed(2)}\n• Boleto: ${f.boleto || "—"}\n• Linha digitável: ${f.linha_digitavel || "—"}\n• PIX: ${f.pix_code ? "Disponível" : "—"}` }]);
+        }
+      } else if (action === "abrir_os") {
+        res = await ixcApi({ action: "os_create", data: { id_cliente: clientId, assunto: "Chamado aberto via Lara (Assistente Virtual)", descricao: `Cliente: ${customer360.name}\nProtocolo gerado pela IA.`, status: "A", prioridade: "B" } });
+        const osId = res?.data?.id || res?.data?.data?.id;
+        setMessages((prev) => [...prev, { role: "assistant", content: `🔧 Ordem de serviço criada no IXCSoft para ${customer360.name}.\n\nOS #${osId || "—"}\nStatus: Aberta\nSetor: Suporte Técnico` }]);
+      } else if (action === "faturas") {
+        res = await ixcApi({ action: "faturas_cliente", clientId });
+        const faturas = res?.data?.result?.registros || res?.data?.data || [];
+        const total = faturas.length;
+        const abertas = faturas.filter((f) => f.status === "A").length;
+        setMessages((prev) => [...prev, { role: "assistant", content: `💳 Faturas de ${customer360.name}:\n\n• Total: ${total}\n• Em aberto: ${abertas}\n• Pagas: ${total - abertas}` }]);
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: "Não consegui executar esta ação no IXCSoft agora. Tente novamente." }]);
+    } finally {
+      setActionLoading(null);
+    }
+  }, [customer360]);
 
   return (
     <PageContainer>
@@ -78,10 +124,36 @@ export default function AIAssistant() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="(00) 00000-0000"
-                className="w-40 h-9 px-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
+                className="w-36 h-9 px-3 bg-muted/60 rounded-lg text-sm focus:outline-none focus:bg-card focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
+
+          {customer360 && (
+            <div className="px-4 py-2 bg-primary/5 border-b border-border flex items-center gap-2 flex-wrap">
+              <UserCheck className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-xs font-medium text-primary">{customer360.name}</span>
+              <span className="text-xs text-muted-foreground">ID #{customer360.id}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${customer360.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                {customer360.is_active ? "Ativo" : "Inativo"}
+              </span>
+              {customer360.financial_risk && (
+                <span className={`text-xs px-1.5 py-0.5 rounded ${customer360.financial_risk === "baixo" ? "bg-green-100 text-green-700" : customer360.financial_risk === "medio" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+                  Risco {customer360.financial_risk}
+                </span>
+              )}
+              <div className="flex-1" />
+              <button onClick={() => runQuickAction("segunda_via")} disabled={!!actionLoading} className="text-xs px-2 py-1 rounded-md bg-card border border-border hover:bg-muted flex items-center gap-1 disabled:opacity-40">
+                {actionLoading === "segunda_via" ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 2ª Via
+              </button>
+              <button onClick={() => runQuickAction("faturas")} disabled={!!actionLoading} className="text-xs px-2 py-1 rounded-md bg-card border border-border hover:bg-muted flex items-center gap-1 disabled:opacity-40">
+                {actionLoading === "faturas" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />} Faturas
+              </button>
+              <button onClick={() => runQuickAction("abrir_os")} disabled={!!actionLoading} className="text-xs px-2 py-1 rounded-md bg-card border border-border hover:bg-muted flex items-center gap-1 disabled:opacity-40">
+                {actionLoading === "abrir_os" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wrench className="w-3 h-3" />} OS
+              </button>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-4">
             {messages.map((msg, idx) => (
@@ -153,7 +225,7 @@ export default function AIAssistant() {
           <div className={`overflow-y-auto scrollbar-thin flex-1 ${rightTab === "360" ? "block" : "hidden"}`}>
             <div className="p-4">
               <p className="text-xs text-muted-foreground mb-3">Busque um cliente pelo CPF/CNPJ para ver todos os dados integrados do IXCSoft.</p>
-              <Customer360Panel />
+              <Customer360Panel onCustomerFound={setCustomer360} />
             </div>
           </div>
 

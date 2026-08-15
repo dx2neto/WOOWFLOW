@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { logError } from '../../shared/errorLogger.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -125,6 +125,35 @@ interface SpecialistData {
   formatted: string;
 }
 
+async function fetchCustomerData(base44: any, phone: string, customerContext: any): Promise<any> {
+  // 1. Se temos CPF/CNPJ no contexto, usa customer_360 (mais completo)
+  const doc = customerContext?.cpf_cnpj ? String(customerContext.cpf_cnpj).replace(/\D/g, '') : '';
+  if (doc.length >= 11) {
+    try {
+      const resp = await base44.functions.invoke('ixcApi', { action: 'customer_360', cpfCnpj: doc });
+      const d = resp?.data?.data || resp?.data || resp;
+      if (d?.found) return d;
+    } catch { /* fallback para pre_analise */ }
+  }
+
+  // 2. Se temos ixc_customer_id no contexto, busca por ID
+  const ixcId = customerContext?.ixc_customer_id || customerContext?.id;
+  if (ixcId) {
+    try {
+      const resp = await base44.functions.invoke('ixcApi', { action: 'cliente_por_id', clientId: String(ixcId) });
+      const d = resp?.data?.result || resp?.data?.data || resp?.data;
+      const cliente = d?.registros?.[0] || d;
+      if (cliente?.id) {
+        // Busca dados completos via pre_analise (telefone) ou contratos/faturas
+        return fetchPreAnalysis(base44, phone);
+      }
+    } catch { /* fallback */ }
+  }
+
+  // 3. Fallback: busca por telefone (pre_analise)
+  return fetchPreAnalysis(base44, phone);
+}
+
 async function fetchPreAnalysis(base44: any, phone: string): Promise<any> {
   if (!phone || phone.replace(/\D/g, '').length < 8) return null;
   try {
@@ -134,13 +163,12 @@ async function fetchPreAnalysis(base44: any, phone: string): Promise<any> {
   } catch { return null; }
 }
 
-async function fetchFinanceData(base44: any, phone: string): Promise<SpecialistData> {
-  const pre = await fetchPreAnalysis(base44, phone);
+async function fetchFinanceData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
+  const pre = await fetchCustomerData(base44, phone, customerContext);
   if (!pre) return { fetched: false, context_label: 'Dados Financeiros IXC', raw_data: null, formatted: 'Cliente não identificado na base IXC. Solicitar CPF/CNPJ para consulta.' };
 
   const fat = pre.faturas || {};
   const cliente = pre.cliente || {};
-  const overdueInvoices = (pre.contratos || []).length > 0 ? pre.contratos[0] : null;
 
   const formatted = [
     `CLIENTE: ${cliente.name || 'N/A'} (ID: ${cliente.id || 'N/A'})`,
@@ -158,8 +186,8 @@ async function fetchFinanceData(base44: any, phone: string): Promise<SpecialistD
   return { fetched: true, context_label: 'Dados Financeiros IXC', raw_data: pre, formatted };
 }
 
-async function fetchTechData(base44: any, phone: string): Promise<SpecialistData> {
-  const pre = await fetchPreAnalysis(base44, phone);
+async function fetchTechData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
+  const pre = await fetchCustomerData(base44, phone, customerContext);
   if (!pre) return { fetched: false, context_label: 'Dados Técnicos IXC', raw_data: null, formatted: 'Cliente não identificado. Solicitar CPF/CNPJ ou telefone para consulta técnica.' };
 
   const contratos = pre.contratos || [];
@@ -212,8 +240,8 @@ async function fetchSalesData(base44: any): Promise<SpecialistData> {
   }
 }
 
-async function fetchRetentionData(base44: any, phone: string): Promise<SpecialistData> {
-  const pre = await fetchPreAnalysis(base44, phone);
+async function fetchRetentionData(base44: any, phone: string, customerContext: any): Promise<SpecialistData> {
+  const pre = await fetchCustomerData(base44, phone, customerContext);
   if (!pre) return { fetched: false, context_label: 'Dados de Retenção IXC', raw_data: null, formatted: 'Cliente não identificado. Necessário CPF/CNPJ para análise de churn.' };
 
   const summary = pre.summary || {};
@@ -245,12 +273,12 @@ async function fetchRetentionData(base44: any, phone: string): Promise<Specialis
   return { fetched: true, context_label: 'Dados de Retenção IXC', raw_data: { ...pre, churn_risk: churnRisk }, formatted };
 }
 
-async function fetchSpecialistData(base44: any, specialist: string, phone: string): Promise<SpecialistData> {
+async function fetchSpecialistData(base44: any, specialist: string, phone: string, customerContext: any): Promise<SpecialistData> {
   switch (specialist) {
-    case 'finance':   return fetchFinanceData(base44, phone);
-    case 'tech':      return fetchTechData(base44, phone);
+    case 'finance':   return fetchFinanceData(base44, phone, customerContext);
+    case 'tech':      return fetchTechData(base44, phone, customerContext);
     case 'sales':     return fetchSalesData(base44);
-    case 'retention': return fetchRetentionData(base44, phone);
+    case 'retention': return fetchRetentionData(base44, phone, customerContext);
     default:          return { fetched: false, context_label: 'N/A', raw_data: null, formatted: '' };
   }
 }
@@ -377,7 +405,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Passo 2: Busca dados REAIS no IXC conforme o especialista ─────────────
-    const specialistData = await fetchSpecialistData(base44, specialist, phone);
+    const specialistData = await fetchSpecialistData(base44, specialist, phone, customer_context);
 
     // ── Passo 3: Gera resposta com o especialista + dados reais ──────────────
     const specialistPrompt = SPECIALIST_PROMPTS[specialist] || SPECIALIST_PROMPTS.general;

@@ -29,7 +29,7 @@ function formatDate(d) {
   try { return new Date(d).toLocaleDateString("pt-BR"); } catch { return d; }
 }
 
-export default function Customer360Panel() {
+export default function Customer360Panel({ onCustomerFound }) {
   const [cpf, setCpf] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -61,8 +61,20 @@ export default function Customer360Panel() {
       if (!res.data) throw new Error("Resposta inválida");
       if (res.data.found === false) {
         setError("Cliente não encontrado no IXCSoft");
+        setData(null);
+        onCustomerFound?.(null);
       } else {
         setData(res.data);
+        onCustomerFound?.({
+          id: res.data.cliente?.id,
+          name: res.data.cliente?.name,
+          cpf_cnpj: res.data.cliente?.cpf_cnpj,
+          phone: res.data.cliente?.phone,
+          city: res.data.cliente?.city,
+          is_active: res.data.cliente?.is_active,
+          financial_risk: res.data.summary?.financial_risk,
+          overdue_count: res.data.summary?.overdue_count,
+        });
       }
     } catch (e) {
       setError(e.message || "Erro ao consultar cliente");
