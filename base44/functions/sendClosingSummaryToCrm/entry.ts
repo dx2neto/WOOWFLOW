@@ -171,23 +171,23 @@ export default async function(req) {
 
     let lead;
     if (existingLeads && (existingLeads as any[]).length > 0) {
-      // Atualiza Lead existente
+      // Atualiza Lead existente — move automaticamente para "finalizado"
       lead = (existingLeads as any[])[0];
       const existingNotes = lead.notes ? `${lead.notes}\n\n---\n\n` : '';
       await base44.asServiceRole.entities.Lead.update(lead.id, {
         notes: existingNotes + crmSummary,
-        stage: llmResult.lead_stage || lead.stage,
+        stage: 'finalizado',
         ...(llmResult.needs_followup ? { next_contact: new Date(Date.now() + 86400000).toISOString().slice(0, 10) } : {}),
       }).catch(() => {});
     } else {
-      // Cria novo Lead
+      // Cria novo Lead já na coluna "finalizado"
       lead = await base44.asServiceRole.entities.Lead.create({
         name: leadName,
         phone: leadPhone,
         email: leadEmail || undefined,
         city: leadCity,
         origin: 'whatsapp',
-        stage: llmResult.lead_stage || 'novo_lead',
+        stage: 'finalizado',
         notes: crmSummary,
         ...(llmResult.needs_followup ? { next_contact: new Date(Date.now() + 86400000).toISOString().slice(0, 10) } : {}),
         assigned_user_id: user?.id || null,
@@ -197,7 +197,7 @@ export default async function(req) {
     // ── 6. Adicionar mensagem de sistema na conversa ─────────────────────────
     await base44.asServiceRole.entities.Message.create({
       conversation_id,
-      content: `[CRM] Resumo de encerramento enviado para o CRM.\n${llmResult.needs_followup ? `⚠️ Follow-up necessário: ${llmResult.followup_reason || ''}` : '✅ Atendimento concluído.'}`,
+      content: `[CRM] Resumo de encerramento sincronizado. Card movido para "Finalizado".\n${llmResult.needs_followup ? `⚠️ Follow-up necessário: ${llmResult.followup_reason || ''}` : '✅ Atendimento concluído.'}`,
       direction: 'system',
       type: 'system',
       timestamp: now,

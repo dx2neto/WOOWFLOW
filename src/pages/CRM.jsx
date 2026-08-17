@@ -14,6 +14,7 @@ const stages = [
   { key: "agendamento", label: "Agendamento", color: "border-t-teal-500" },
   { key: "venda_fechada", label: "Venda Fechada", color: "border-t-green-500" },
   { key: "venda_perdida", label: "Venda Perdida", color: "border-t-red-500" },
+  { key: "finalizado", label: "Finalizado", color: "border-t-slate-500" },
 ];
 
 export default function CRM() {

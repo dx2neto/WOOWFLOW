@@ -47,7 +47,8 @@
         "agendamento",
         "preparar_contrato",
         "venda_fechada",
-        "venda_perdida"
+        "venda_perdida",
+        "finalizado"
       ],
       "default": "novo_lead"
     },
