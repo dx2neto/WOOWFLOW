@@ -76,12 +76,18 @@ Deno.serve(async (req) => {
           sync_status: 'rate_limited', action: 'rate_limit',
           error_message: `IP ${security.clientIp} excedeu o limite de req/min`,
         }).catch(() => {});
+      } else if (security.status === 401 || security.status === 403) {
+        await base44.asServiceRole.entities.MessageSyncLog.create({
+          sync_status: 'error', action: 'security_rejection',
+          error_message: `HTTP ${security.status}: ${security.error} (IP: ${security.clientIp})`,
+        }).catch(() => {});
       }
       return Response.json({ error: security.error }, { status: security.status });
     }
 
     const body = await req.json().catch(() => ({}));
-    const event = String(body.event || body.type || '');
+    // Normaliza o nome do evento para lowercase (Evolution API pode enviar MESSAGES_UPSERT ou messages.upsert)
+    const event = String(body.event || body.type || '').toLowerCase();
     const instanceId = String(body.instance || body.instanceName || body.instanceId || '');
     const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
