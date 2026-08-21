@@ -3,11 +3,8 @@
 // Usado por todas as functions do Integration Hub (zapsign, clicksign, omie, etc.)
 //
 // Responsabilidades:
-// 1. Busca a Integration pelo slug no catálogo
-// 2. Verifica se está habilitada (enabled === true)
-// 3. Executa a chamada HTTP via fetch
-// 4. Grava o resultado em IntegrationLog (sempre — sucesso ou erro)
-// 5. Retorna o resultado para quem chamou
+// 1. getIntegration: busca a Integration pelo slug no catálogo
+// 2. callWithLogging: executa fetch + grava resultado em IntegrationLog (sempre)
 // ═══════════════════════════════════════════════════════════════════════════
 
 type AnyRecord = Record<string, unknown>;
@@ -37,16 +34,6 @@ export interface CallResult {
   error?: string;
 }
 
-function truncateForLog(value: unknown): unknown {
-  if (value === null || value === undefined) return null;
-  try {
-    const str = typeof value === 'string' ? value : JSON.stringify(value);
-    return str.length > 2000 ? str.slice(0, 2000) + '...' : value;
-  } catch {
-    return '[unserializable]';
-  }
-}
-
 export async function getIntegration(base44: B44Client, slug: string): Promise<AnyRecord | null> {
   try {
     const results = await base44.asServiceRole.entities.Integration.filter({ slug });
@@ -56,77 +43,51 @@ export async function getIntegration(base44: B44Client, slug: string): Promise<A
   }
 }
 
+function safeObject(value: unknown): AnyRecord {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as AnyRecord;
+  if (Array.isArray(value)) return { array: value };
+  return { value: String(value || '') };
+}
+
 export async function callWithLogging(base44: B44Client, opts: CallOptions): Promise<CallResult> {
   const startTime = Date.now();
-
-  // ── 1. Buscar Integration pelo slug ────────────────────────────────────────
-  const integration = await getIntegration(base44, opts.slug);
-  if (!integration || integration.enabled !== true) {
-    const duration = Date.now() - startTime;
-    await base44.asServiceRole.entities.IntegrationLog.create({
-      integration_slug: opts.slug,
-      action: opts.action,
-      method: opts.method,
-      status: 'falha',
-      error_message: 'Integração desabilitada ou não cadastrada',
-      duration_ms: duration,
-      details: `Slug: ${opts.slug}`,
-    }).catch(() => {});
-    return { ok: false, status: 409, data: { error: 'Integração desabilitada ou não cadastrada' }, error: 'Integração desabilitada' };
+  let requestPayload: AnyRecord | null = null;
+  if (typeof opts.body === 'string') {
+    try { requestPayload = JSON.parse(opts.body); } catch { requestPayload = { raw: opts.body.slice(0, 500) }; }
   }
 
-  // ── 2. Executar fetch ──────────────────────────────────────────────────────
   let response: Response;
-  let responseData: unknown;
+  let responseData: AnyRecord;
   let fetchError: string | null = null;
 
   try {
-    response = await fetch(opts.url, {
-      method: opts.method,
-      headers: opts.headers || {},
-      body: opts.body,
-    });
+    response = await fetch(opts.url, { method: opts.method, headers: opts.headers || {}, body: opts.body });
     const text = await response.text();
     try {
-      responseData = JSON.parse(text);
+      const parsed = JSON.parse(text);
+      responseData = safeObject(parsed);
     } catch {
-      responseData = { raw: text };
+      responseData = { raw: text.slice(0, 2000) };
     }
   } catch (err) {
     fetchError = (err as Error).message;
     const duration = Date.now() - startTime;
     await base44.asServiceRole.entities.IntegrationLog.create({
-      integration_slug: opts.slug,
-      action: opts.action,
-      method: opts.method,
-      status: 'falha',
-      error_message: fetchError,
-      duration_ms: duration,
-      details: `${opts.method} ${opts.url}`,
+      integration_slug: opts.slug, action: opts.action, method: opts.method,
+      status: 'falha', error_message: fetchError, duration_ms: duration,
+      details: `${opts.method} ${opts.url}`, request_payload: requestPayload,
     }).catch(() => {});
     return { ok: false, status: 0, data: { error: fetchError }, error: fetchError };
   }
 
-  // ── 3. Logar resultado ─────────────────────────────────────────────────────
   const duration = Date.now() - startTime;
   await base44.asServiceRole.entities.IntegrationLog.create({
-    integration_slug: opts.slug,
-    action: opts.action,
-    method: opts.method,
-    status: response.ok ? 'sucesso' : 'falha',
-    response_status: response.status,
-    response_payload: truncateForLog(responseData) as AnyRecord,
+    integration_slug: opts.slug, action: opts.action, method: opts.method,
+    status: response.ok ? 'sucesso' : 'falha', response_status: response.status,
+    response_payload: responseData,
     error_message: response.ok ? null : String(fetchError || JSON.stringify(responseData)).slice(0, 500),
-    duration_ms: duration,
-    details: `${opts.method} ${opts.url}`,
+    duration_ms: duration, details: `${opts.method} ${opts.url}`, request_payload: requestPayload,
   }).catch(() => {});
 
   return { ok: response.ok, status: response.status, data: responseData };
-}
-
-// Helper para auth check compartilhado entre todas as functions
-export async function checkAuth(req: Request): Promise<boolean> {
-  const internalToken = Deno.env.get('INTERNAL_FUNCTION_TOKEN') || '';
-  const internalOk = internalToken !== '' && req.headers.get('x-internal-token') === internalToken;
-  return internalOk; // Service role calls pass internal token; user calls are checked separately
 }

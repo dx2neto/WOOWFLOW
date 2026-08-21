@@ -33,6 +33,8 @@ const Signatures = lazy(() => import('@/pages/Signatures'));
 const KnowledgeBase = lazy(() => import('@/pages/KnowledgeBase'));
 const Reports = lazy(() => import('@/pages/Reports'));
 const Integrations = lazy(() => import('@/pages/Integrations'));
+const IntegrationHub = lazy(() => import('@/pages/IntegrationHub'));
+const IntegrationHubDetail = lazy(() => import('@/pages/IntegrationHubDetail'));
 const UsersPage = lazy(() => import('@/pages/Users'));
 const TagsQueues = lazy(() => import('@/pages/TagsQueues'));
 const Holidays = lazy(() => import('@/pages/Holidays'));
@@ -123,6 +125,8 @@ const AuthenticatedApp = () => {
           {/* Áreas administrativas — apenas admin */}
           <Route element={<RequirePermission adminOnly />}>
             <Route path="/integrations" element={<Integrations />} />
+            <Route path="/integration-hub" element={<IntegrationHub />} />
+            <Route path="/integration-hub/:slug" element={<IntegrationHubDetail />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/system-logs" element={<SystemLogs />} />
