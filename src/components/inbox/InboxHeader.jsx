@@ -4,6 +4,7 @@ import { channelTabs } from "./inboxConstants";
 
 export default function InboxHeader({
   instances, selectedInstance, onInstanceChange, onReloadInstances,
+  loadingInstances, instancesError,
   loadingConvsFromWa, onLoadWhatsAppConversations,
   onNewConversation, onClear, conversationsCount,
   channel, setChannel, channelCounts,
@@ -24,7 +25,11 @@ export default function InboxHeader({
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          {instances.length > 0 ? (
+          {loadingInstances ? (
+            <div className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Carregando instâncias...
+            </div>
+          ) : instances.length > 0 ? (
             <div className="flex items-center gap-2">
               <select value={selectedInstance} onChange={(e) => onInstanceChange(e.target.value)}
                 className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary">
@@ -39,9 +44,16 @@ export default function InboxHeader({
               </button>
             </div>
           ) : (
-            <button onClick={onReloadInstances} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
-              <RefreshCw className="h-4 w-4" /> Carregar instâncias
-            </button>
+            <div className="flex flex-col gap-1">
+              <button onClick={onReloadInstances} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
+                <RefreshCw className="h-4 w-4" /> Carregar instâncias
+              </button>
+              {instancesError && (
+                <span className="text-xs text-red-600 max-w-[260px] truncate" title={instancesError}>
+                  ⚠️ {instancesError}
+                </span>
+              )}
+            </div>
           )}
           <button onClick={onLoadWhatsAppConversations} disabled={!selectedInstance || loadingConvsFromWa}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted disabled:opacity-50">

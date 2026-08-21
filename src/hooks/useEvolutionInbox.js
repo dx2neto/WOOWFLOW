@@ -39,6 +39,8 @@ export function useEvolutionInbox({
   const { toast } = useToast();
 
   const [instances, setInstances] = useState([]);
+  const [loadingInstances, setLoadingInstances] = useState(false);
+  const [instancesError, setInstancesError] = useState(null);
   const [selectedInstance, setSelectedInstance] = useState(() => localStorage.getItem("evolution_instance") || "");
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [sendingMedia, setSendingMedia] = useState(false);
@@ -48,9 +50,15 @@ export function useEvolutionInbox({
 
   // ── Carregar instâncias ──────────────────────────────────────────────────
   const loadInstances = useCallback(async () => {
+    setLoadingInstances(true);
+    setInstancesError(null);
     try {
       const response = await evolutionApi({ action: "list_instances" });
-      const list = response?.data?.instances || [];
+      const data = response?.data || {};
+      if (!data.success && data.error) {
+        throw new Error(typeof data.error === "string" ? data.error : data.error?.message || "Falha ao carregar instâncias");
+      }
+      const list = data.instances || [];
       setInstances(list);
       if (list.length > 0) {
         // Valida se a instância selecionada (do localStorage) ainda existe na lista
@@ -64,10 +72,15 @@ export function useEvolutionInbox({
           }
         }
       }
-    } catch {
+    } catch (err) {
       setInstances([]);
+      const msg = err?.message || "Não foi possível conectar à Evolution API";
+      setInstancesError(msg);
+      toast({ title: "Erro ao carregar instâncias WhatsApp", description: msg, variant: "destructive" });
+    } finally {
+      setLoadingInstances(false);
     }
-  }, [selectedInstance]);
+  }, [selectedInstance, toast]);
 
   useEffect(() => { loadInstances(); }, []);
 
@@ -263,6 +276,8 @@ export function useEvolutionInbox({
   return {
     // Estado
     instances,
+    loadingInstances,
+    instancesError,
     selectedInstance,
     syncingHistory,
     sendingMedia,

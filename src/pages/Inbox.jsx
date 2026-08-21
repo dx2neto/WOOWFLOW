@@ -73,7 +73,7 @@ export default function Inbox() {
 
   // ── Hook: toda a lógica de Evolution API encapsulada ──────────────────────
   const {
-    instances, selectedInstance, syncingHistory, sendingMedia,
+    instances, loadingInstances, instancesError, selectedInstance, syncingHistory, sendingMedia,
     waResults, searchingWa, loadingConvsFromWa, selectedInstanceState,
     query, channel, setQuery, setChannel,
     setSelectedInstance: handleInstanceChange,
@@ -152,6 +152,7 @@ export default function Inbox() {
     <div className="h-full overflow-hidden bg-background flex flex-col">
       <InboxHeader
         instances={instances} selectedInstance={selectedInstance}
+        loadingInstances={loadingInstances} instancesError={instancesError}
         onInstanceChange={handleInstanceChange} onReloadInstances={loadInstances}
         loadingConvsFromWa={loadingConvsFromWa} onLoadWhatsAppConversations={handleLoadWhatsAppConversations}
         onNewConversation={() => setShowNewConversation(true)} onClear={() => setShowClearModal(true)}
