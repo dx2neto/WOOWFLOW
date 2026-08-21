@@ -5,6 +5,7 @@ import { useEntityList } from "@/hooks/useEntityQueries";
 import { PageContainer, StatCard, Card } from "@/components/ui/app-card";
 import IntegrationHealthCard from "@/components/monitor/IntegrationHealthCard";
 import SyncErrorTimeline from "@/components/monitor/SyncErrorTimeline";
+import IntegrationHubErrors from "@/components/monitor/IntegrationHubErrors";
 import {
   Activity, RefreshCw, AlertTriangle, CheckCircle, XCircle,
   Server, Clock, Zap,
@@ -165,6 +166,11 @@ export default function IntegrationMonitor() {
         errorLogs={errorLogs}
         loading={loadingSync || loadingErrors}
       />
+
+      {/* Erros do Integration Hub */}
+      <div className="mt-6">
+        <IntegrationHubErrors />
+      </div>
     </PageContainer>
   );
 }
