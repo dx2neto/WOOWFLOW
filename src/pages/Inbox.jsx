@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversations, useMessages, useEntityList, useEntityCreate, useEntityUpdate, useEntityBulkCreate, useEntityDelete } from "@/hooks/useEntityQueries";
 import { useEvolutionInbox } from "@/hooks/useEvolutionInbox";
+import { useUnifiedChannels } from "@/hooks/useUnifiedChannels";
 import { useInboxDerived } from "@/hooks/useInboxDerived";
 import { useInboxActions } from "@/hooks/useInboxActions";
 import { useInboxMessaging } from "@/hooks/useInboxMessaging";
@@ -12,6 +13,7 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useIxcPreAnalysis } from "@/hooks/useIxcPreAnalysis";
 import { channelTabs, defaultForm } from "@/components/inbox/inboxConstants";
 import InboxHeader from "@/components/inbox/InboxHeader";
+import UnifiedChannelOverview from "@/components/inbox/UnifiedChannelOverview";
 import ConversationList from "@/components/inbox/ConversationList";
 import ChatArea from "@/components/inbox/ChatArea";
 import RightPanel from "@/components/inbox/RightPanel";
@@ -83,6 +85,11 @@ export default function Inbox() {
     conversations, selected, selectedId, setSelectedId,
     convCreate, convUpdate, convBulkCreate, msgCreate,
   });
+
+  // ── Hook: status unificado de todos os canais (WhatsApp, PABX, Instagram, etc.) ──
+  const {
+    channelStats, totalActive, totalChannels,
+  } = useUnifiedChannels({ conversations, selectedInstanceState, instances });
 
   // ── Limpar tudo e importar conversas do WhatsApp (Evolution API) ─────────
   const handleClearAndImportEvolution = () => handleClearAllConversations(async () => {
@@ -159,6 +166,13 @@ export default function Inbox() {
         conversationsCount={conversations.length}
         channel={channel} setChannel={setChannel} channelCounts={channelCounts}
         selectedInstanceState={selectedInstanceState}
+      />
+
+      <UnifiedChannelOverview
+        channelStats={channelStats}
+        totalActive={totalActive}
+        totalChannels={totalChannels}
+        onChannelSelect={setChannel}
       />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[360px_minmax(460px,1fr)_340px]">
