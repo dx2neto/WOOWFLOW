@@ -4,30 +4,17 @@
   "properties": {
     "integration": {
       "type": "string",
-      "enum": [
-        "evolutionApi",
-        "evolutionWebhook",
-        "omnichannelApi",
-        "metaApi",
-        "metaWebhook",
-        "tiktokApi",
-        "emailApi",
-        "erpApi",
-        "telephonyApi",
-        "crmApi",
-        "billingApi",
-        "signatureApi",
-        "aiOmnichannelApi",
-        "webChatApi",
-        "internalChatApi",
-        "ixcApi",
-        "zapsignApi",
-        "serasaApi",
-        "sendPaymentReminders",
-        "sendNegotiationOffers"
-      ]
+      "description": "Nome da integra\u00e7\u00e3o (legado \u2014 mantido para compatibilidade com functions existentes)"
+    },
+    "integration_slug": {
+      "type": "string",
+      "description": "Slug da integra\u00e7\u00e3o no cat\u00e1logo Integration (ex: zapsign, omie, ixcsoft)"
     },
     "action": {
+      "type": "string",
+      "description": "Nome da a\u00e7\u00e3o/endpoint chamado, ex: zapsign.createDocumentUpload"
+    },
+    "method": {
       "type": "string"
     },
     "status": {
@@ -40,28 +27,34 @@
     },
     "details": {
       "type": "string"
+    },
+    "request_payload": {
+      "type": "object"
+    },
+    "response_status": {
+      "type": "integer"
+    },
+    "response_payload": {
+      "type": "object"
+    },
+    "error_message": {
+      "type": "string"
+    },
+    "duration_ms": {
+      "type": "integer"
     }
   },
   "required": [
-    "integration",
-    "status"
+    "action"
   ],
   "rls": {
-    "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
+    "create": true,
     "read": {
       "user_condition": {
         "role": "admin"
       }
     },
-    "update": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
+    "update": false,
     "delete": {
       "user_condition": {
         "role": "admin"
