@@ -1,0 +1,45 @@
+{
+  "name": "IntegrationWebhook",
+  "type": "object",
+  "properties": {
+    "integration_slug": {
+      "type": "string",
+      "description": "Slug da integra\u00e7\u00e3o que originou o webhook (ex: zapsign, clicksign, evolution-api)"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Tipo do evento recebido (ex: document.signed, messages.upsert)"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Payload bruto recebido no webhook"
+    },
+    "processed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o webhook j\u00e1 foi processado"
+    }
+  },
+  "required": [
+    "integration_slug",
+    "payload"
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

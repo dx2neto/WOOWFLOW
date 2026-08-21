@@ -1,0 +1,64 @@
+{
+  "name": "Integration",
+  "type": "object",
+  "properties": {
+    "slug": {
+      "type": "string",
+      "description": "Identificador \u00fanico (ex: zapsign, omie, ixcsoft, evolution-api, openai, claude, pagcard)"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Nome amig\u00e1vel (ex: ZapSign, Omie, IXCsoft)"
+    },
+    "description": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a integra\u00e7\u00e3o est\u00e1 ativa"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "production",
+        "sandbox"
+      ],
+      "default": "production"
+    },
+    "base_url": {
+      "type": "string",
+      "description": "URL base da API (edit\u00e1vel no painel, ex: para trocar sandbox/produ\u00e7\u00e3o ou apontar IXCsoft/Evolution para o host do cliente)"
+    },
+    "extra_config": {
+      "type": "object",
+      "description": "Configura\u00e7\u00f5es adicionais n\u00e3o sens\u00edveis (ex: anthropic_version, paths do PagCard)"
+    }
+  },
+  "required": [
+    "slug",
+    "display_name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
